@@ -11,6 +11,7 @@ import {
   sanitizeFolderName
 } from "./lib/folders";
 import { createEmptyNote } from "./lib/notes";
+import { createCarrotCommit } from "./lib/carrot";
 import { bootstrapOwnerAccount, restoreAccount } from "./lib/auth";
 import {
   listFolders,
@@ -22,7 +23,7 @@ import {
   saveNote,
   saveNotes
 } from "./lib/storage";
-import type { AgentAction, Note, VaultFolder } from "./types";
+import type { AgentAction, Note, UserProfile, VaultFolder } from "./types";
 
 const AiPanel = lazy(() => import("./components/AiPanel"));
 const GraphPane = lazy(() => import("./components/GraphPane"));
@@ -50,6 +51,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
   const [accountLocked, setAccountLocked] = useState(false);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [folderCreateNonce, setFolderCreateNonce] = useState(0);
   const [isReady, setIsReady] = useState(false);
 
@@ -65,6 +67,8 @@ export default function App() {
       }
 
       if (cancelled || !profile) return;
+
+      setCurrentUser(profile);
 
       if (profile.mustChangePassword) {
         setAccountLocked(true);
@@ -119,12 +123,20 @@ export default function App() {
   useEffect(() => {
     if (!isReady || !activeNote) return;
 
-    const timeout = window.setTimeout(() => {
+    const saveTimeout = window.setTimeout(() => {
       void saveNote(activeNote).catch((error) => console.error("Autosave failed", error));
     }, 450);
 
-    return () => window.clearTimeout(timeout);
-  }, [activeNote, isReady]);
+    const carrotTimeout = window.setTimeout(() => {
+      void createCarrotCommit(activeNote, currentUser, "Autosave Markdown")
+        .catch((error) => console.error("Carrot autosave failed", error));
+    }, 1600);
+
+    return () => {
+      window.clearTimeout(saveTimeout);
+      window.clearTimeout(carrotTimeout);
+    };
+  }, [activeNote, currentUser, isReady]);
 
   const handleCreateNote = useCallback((folderPath: string | null = selectedFolderPath) => {
     const note = createEmptyNote("Nová poznámka", folderPath ?? "");
@@ -134,7 +146,8 @@ export default function App() {
     setView("note");
     setSidebarOpen(true);
     void saveNote(note);
-  }, [selectedFolderPath]);
+    void createCarrotCommit(note, currentUser, "Created note");
+  }, [currentUser, selectedFolderPath]);
 
   const handleCreateFolder = useCallback((parentPath: string | null, rawName: string) => {
     const name = sanitizeFolderName(rawName);
@@ -204,9 +217,10 @@ export default function App() {
 
     void Promise.all([
       saveFolders(nextFolders.filter((candidate) => isPathInsideFolder(candidate.path, newPath))),
-      saveNotes(changedNotes)
+      saveNotes(changedNotes),
+      ...changedNotes.map((note) => createCarrotCommit(note, currentUser, "Folder path changed"))
     ]);
-  }, [folders, notes, selectedFolderPath]);
+  }, [currentUser, folders, notes, selectedFolderPath]);
 
   const handleDeleteFolder = useCallback((folderId: string) => {
     const folder = folders.find((candidate) => candidate.id === folderId);
@@ -244,7 +258,8 @@ export default function App() {
     setNotes((current) => current.map((candidate) => candidate.id === noteId ? nextNote : candidate));
     setSelectedFolderPath(folderPath);
     void saveNote(nextNote);
-  }, [notes]);
+    void createCarrotCommit(nextNote, currentUser, "Moved note");
+  }, [currentUser, notes]);
 
   const handleDeleteNote = useCallback((noteId: string) => {
     setNotes((current) => {
@@ -288,9 +303,10 @@ export default function App() {
 
     await Promise.all([
       saveNotes(incomingNotes),
-      saveFolders(newFolders)
+      saveFolders(newFolders),
+      ...incomingNotes.map((note) => createCarrotCommit(note, currentUser, "Imported Markdown"))
     ]);
-  }, [activeNoteId, folders, notes]);
+  }, [activeNoteId, currentUser, folders, notes]);
 
   const handleApplyAgentAction = useCallback(async (action: AgentAction): Promise<string> => {
     if (action.type === "open_note") {
@@ -350,6 +366,7 @@ export default function App() {
       setSelectedFolderPath(folderPath || null);
       setView("note");
       await saveNote(note);
+      await createCarrotCommit(note, currentUser, "Máša created note");
       return "Vytvořena poznámka „" + note.title + "“.";
     }
 
@@ -376,8 +393,9 @@ export default function App() {
 
     setNotes((current) => current.map((note) => note.id === nextNote.id ? nextNote : note));
     await saveNote(nextNote);
+    await createCarrotCommit(nextNote, currentUser, "Máša updated note");
     return "Upravena poznámka „" + nextNote.title + "“.";
-  }, [folders, notes]);
+  }, [currentUser, folders, notes]);
 
   useEffect(() => {
     const handleKeyboardShortcut = (event: KeyboardEvent) => {
@@ -511,6 +529,7 @@ export default function App() {
         ) : view === "account" || accountLocked ? (
           <Suspense fallback={<main className="account-pane loading-screen">Načítám účet…</main>}>
             <AccountPanel
+              onUserChange={setCurrentUser}
               onSecurityStateChange={(locked) => {
                 setAccountLocked(locked);
                 if (locked) {

@@ -1,10 +1,12 @@
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { InsertMenu } from "./InsertMenu";
 import { applyMarkdownInsert, type MarkdownInsertRequest } from "../lib/editorInsert";
 import { extractWikiLinks, getBacklinks, normalizeTitle } from "../lib/notes";
-import type { Note, VaultFolder } from "../types";
+import { listCarrotCommits } from "../lib/storage";
+import { verifyCarrotCommit } from "../lib/carrot";
+import type { CarrotCommit, Note, VaultFolder } from "../types";
 
 interface EditorPaneProps {
   note: Note | null;
@@ -23,8 +25,50 @@ export const EditorPane = memo(function EditorPane({
 }: EditorPaneProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const [carrotOpen, setCarrotOpen] = useState(false);
+  const [carrotCommits, setCarrotCommits] = useState<CarrotCommit[]>([]);
+  const [carrotSelectedId, setCarrotSelectedId] = useState<string | null>(null);
+  const [carrotVerified, setCarrotVerified] = useState<Record<string, boolean | null>>({});
+  const [carrotLoading, setCarrotLoading] = useState(false);
   const backlinks = useMemo(() => note ? getBacklinks(notes, note.title) : [], [note, notes]);
   const outgoingLinks = useMemo(() => note ? extractWikiLinks(note.content) : [], [note]);
+
+  const loadCarrotHistory = useCallback(async () => {
+    if (!note) return;
+
+    setCarrotLoading(true);
+    try {
+      const commits = await listCarrotCommits(note.id);
+      setCarrotCommits(commits);
+      setCarrotSelectedId((current) =>
+        current && commits.some((commit) => commit.id === current)
+          ? current
+          : commits[0]?.id ?? null
+      );
+
+      const verificationEntries = await Promise.all(
+        commits.slice(0, 100).map(async (commit) => [
+          commit.id,
+          await verifyCarrotCommit(commit)
+        ] as const)
+      );
+      setCarrotVerified(Object.fromEntries(verificationEntries));
+    } finally {
+      setCarrotLoading(false);
+    }
+  }, [note?.id]);
+
+  useEffect(() => {
+    setCarrotOpen(false);
+    setCarrotCommits([]);
+    setCarrotSelectedId(null);
+    setCarrotVerified({});
+  }, [note?.id]);
+
+  const selectedCarrotCommit = useMemo(
+    () => carrotCommits.find((commit) => commit.id === carrotSelectedId) ?? null,
+    [carrotCommits, carrotSelectedId]
+  );
 
   if (!note) {
     return (
@@ -84,6 +128,18 @@ export const EditorPane = memo(function EditorPane({
             {folders.map((folder) => <option value={folder.path} key={folder.id}>{folder.path}</option>)}
           </select>
           <span className="save-state">uloženo</span>
+          <button
+            type="button"
+            className={"carrot-toggle " + (carrotOpen ? "active" : "")}
+            onClick={() => {
+              const next = !carrotOpen;
+              setCarrotOpen(next);
+              if (next) void loadCarrotHistory();
+            }}
+            title="Carrot historie Markdownu"
+          >
+            🥕 Carrot
+          </button>
           <div className="mode-switch">
             <button className={mode === "edit" ? "selected" : ""} type="button" onClick={() => setMode("edit")}>Edit</button>
             <button className={mode === "preview" ? "selected" : ""} type="button" onClick={() => setMode("preview")}>Preview</button>
@@ -106,6 +162,67 @@ export const EditorPane = memo(function EditorPane({
             <textarea ref={textareaRef} className="note-editor" value={note.content} onChange={(event) => updateField("content", event.target.value)} spellCheck />
           ) : (
             <article className="markdown-preview"><ReactMarkdown remarkPlugins={[remarkGfm]}>{note.content}</ReactMarkdown></article>
+          )}
+
+          {carrotOpen && (
+            <section className="carrot-history">
+              <div className="carrot-history-head">
+                <div>
+                  <span>CARROT HISTORY</span>
+                  <strong>{carrotCommits.length} commitů</strong>
+                </div>
+                <button type="button" onClick={() => void loadCarrotHistory()} disabled={carrotLoading}>
+                  {carrotLoading ? "Načítám…" : "Obnovit"}
+                </button>
+              </div>
+
+              {carrotCommits.length === 0 ? (
+                <p className="carrot-empty">Pro tuto poznámku zatím není žádný Carrot commit.</p>
+              ) : (
+                <div className="carrot-grid">
+                  <div className="carrot-list">
+                    {carrotCommits.map((commit) => {
+                      const verified = carrotVerified[commit.id];
+                      return (
+                        <button
+                          type="button"
+                          className={commit.id === carrotSelectedId ? "active" : ""}
+                          key={commit.id}
+                          onClick={() => setCarrotSelectedId(commit.id)}
+                        >
+                          <span>{commit.message}</span>
+                          <strong>{commit.authorDisplayName}</strong>
+                          <small>
+                            {new Date(commit.createdAt).toLocaleString("cs-CZ")} · {commit.snapshotHash.slice(0, 8)}
+                          </small>
+                          <i>
+                            {commit.signatureAlgorithm === "Ed25519"
+                              ? verified === true
+                                ? "✓ podpis ověřen"
+                                : verified === false
+                                  ? "⚠ podpis nesedí"
+                                  : "podpis · " + (commit.keyId ?? "unknown")
+                              : "browser · bez podpisu"}
+                          </i>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {selectedCarrotCommit && (
+                    <div className="carrot-preview">
+                      <div className="carrot-preview-meta">
+                        <span>commit {selectedCarrotCommit.id.slice(0, 8)}</span>
+                        <span>parent {selectedCarrotCommit.parentId?.slice(0, 8) ?? "root"}</span>
+                        <span>key {selectedCarrotCommit.keyId ?? "unsigned"}</span>
+                      </div>
+                      <h3>{selectedCarrotCommit.title}</h3>
+                      <pre>{selectedCarrotCommit.content}</pre>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
           )}
 
           <section className="relations-panel">

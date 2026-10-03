@@ -10,9 +10,13 @@ import type { UserProfile } from "../types";
 
 interface AccountPanelProps {
   onSecurityStateChange?: (locked: boolean) => void;
+  onUserChange?: (user: UserProfile | null) => void;
 }
 
-export const AccountPanel = memo(function AccountPanel({ onSecurityStateChange }: AccountPanelProps) {
+export const AccountPanel = memo(function AccountPanel({
+  onSecurityStateChange,
+  onUserChange
+}: AccountPanelProps) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [mode, setMode] = useState<"login" | "register">("login");
   const [displayName, setDisplayName] = useState("");
@@ -29,6 +33,7 @@ export const AccountPanel = memo(function AccountPanel({ onSecurityStateChange }
     void restoreAccount().then((profile) => {
       if (cancelled) return;
       setUser(profile);
+      onUserChange?.(profile);
       onSecurityStateChange?.(Boolean(profile?.mustChangePassword));
       setStatus(
         profile?.mustChangePassword
@@ -48,7 +53,7 @@ export const AccountPanel = memo(function AccountPanel({ onSecurityStateChange }
     return () => {
       cancelled = true;
     };
-  }, [onSecurityStateChange]);
+  }, [onSecurityStateChange, onUserChange]);
 
   const submit = useCallback(async () => {
     setBusy(true);
@@ -60,6 +65,7 @@ export const AccountPanel = memo(function AccountPanel({ onSecurityStateChange }
 
       const session = await loginAccount(email, password);
       setUser(session.user);
+      onUserChange?.(session.user);
       onSecurityStateChange?.(session.user.mustChangePassword);
       setPassword("");
       setStatus("Přihlášeno jako " + session.user.displayName + ".");
@@ -68,7 +74,7 @@ export const AccountPanel = memo(function AccountPanel({ onSecurityStateChange }
     } finally {
       setBusy(false);
     }
-  }, [displayName, email, mode, onSecurityStateChange, password]);
+  }, [displayName, email, mode, onSecurityStateChange, onUserChange, password]);
 
   const submitPasswordChange = useCallback(async () => {
     if (newPassword.length < 12 || newPassword !== confirmPassword) return;
@@ -78,6 +84,7 @@ export const AccountPanel = memo(function AccountPanel({ onSecurityStateChange }
     try {
       const updated = await changeAccountPassword(newPassword);
       setUser(updated);
+      onUserChange?.(updated);
       setNewPassword("");
       setConfirmPassword("");
       onSecurityStateChange?.(false);
@@ -87,15 +94,16 @@ export const AccountPanel = memo(function AccountPanel({ onSecurityStateChange }
     } finally {
       setBusy(false);
     }
-  }, [confirmPassword, newPassword, onSecurityStateChange]);
+  }, [confirmPassword, newPassword, onSecurityStateChange, onUserChange]);
 
   const logout = useCallback(async () => {
     await clearStoredSession();
     setUser(null);
+    onUserChange?.(null);
     setPassword("");
     onSecurityStateChange?.(false);
     setStatus("Odhlášeno.");
-  }, [onSecurityStateChange]);
+  }, [onSecurityStateChange, onUserChange]);
 
   return (
     <main className="account-pane">

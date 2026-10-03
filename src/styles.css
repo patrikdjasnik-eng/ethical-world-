@@ -2935,3 +2935,177 @@ body,
 .account-brand-mark span {
   margin-top: 1px;
 }
+
+
+/* Carrot signed Markdown history */
+.carrot-toggle {
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid #2c2a31;
+  border-radius: 6px;
+  background: #151419;
+  color: #8a858f;
+  cursor: pointer;
+  font-size: 9px;
+}
+
+.carrot-toggle:hover,
+.carrot-toggle.active {
+  border-color: #514235;
+  background: #211a14;
+  color: #d0a878;
+}
+
+.carrot-history {
+  margin: 26px 0 12px;
+  border: 1px solid #2b292f;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #121217;
+}
+
+.carrot-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #242229;
+}
+
+.carrot-history-head > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.carrot-history-head span {
+  color: #c68b58;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: .1em;
+}
+
+.carrot-history-head strong {
+  color: #77717b;
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.carrot-history-head button {
+  border: 0;
+  background: transparent;
+  color: #716a75;
+  cursor: pointer;
+  font-size: 8px;
+}
+
+.carrot-grid {
+  display: grid;
+  grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+  min-height: 260px;
+}
+
+.carrot-list {
+  max-height: 390px;
+  overflow-y: auto;
+  border-right: 1px solid #242229;
+}
+
+.carrot-list button {
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 0;
+  border-bottom: 1px solid #1e1d23;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.carrot-list button:hover,
+.carrot-list button.active {
+  background: #19171c;
+}
+
+.carrot-list span {
+  color: #b9b3bd;
+  font-size: 9px;
+}
+
+.carrot-list strong,
+.carrot-list small,
+.carrot-list i {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.carrot-list strong {
+  color: #7e7782;
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.carrot-list small {
+  color: #55505a;
+  font-size: 7px;
+}
+
+.carrot-list i {
+  color: #786855;
+  font-size: 7px;
+  font-style: normal;
+}
+
+.carrot-preview {
+  min-width: 0;
+  padding: 11px 12px;
+}
+
+.carrot-preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #5f5963;
+  font-size: 7px;
+}
+
+.carrot-preview h3 {
+  margin: 10px 0 8px;
+  color: #c4bec8;
+  font-size: 12px;
+}
+
+.carrot-preview pre {
+  max-height: 320px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  border: 1px solid #242229;
+  border-radius: 6px;
+  background: #0d0d11;
+  color: #99939d;
+  font: 9px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+.carrot-empty {
+  margin: 0;
+  padding: 18px 12px;
+  color: #625d66;
+  font-size: 9px;
+}
+
+@media (max-width: 760px) {
+  .carrot-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .carrot-list {
+    max-height: 180px;
+    border-right: 0;
+    border-bottom: 1px solid #242229;
+  }
+}
