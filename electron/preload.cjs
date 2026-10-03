@@ -18,5 +18,5 @@ contextBridge.exposeInMainWorld("ethicalDesktop", {
     ipcRenderer.invoke("desktop:github-write-markdown", repoFullName, branch, files),
   authLoadSessionToken: () => ipcRenderer.invoke("desktop:auth-load-session-token"),
   authStoreSessionToken: (token) => ipcRenderer.invoke("desktop:auth-store-session-token", token),
-  authClearSessionToken: () => ipcRenderer.invoke("desktop:auth-clear-session-token")
+  authClearSessionToken: () => ipcRenderer.invoke("desktop:auth-clear-session-token"),\n  runtimeStatus: () => ipcRenderer.invoke("desktop:runtime-status")
 });
