@@ -120,9 +120,10 @@ export const GraphPane = memo(function GraphPane({
   return (
     <main className="graph-pane">
       <div className="graph-topbar">
-        <div>
+        <div className="graph-title-block">
           <span className="graph-kicker">KNOWLEDGE GRAPH</span>
           <strong>{scope === "global" ? "Celý vault" : "Lokální okolí"}</strong>
+          <small>{scopedGraph.nodes.length} uzlů · {scopedGraph.links.length} vazeb</small>
         </div>
 
         <div className="graph-toolbar">
@@ -160,7 +161,7 @@ export const GraphPane = memo(function GraphPane({
           width={stageSize.width}
           height={stageSize.height}
           graphData={graphData}
-          backgroundColor="#1e1e1e"
+          backgroundColor="#18181c"
           nodeVal={(rawNode) => 3 + Math.min((rawNode as RenderNode).degree, 8) * 0.75}
           nodeLabel={(rawNode) => {
             const node = rawNode as RenderNode;
@@ -186,24 +187,24 @@ export const GraphPane = memo(function GraphPane({
             if (isActive || isHovered) {
               context.beginPath();
               context.arc(x, y, radius + 5, 0, Math.PI * 2);
-              context.fillStyle = isActive ? "rgba(139,108,255,0.14)" : "rgba(255,255,255,0.07)";
+              context.fillStyle = isActive ? "rgba(141,116,232,0.15)" : "rgba(255,255,255,0.06)";
               context.fill();
             }
 
             context.beginPath();
             context.arc(x, y, radius, 0, Math.PI * 2);
-            context.fillStyle = isActive ? "#a88cff" : color;
+            context.fillStyle = isActive ? "#a78cff" : color;
             context.fill();
 
             context.lineWidth = Math.max(0.7, 1.2 / globalScale);
-            context.strokeStyle = isHovered || isActive ? "#e7e2ff" : "rgba(255,255,255,0.28)";
+            context.strokeStyle = isHovered || isActive ? "#eee9ff" : "rgba(255,255,255,0.24)";
             context.stroke();
 
-            const fontSize = Math.max(9 / globalScale, 3.2);
+            const fontSize = Math.max(10 / globalScale, 3.5);
             context.font = `${isActive ? 600 : 500} ${fontSize}px Inter, sans-serif`;
             context.textAlign = "center";
             context.textBaseline = "top";
-            context.fillStyle = dimmed ? "rgba(210,210,210,0.2)" : isActive ? "#efeaff" : "#c8c8c8";
+            context.fillStyle = dimmed ? "rgba(210,210,210,0.18)" : isActive ? "#f2edff" : "#c9c9ce";
             context.fillText(node.title, x, y + radius + 3 / globalScale);
             context.restore();
           }}
@@ -211,13 +212,13 @@ export const GraphPane = memo(function GraphPane({
             const link = rawLink as unknown as RenderLink;
 
             if (!hoveredNodeId) {
-              return "rgba(150,150,150,0.18)";
+              return "rgba(150,150,160,0.16)";
             }
 
             const sourceId = linkEndpointId(link.source);
             const targetId = linkEndpointId(link.target);
             const highlighted = sourceId === hoveredNodeId || targetId === hoveredNodeId;
-            return highlighted ? "rgba(168,140,255,0.72)" : "rgba(130,130,130,0.06)";
+            return highlighted ? "rgba(167,140,255,0.74)" : "rgba(130,130,140,0.05)";
           }}
           linkWidth={(rawLink) => {
             const link = rawLink as unknown as RenderLink;
@@ -244,9 +245,12 @@ export const GraphPane = memo(function GraphPane({
 
         {!hasLinks && (
           <div className="graph-empty-overlay">
-            <span>◇</span>
-            <strong>Graf zatím nemá propojení</strong>
-            <p>Přidej do poznámek odkazy jako <code>[[Název poznámky]]</code>.</p>
+            <span className="graph-empty-orbit"><i /><i /><i /></span>
+            <strong>Graph začne růst s tvými odkazy</strong>
+            <p>
+              Propoj poznámky syntaxí <code>[[Název poznámky]]</code> a vztahy se objeví automaticky.
+            </p>
+            <small>Tip: otevři poznámku a přidej první wiki link.</small>
           </div>
         )}
 

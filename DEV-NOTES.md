@@ -48,76 +48,42 @@ provider /models nebo /api/tags
 Máša ONLINE pouze pokud byl nalezen skutečný model
 ```
 
-### CI stav
-
-GitHub Actions runy vytvářejí `frontend` i `backend` job, ale v dostupném GitHub API končí před spuštěním workflow kroků a vrací prázdné `steps`. Proto CI zatím není označené jako green.
-
-### Rozhodnutí
-
-- MVP zůstává local-first.
-- `main` není pracovní větev.
-- Browser MVP používá IndexedDB.
-- AI komunikace vede přes lokální FastAPI gateway.
-- První providery jsou Ollama a OpenAI-compatible API.
-- API klíče se nepersistují ve frontend storage.
-- Wiki odkazy používají syntaxi `[[Title]]`.
-- Produkční frontend registruje Service Worker, vývojový Vite režim ne.
-- Zelený stav Máši nikdy nesmí být dekorativní; znamená ověřený dostupný model.
-
-### Další krok
-
-Lokálně ověřit `npm test`, `npm run build` a `python -m compileall server`. Potom přidat embeddings/RAG a agent tools s diff approval.
-
-
-### UI redesign – Obsidian-like dark workspace
-
-- levý panel přepracovaný na kompaktní file explorer;
-- tmavé neutrální plochy místo gradientního dashboard vzhledu;
-- fialová používána jen jako akcent aktivního prvku a odkazů;
-- přidaný document tab bar a breadcrumb řádek;
-- editor má užší čtecí šířku a typografii vhodnou pro dlouhé poznámky;
-- pravý panel Máši vizuálně sjednocený se sekundárním panelem aplikace;
-- hover/active stavy jsou subtilnější a blíž desktop knowledge editorům;
-- zachovaná veškerá existující logika vaultu, wiki links, backlinks, autosave a AI health-checků.
-
-
 ### Knowledge Graph v1
 
-- přidaný interaktivní 2D force-directed knowledge graph;
-- graf je generovaný přímo z `[[wiki links]]` ve vaultu;
-- Global režim zobrazuje celý vault;
-- Local režim zobrazuje aktivní poznámku a její přímé sousedy;
-- velikost uzlu se mění podle počtu vazeb;
-- aktivní poznámka má zvýrazněný uzel;
-- barvy uzlů jsou deterministicky odvozené od folderu;
-- hover zvýrazní lokální síť uzlu a potlačí zbytek;
-- kliknutí na uzel otevře příslušnou poznámku;
-- podporovaný zoom, pan a drag uzlů;
-- vyhledávání v grafu tlumí uzly mimo dotaz;
-- statusbar zobrazuje počet uzlů, vazeb a skupin;
-- přidané unit testy pro stavbu graph dat, deduplikaci vazeb a local graph.
+- interaktivní 2D force-directed knowledge graph;
+- graf je generovaný z `[[wiki links]]`;
+- Global a Local režim;
+- velikost uzlu podle počtu vazeb;
+- hover neighborhood highlighting;
+- kliknutí na uzel otevře poznámku;
+- zoom, pan a drag uzlů;
+- folder barvy, vyhledávání a statusbar.
 
+### Vault explorer v2
 
-### Vault explorer v2 – Obsidian-like folders
+- IndexedDB schema v2 s `folders` store;
+- root složky i libovolně vnořené podsložky;
+- inline create/rename folder;
+- drag & drop poznámek;
+- bezpečné mazání neprázdných složek;
+- přesun poznámky přes folder selector;
+- Ctrl+N nová poznámka;
+- Ctrl+Shift+N nová složka;
+- breadcrumb nested paths.
 
-- IndexedDB schema povýšeno na v2 a přidaný samostatný `folders` store;
-- existující poznámky se při migraci automaticky převedou do stromu složek podle hodnoty `folder`;
-- podporované root složky i libovolně vnořené podsložky;
-- nový file toolbar pro vytvoření poznámky a složky;
-- vybraná složka určuje výchozí umístění nové poznámky;
-- folder tree podporuje expand/collapse;
-- přidané inline vytváření a přejmenování složek;
-- přejmenování parent složky aktualizuje descendants i všechny poznámky uvnitř;
-- prázdnou složku lze smazat, neprázdná je chráněná před náhodným smazáním;
-- poznámku lze přesunout mezi složkami přímo z toolbaru editoru;
-- breadcrumb podporuje nested folder path;
-- graph i Máša dál pracují nad stejnými poznámkami bez změny datového kontraktu;
-- přidané unit testy pro folder path, migraci legacy notes a sestavení folder tree.
+### UI redesign v3 – desktop workbench
 
+- nový horní workspace topbar;
+- nový levý activity rail;
+- Files panel lze zavřít přes rail nebo Ctrl+B;
+- Mášu lze zavřít přes rail nebo Ctrl+J;
+- workspace automaticky využije uvolněné místo po zavření panelu;
+- Files panel je kompaktní a už neduplikuje hlavní navigaci;
+- texty a ovládací prvky jsou větší a čitelnější než v předchozí verzi;
+- tmavé vrstvy jsou jasněji oddělené bez velkých gradientních ploch;
+- graph používá jemný grid canvas a nový prázdný stav bez plovoucí karty;
+- responsive režim přepíná panely na overlay místo zmenšení obsahu.
 
-### Vault explorer polish
+### CI stav
 
-- přidané drag & drop přesouvání poznámek mezi složkami i zpět do rootu;
-- `Ctrl+N` vytvoří novou poznámku v právě vybrané složce;
-- `Ctrl+Shift+N` otevře inline vytvoření složky v právě vybrané složce;
-- opravené IndexedDB transaction completion handlery tak, aby se registrovaly před dokončením transakce.
+GitHub Actions workflow zůstává nakonfigurovaný, ale dostupné runy dříve končily před spuštěním workflow kroků. Lokální `npm test` a `npm run build` je proto stále potřeba ověřit na checkoutu.
