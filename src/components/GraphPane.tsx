@@ -11,7 +11,6 @@ import {
   buildKnowledgeGraph,
   buildLocalKnowledgeGraph,
   getConnectedNodeIds,
-  type KnowledgeGraphLink,
   type KnowledgeGraphNode
 } from "../lib/graph";
 import type { Note } from "../types";
