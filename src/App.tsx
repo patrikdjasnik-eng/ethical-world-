@@ -43,7 +43,7 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [view, setView] = useState<WorkspaceView>("note");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [aiOpen, setAiOpen] = useState(true);
+  const [aiOpen, setAiOpen] = useState(false);
   const [folderCreateNonce, setFolderCreateNonce] = useState(0);
   const [isReady, setIsReady] = useState(false);
 

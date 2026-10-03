@@ -161,7 +161,7 @@ export const GraphPane = memo(function GraphPane({
           width={stageSize.width}
           height={stageSize.height}
           graphData={graphData}
-          backgroundColor="#18181c"
+          backgroundColor="rgba(0,0,0,0)"
           nodeVal={(rawNode) => 3 + Math.min((rawNode as RenderNode).degree, 8) * 0.75}
           nodeLabel={(rawNode) => {
             const node = rawNode as RenderNode;
