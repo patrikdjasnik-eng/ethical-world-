@@ -25,6 +25,7 @@ import type { AgentAction, Note, VaultFolder } from "./types";
 
 const AiPanel = lazy(() => import("./components/AiPanel"));
 const GraphPane = lazy(() => import("./components/GraphPane"));
+const ConnectorPanel = lazy(() => import("./components/ConnectorPanel"));
 const now = new Date().toISOString();
 
 const welcomeNote: Note = {
@@ -230,6 +231,33 @@ export default function App() {
     setView("note");
   }, []);
 
+  const handleImportConnectorNotes = useCallback(async (incomingNotes: Note[]) => {
+    if (incomingNotes.length === 0) return;
+
+    const importedIds = new Set(incomingNotes.map((note) => note.id));
+    const mergedNotes = [
+      ...incomingNotes,
+      ...notes.filter((note) => !importedIds.has(note.id))
+    ];
+
+    const inferredFolders = inferFoldersFromNotes(incomingNotes);
+    const existingPaths = new Set(folders.map((folder) => folder.path));
+    const newFolders = inferredFolders.filter((folder) => !existingPaths.has(folder.path));
+
+    setNotes(mergedNotes);
+    setFolders((current) => [
+      ...current,
+      ...newFolders
+    ].sort((left, right) => left.path.localeCompare(right.path, "cs")));
+    setActiveNoteId(incomingNotes[0]?.id ?? activeNoteId);
+    setView("note");
+
+    await Promise.all([
+      saveNotes(incomingNotes),
+      saveFolders(newFolders)
+    ]);
+  }, [activeNoteId, folders, notes]);
+
   const handleApplyAgentAction = useCallback(async (action: AgentAction): Promise<string> => {
     if (action.type === "open_note") {
       const note = notes.find((candidate) => candidate.id === action.noteId);
@@ -355,8 +383,16 @@ export default function App() {
     return <div className="loading-screen">Načítám lokální vault…</div>;
   }
 
-  const workspaceLabel = view === "graph" ? "Knowledge graph" : activeNote?.title || "Žádná poznámka";
-  const workspacePath = view === "graph" ? "Global view" : activeNote?.folder || "Vault root";
+  const workspaceLabel = view === "graph"
+    ? "Knowledge graph"
+    : view === "connectors"
+      ? "Connectors"
+      : activeNote?.title || "Žádná poznámka";
+  const workspacePath = view === "graph"
+    ? "Global view"
+    : view === "connectors"
+      ? "Integrations"
+      : activeNote?.folder || "Vault root";
 
   return (
     <div className={`workbench ${sidebarOpen ? "sidebar-open" : ""} ${aiOpen ? "ai-open" : ""}`}>
@@ -416,6 +452,10 @@ export default function App() {
         {view === "graph" ? (
           <Suspense fallback={<main className="graph-pane loading-screen">Načítám knowledge graph…</main>}>
             <GraphPane notes={notes} activeNoteId={activeNoteId} onOpenNote={handleOpenGraphNote} />
+          </Suspense>
+        ) : view === "connectors" ? (
+          <Suspense fallback={<main className="connector-pane loading-screen">Načítám konektory…</main>}>
+            <ConnectorPanel notes={notes} onImportNotes={handleImportConnectorNotes} />
           </Suspense>
         ) : (
           <EditorPane

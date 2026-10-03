@@ -1,3 +1,11 @@
+export type NoteSourceProvider = "local-markdown" | "github" | "notion";
+
+export interface NoteSource {
+  provider: NoteSourceProvider;
+  connectionId: string;
+  relativePath: string;
+}
+
 export interface Note {
   id: string;
   title: string;
@@ -5,6 +13,7 @@ export interface Note {
   folder: string;
   createdAt: string;
   updatedAt: string;
+  source?: NoteSource;
 }
 
 export interface VaultFolder {
