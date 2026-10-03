@@ -56,11 +56,13 @@ export const AiPanel = memo(function AiPanel({ activeNote, notes }: AiPanelProps
       const detected = await autoDetectLocalProvider();
 
       if (detected?.online && detected.model) {
+        const detectedModel = detected.model;
+
         setSettings((current) => ({
           ...current,
           provider: detected.provider,
           baseUrl: detected.baseUrl,
-          model: detected.model
+          model: detectedModel
         }));
         setConnection({ backendOnline: true, modelOnline: true, checking: false });
         return;

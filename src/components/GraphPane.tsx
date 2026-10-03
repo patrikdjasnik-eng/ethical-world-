@@ -33,7 +33,7 @@ interface RenderNode extends KnowledgeGraphNode {
   fy?: number | null;
 }
 
-interface RenderLink extends KnowledgeGraphLink {
+interface RenderLink {
   source: string | RenderNode;
   target: string | RenderNode;
 }
@@ -502,7 +502,9 @@ export const GraphPane = memo(function GraphPane({
             const node = rawNode as RenderNode;
             focusNode(node);
 
-            if ((event as MouseEvent | undefined)?.detail >= 2) {
+            const clickCount = (event as MouseEvent | undefined)?.detail ?? 0;
+
+            if (clickCount >= 2) {
               onOpenNote(node.id);
             }
           }}
