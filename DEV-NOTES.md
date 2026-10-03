@@ -67,3 +67,15 @@ GitHub Actions runy vytvářejí `frontend` i `backend` job, ale v dostupném Gi
 ### Další krok
 
 Lokálně ověřit `npm test`, `npm run build` a `python -m compileall server`. Potom přidat embeddings/RAG a agent tools s diff approval.
+
+
+### UI redesign – Obsidian-like dark workspace
+
+- levý panel přepracovaný na kompaktní file explorer;
+- tmavé neutrální plochy místo gradientního dashboard vzhledu;
+- fialová používána jen jako akcent aktivního prvku a odkazů;
+- přidaný document tab bar a breadcrumb řádek;
+- editor má užší čtecí šířku a typografii vhodnou pro dlouhé poznámky;
+- pravý panel Máši vizuálně sjednocený se sekundárním panelem aplikace;
+- hover/active stavy jsou subtilnější a blíž desktop knowledge editorům;
+- zachovaná veškerá existující logika vaultu, wiki links, backlinks, autosave a AI health-checků.

@@ -157,8 +157,8 @@ export const AiPanel = memo(function AiPanel({ activeNote, notes }: AiPanelProps
   }, [activeNote, canSend, input, messages, notes, refreshConnection, settings]);
 
   return (
-    <aside className="ai-panel">
-      <div className="ai-header">
+    <aside className="ai-panel"><div className="pane-titlebar"><span>Assistant</span><span className="pane-actions">− □</span></div>
+      <div className="ai-header"><div className="ai-avatar">M</div>
         <div>
           <span className={`ai-status-dot ${status.className}`} />
           <strong>Máša</strong>

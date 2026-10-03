@@ -25,25 +25,39 @@ export const VaultSidebar = memo(function VaultSidebar({
 
   return (
     <aside className="vault-sidebar">
-      <div className="brand-row">
-        <div className="brand-mark">EW</div>
-        <div>
+      <div className="workspace-header">
+        <div className="workspace-mark">E</div>
+        <div className="workspace-copy">
           <strong>Ethical World</strong>
-          <span>local knowledge OS</span>
+          <span>Local vault</span>
         </div>
+        <button className="icon-button subtle" type="button" title="Nastavení vaultu" aria-label="Nastavení vaultu">
+          ⋯
+        </button>
       </div>
 
-      <button className="primary-button" type="button" onClick={onCreateNote}>
-        + Nová poznámka
-      </button>
+      <div className="sidebar-actions">
+        <button className="new-note-button" type="button" onClick={onCreateNote}>
+          <span>＋</span>
+          Nová poznámka
+        </button>
+      </div>
 
-      <input
-        className="search-input"
-        value={query}
-        onChange={(event) => onQueryChange(event.target.value)}
-        placeholder="Hledat ve vaultu…"
-        aria-label="Hledat poznámky"
-      />
+      <div className="search-shell">
+        <span>⌕</span>
+        <input
+          className="search-input"
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Hledat"
+          aria-label="Hledat poznámky"
+        />
+      </div>
+
+      <div className="section-label">
+        <span>POZNÁMKY</span>
+        <span>{filteredNotes.length}</span>
+      </div>
 
       <div className="note-list" role="list">
         {filteredNotes.map((note) => (
@@ -53,11 +67,15 @@ export const VaultSidebar = memo(function VaultSidebar({
             role="listitem"
           >
             <button type="button" className="note-open" onClick={() => onSelectNote(note.id)}>
-              <span>{note.title || "Bez názvu"}</span>
-              <small>{note.folder}</small>
+              <span className="file-icon">▱</span>
+              <span className="note-copy">
+                <strong>{note.title || "Bez názvu"}</strong>
+                <small>{note.folder}</small>
+              </span>
             </button>
+
             <button
-              className="icon-button danger"
+              className="icon-button danger note-delete"
               type="button"
               onClick={() => onDeleteNote(note.id)}
               aria-label={`Smazat ${note.title}`}
@@ -70,8 +88,8 @@ export const VaultSidebar = memo(function VaultSidebar({
       </div>
 
       <div className="sidebar-footer">
-        <span>{notes.length} poznámek</span>
-        <span>offline-first</span>
+        <span><i className="footer-dot" /> Local</span>
+        <span>{notes.length} souborů</span>
       </div>
     </aside>
   );
