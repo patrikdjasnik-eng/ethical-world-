@@ -14,9 +14,12 @@
 - [x] Backlinks.
 - [x] Markdown preview.
 - [x] AI chat panel.
+- [x] Lazy loading AI panelu.
 - [x] Ollama provider.
 - [x] OpenAI-compatible provider.
-- [x] CI build + tests.
+- [x] Produkční Service Worker.
+- [x] CI workflow nakonfigurovaný.
+- [ ] CI green run – aktuální GitHub joby končí před spuštěním kroků.
 
 ## v0.2 – Real knowledge retrieval
 
@@ -52,4 +55,4 @@
 - [ ] Obsidian-compatible import.
 - [ ] Git version history.
 - [ ] Optional encrypted sync.
-- [ ] PWA/offline service worker.
+- [x] PWA/offline service worker základ.

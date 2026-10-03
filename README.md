@@ -19,8 +19,10 @@ Cílem je mít jedno místo pro poznámky, projekty, wiki odkazy a kontextovou A
 - `[[wiki links]]` a backlinks.
 - Markdown preview.
 - AI panel nad aktuální poznámkou a vaultem.
-- Lokální Ollama provider.
+- Lazy-loaded AI panel.
+- Ollama provider.
 - OpenAI-compatible provider pro lokální `llama-server` a kompatibilní služby.
+- Produkční Service Worker pro offline cache.
 - API klíč se v UI neukládá do persistentního storage.
 
 ## Spuštění
@@ -42,6 +44,14 @@ uvicorn server.main:app --reload --port 8787
 ```
 
 Výchozí frontend běží na `http://localhost:5173` a API na `http://localhost:8787`.
+
+Kontrola projektu:
+
+```powershell
+npm test
+npm run build
+python -m compileall server
+```
 
 Pro Ollamu nastav v aplikaci například `http://localhost:11434`. Pro `llama-server` použij OpenAI-compatible režim a jeho `/v1` endpoint.
 
