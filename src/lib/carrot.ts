@@ -12,7 +12,7 @@ async function sha256(value: string): Promise<string> {
   return bytesToHex(new Uint8Array(digest));
 }
 
-export function carrotSigningPayload(commit: Omit<CarrotCommit, "signature" | "publicKey" | "keyId" | "signatureAlgorithm">): string {
+export function carrotSigningPayload(commit: Omit<CarrotCommit, "signature" | "publicKey" | "keyId" | "signatureAlgorithm" | "commitHash">): string {
   return JSON.stringify({
     version: 1,
     id: commit.id,
@@ -21,6 +21,7 @@ export function carrotSigningPayload(commit: Omit<CarrotCommit, "signature" | "p
     title: commit.title,
     folder: commit.folder,
     snapshotHash: commit.snapshotHash,
+    parentCommitHash: commit.parentCommitHash,
     message: commit.message,
     authorUserId: commit.authorUserId,
     authorDisplayName: commit.authorDisplayName,
@@ -55,6 +56,7 @@ export async function createCarrotCommit(
     folder: note.folder,
     content: note.content,
     snapshotHash: nextHash,
+    parentCommitHash: parent?.commitHash ?? null,
     message: message.trim().slice(0, 240) || "Markdown snapshot",
     authorUserId: user?.id ?? "local-anonymous",
     authorDisplayName: user?.displayName ?? "Local user",
@@ -62,6 +64,7 @@ export async function createCarrotCommit(
   };
 
   const payload = carrotSigningPayload(unsigned);
+  const commitHash = await sha256(payload);
 
   let signature: string | null = null;
   let publicKey: string | null = null;
@@ -78,6 +81,7 @@ export async function createCarrotCommit(
 
   const commit: CarrotCommit = {
     ...unsigned,
+    commitHash,
     signature,
     publicKey,
     keyId,
@@ -106,6 +110,7 @@ export async function verifyCarrotCommit(commit: CarrotCommit): Promise<boolean 
     folder: commit.folder,
     content: commit.content,
     snapshotHash: commit.snapshotHash,
+    parentCommitHash: commit.parentCommitHash,
     message: commit.message,
     authorUserId: commit.authorUserId,
     authorDisplayName: commit.authorDisplayName,

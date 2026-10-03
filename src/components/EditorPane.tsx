@@ -193,7 +193,7 @@ export const EditorPane = memo(function EditorPane({
                           <span>{commit.message}</span>
                           <strong>{commit.authorDisplayName}</strong>
                           <small>
-                            {new Date(commit.createdAt).toLocaleString("cs-CZ")} · {commit.snapshotHash.slice(0, 8)}
+                            {new Date(commit.createdAt).toLocaleString("cs-CZ")} · {commit.commitHash.slice(0, 8)}
                           </small>
                           <i>
                             {commit.signatureAlgorithm === "Ed25519"
@@ -214,6 +214,7 @@ export const EditorPane = memo(function EditorPane({
                       <div className="carrot-preview-meta">
                         <span>commit {selectedCarrotCommit.id.slice(0, 8)}</span>
                         <span>parent {selectedCarrotCommit.parentId?.slice(0, 8) ?? "root"}</span>
+                        <span>chain {selectedCarrotCommit.parentCommitHash?.slice(0, 8) ?? "root"}</span>
                         <span>key {selectedCarrotCommit.keyId ?? "unsigned"}</span>
                       </div>
                       <h3>{selectedCarrotCommit.title}</h3>

@@ -75,6 +75,8 @@ export interface CarrotCommit {
   folder: string;
   content: string;
   snapshotHash: string;
+  commitHash: string;
+  parentCommitHash: string | null;
   message: string;
   authorUserId: string;
   authorDisplayName: string;
