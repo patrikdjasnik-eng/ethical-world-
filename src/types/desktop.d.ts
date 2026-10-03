@@ -15,6 +15,34 @@ export interface DesktopMarkdownFile {
   content: string;
 }
 
+export interface DesktopGitHubStatus {
+  configured: boolean;
+  connected: boolean;
+  login: string | null;
+}
+
+export interface DesktopGitHubRepo {
+  fullName: string;
+  private: boolean;
+  defaultBranch: string;
+  canPush: boolean;
+}
+
+export interface DesktopGitHubLoginStart {
+  configured: boolean;
+  sessionId?: string;
+  userCode?: string;
+  verificationUri?: string;
+  intervalSeconds?: number;
+  expiresAt?: number;
+}
+
+export type DesktopGitHubLoginPoll =
+  | { status: "pending"; intervalSeconds?: number }
+  | { status: "connected"; login: string | null }
+  | { status: "expired" }
+  | { status: "error"; error?: string };
+
 export interface EthicalDesktopApi {
   isDesktop: true;
   platform: string;
@@ -23,6 +51,26 @@ export interface EthicalDesktopApi {
   selectMarkdownFolder: () => Promise<DesktopMarkdownConnection | null>;
   readMarkdownFiles: (connectionId: string) => Promise<{ files: DesktopMarkdownFile[]; truncated: boolean }>;
   writeMarkdownFiles: (connectionId: string, files: DesktopMarkdownFile[]) => Promise<{ written: number }>;
+  githubStatus: () => Promise<DesktopGitHubStatus>;
+  githubStartLogin: () => Promise<DesktopGitHubLoginStart>;
+  githubPollLogin: (sessionId: string) => Promise<DesktopGitHubLoginPoll>;
+  githubDisconnect: () => Promise<{ connected: false }>;
+  githubListRepos: () => Promise<DesktopGitHubRepo[]>;
+  githubReadMarkdown: (
+    repoFullName: string,
+    branch?: string
+  ) => Promise<{
+    files: DesktopMarkdownFile[];
+    repoFullName: string;
+    branch: string;
+    connectionId: string;
+    truncated: boolean;
+  }>;
+  githubWriteMarkdown: (
+    repoFullName: string,
+    branch: string,
+    files: DesktopMarkdownFile[]
+  ) => Promise<{ written: number; branch: string; commitSha: string }>;
 }
 
 declare global {

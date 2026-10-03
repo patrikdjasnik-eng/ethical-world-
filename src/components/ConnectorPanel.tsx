@@ -1,5 +1,6 @@
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { markdownFilesToNotes, notesToMarkdownFiles } from "../lib/markdownConnector";
+import type { DesktopGitHubRepo } from "../types/desktop";
 import type { Note } from "../types";
 
 interface ConnectorPanelProps {
@@ -14,66 +15,232 @@ interface MarkdownConnection {
 
 export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNotes }: ConnectorPanelProps) {
   const [connection, setConnection] = useState<MarkdownConnection | null>(null);
-  const [busy, setBusy] = useState<"connect" | "import" | "export" | null>(null);
-  const [status, setStatus] = useState("Vyber lokální workspace nebo složku s Markdown soubory.");
+  const [localBusy, setLocalBusy] = useState<"connect" | "import" | "export" | null>(null);
+  const [localStatus, setLocalStatus] = useState("Vyber lokální workspace nebo složku s Markdown soubory.");
 
-  const connectLocal = useCallback(async () => {
+  const [githubConfigured, setGithubConfigured] = useState(false);
+  const [githubLogin, setGithubLogin] = useState<string | null>(null);
+  const [githubRepos, setGithubRepos] = useState<DesktopGitHubRepo[]>([]);
+  const [githubRepo, setGithubRepo] = useState("");
+  const [githubBusy, setGithubBusy] = useState<"login" | "repos" | "import" | "export" | null>(null);
+  const [githubStatusText, setGithubStatusText] = useState("Kontroluju GitHub connector…");
+  const [githubUserCode, setGithubUserCode] = useState<string | null>(null);
+
+  const selectedGitHubRepo = useMemo(
+    () => githubRepos.find((repo) => repo.fullName === githubRepo) ?? null,
+    [githubRepo, githubRepos]
+  );
+
+  const loadGitHubRepos = useCallback(async () => {
+    if (!window.ethicalDesktop) return;
+    setGithubBusy("repos");
+
+    try {
+      const repos = await window.ethicalDesktop.githubListRepos();
+      setGithubRepos(repos);
+      setGithubRepo((current) => current || repos[0]?.fullName || "");
+      setGithubStatusText(repos.length > 0 ? "Vyber repo pro Markdown sync." : "Účet nemá dostupná repozitáře.");
+    } catch (error) {
+      setGithubStatusText(error instanceof Error ? error.message : "Repozitáře se nepodařilo načíst.");
+    } finally {
+      setGithubBusy(null);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!window.ethicalDesktop) {
-      setStatus("Lokální workspace connector je dostupný pouze v desktopové aplikaci.");
+      setGithubStatusText("GitHub connector je dostupný pouze v desktopové aplikaci.");
       return;
     }
 
-    setBusy("connect");
+    let cancelled = false;
+
+    void window.ethicalDesktop.githubStatus().then((status) => {
+      if (cancelled) return;
+      setGithubConfigured(status.configured);
+      setGithubLogin(status.connected ? status.login : null);
+
+      if (!status.configured) {
+        setGithubStatusText("Chybí ETHICAL_GITHUB_CLIENT_ID.");
+      } else if (status.connected) {
+        setGithubStatusText("Připojeno" + (status.login ? " jako @" + status.login : "") + ".");
+        void loadGitHubRepos();
+      } else {
+        setGithubStatusText("GitHub je připravený k přihlášení.");
+      }
+    }).catch(() => {
+      if (!cancelled) setGithubStatusText("GitHub connector se nepodařilo inicializovat.");
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadGitHubRepos]);
+
+  const connectLocal = useCallback(async () => {
+    if (!window.ethicalDesktop) {
+      setLocalStatus("Lokální workspace connector je dostupný pouze v desktopové aplikaci.");
+      return;
+    }
+
+    setLocalBusy("connect");
 
     try {
       const selected = await window.ethicalDesktop.selectMarkdownFolder();
 
       if (selected) {
         setConnection(selected);
-        setStatus("Připojeno: " + selected.label);
+        setLocalStatus("Připojeno: " + selected.label);
       }
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Složku se nepodařilo připojit.");
+      setLocalStatus(error instanceof Error ? error.message : "Složku se nepodařilo připojit.");
     } finally {
-      setBusy(null);
+      setLocalBusy(null);
     }
   }, []);
 
-  const importMarkdown = useCallback(async () => {
+  const importLocalMarkdown = useCallback(async () => {
     if (!window.ethicalDesktop || !connection) return;
-
-    setBusy("import");
+    setLocalBusy("import");
 
     try {
       const result = await window.ethicalDesktop.readMarkdownFiles(connection.id);
-      const imported = markdownFilesToNotes(result.files, connection.id, notes);
+      const imported = markdownFilesToNotes(result.files, connection.id, notes, "local-markdown");
       await onImportNotes(imported);
-      setStatus(
+      setLocalStatus(
         "Importováno " + imported.length + " Markdown souborů" +
         (result.truncated ? " (dosažen bezpečnostní limit)." : ".")
       );
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Import Markdownu selhal.");
+      setLocalStatus(error instanceof Error ? error.message : "Import Markdownu selhal.");
     } finally {
-      setBusy(null);
+      setLocalBusy(null);
     }
   }, [connection, notes, onImportNotes]);
 
-  const exportMarkdown = useCallback(async () => {
+  const exportLocalMarkdown = useCallback(async () => {
     if (!window.ethicalDesktop || !connection) return;
-
-    setBusy("export");
+    setLocalBusy("export");
 
     try {
-      const files = notesToMarkdownFiles(notes, connection.id);
+      const files = notesToMarkdownFiles(notes, connection.id, "local-markdown");
       const result = await window.ethicalDesktop.writeMarkdownFiles(connection.id, files);
-      setStatus("Exportováno " + result.written + " Markdown souborů do " + connection.label + ".");
+      setLocalStatus("Exportováno " + result.written + " Markdown souborů do " + connection.label + ".");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Export Markdownu selhal.");
+      setLocalStatus(error instanceof Error ? error.message : "Export Markdownu selhal.");
     } finally {
-      setBusy(null);
+      setLocalBusy(null);
     }
   }, [connection, notes]);
+
+  const connectGitHub = useCallback(async () => {
+    if (!window.ethicalDesktop) return;
+    setGithubBusy("login");
+    setGithubUserCode(null);
+
+    try {
+      const started = await window.ethicalDesktop.githubStartLogin();
+
+      if (!started.configured || !started.sessionId) {
+        setGithubConfigured(false);
+        setGithubStatusText("Nejdřív nastav ETHICAL_GITHUB_CLIENT_ID a restartuj desktop dev.");
+        return;
+      }
+
+      setGithubConfigured(true);
+      setGithubUserCode(started.userCode ?? null);
+      setGithubStatusText(
+        "GitHub se otevřel v prohlížeči. Zadej kód " + (started.userCode ?? "") + "."
+      );
+
+      let intervalSeconds = Math.max(started.intervalSeconds ?? 5, 5);
+      const expiresAt = started.expiresAt ?? Date.now() + 15 * 60 * 1000;
+
+      while (Date.now() < expiresAt) {
+        await new Promise((resolve) => window.setTimeout(resolve, intervalSeconds * 1000));
+        const result = await window.ethicalDesktop.githubPollLogin(started.sessionId);
+
+        if (result.status === "pending") {
+          intervalSeconds = Math.max(result.intervalSeconds ?? intervalSeconds, intervalSeconds);
+          continue;
+        }
+
+        if (result.status === "connected") {
+          setGithubLogin(result.login);
+          setGithubUserCode(null);
+          setGithubStatusText("Připojeno" + (result.login ? " jako @" + result.login : "") + ".");
+          await loadGitHubRepos();
+          return;
+        }
+
+        if (result.status === "error") {
+          setGithubStatusText(result.error ?? "GitHub autorizace selhala.");
+          return;
+        }
+
+        setGithubStatusText("GitHub autorizační kód vypršel. Spusť přihlášení znovu.");
+        return;
+      }
+    } catch (error) {
+      setGithubStatusText(error instanceof Error ? error.message : "GitHub přihlášení selhalo.");
+    } finally {
+      setGithubBusy(null);
+    }
+  }, [loadGitHubRepos]);
+
+  const disconnectGitHub = useCallback(async () => {
+    if (!window.ethicalDesktop) return;
+    await window.ethicalDesktop.githubDisconnect();
+    setGithubLogin(null);
+    setGithubRepos([]);
+    setGithubRepo("");
+    setGithubUserCode(null);
+    setGithubStatusText("GitHub byl odpojen.");
+  }, []);
+
+  const importGitHubMarkdown = useCallback(async () => {
+    if (!window.ethicalDesktop || !selectedGitHubRepo) return;
+    setGithubBusy("import");
+
+    try {
+      const result = await window.ethicalDesktop.githubReadMarkdown(
+        selectedGitHubRepo.fullName,
+        selectedGitHubRepo.defaultBranch
+      );
+      const imported = markdownFilesToNotes(result.files, result.connectionId, notes, "github");
+      await onImportNotes(imported);
+      setGithubStatusText(
+        "Importováno " + imported.length + " Markdown souborů z " + result.repoFullName + "/" + result.branch +
+        (result.truncated ? " (výsledek byl omezen)." : ".")
+      );
+    } catch (error) {
+      setGithubStatusText(error instanceof Error ? error.message : "GitHub import selhal.");
+    } finally {
+      setGithubBusy(null);
+    }
+  }, [notes, onImportNotes, selectedGitHubRepo]);
+
+  const exportGitHubMarkdown = useCallback(async () => {
+    if (!window.ethicalDesktop || !selectedGitHubRepo) return;
+    setGithubBusy("export");
+
+    try {
+      const connectionId = "github:" + selectedGitHubRepo.fullName + ":" + selectedGitHubRepo.defaultBranch;
+      const files = notesToMarkdownFiles(notes, connectionId, "github");
+      const result = await window.ethicalDesktop.githubWriteMarkdown(
+        selectedGitHubRepo.fullName,
+        selectedGitHubRepo.defaultBranch,
+        files
+      );
+      setGithubStatusText(
+        "Zapsáno " + result.written + " Markdown souborů. Commit " + result.commitSha.slice(0, 8) + "."
+      );
+    } catch (error) {
+      setGithubStatusText(error instanceof Error ? error.message : "GitHub export selhal.");
+    } finally {
+      setGithubBusy(null);
+    }
+  }, [notes, selectedGitHubRepo]);
 
   return (
     <main className="connector-pane">
@@ -101,33 +268,74 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
           </p>
 
           <div className="connector-actions">
-            <button type="button" onClick={() => void connectLocal()} disabled={busy !== null}>
-              {busy === "connect" ? "Otevírám…" : connection ? "Změnit složku" : "Vybrat složku"}
+            <button type="button" onClick={() => void connectLocal()} disabled={localBusy !== null}>
+              {localBusy === "connect" ? "Otevírám…" : connection ? "Změnit složku" : "Vybrat složku"}
             </button>
-            <button type="button" onClick={() => void importMarkdown()} disabled={!connection || busy !== null}>
-              {busy === "import" ? "Importuju…" : "Import MD"}
+            <button type="button" onClick={() => void importLocalMarkdown()} disabled={!connection || localBusy !== null}>
+              {localBusy === "import" ? "Importuju…" : "Import MD"}
             </button>
-            <button type="button" onClick={() => void exportMarkdown()} disabled={!connection || busy !== null}>
-              {busy === "export" ? "Exportuju…" : "Export vaultu"}
+            <button type="button" onClick={() => void exportLocalMarkdown()} disabled={!connection || localBusy !== null}>
+              {localBusy === "export" ? "Exportuju…" : "Export vaultu"}
             </button>
           </div>
 
-          <small>{status}</small>
+          <small>{localStatus}</small>
         </section>
 
-        <section className="connector-card">
+        <section className={"connector-card " + (githubLogin ? "connector-card-ready" : "")}>
           <div className="connector-card-head">
             <div className="connector-icon">GH</div>
             <div>
               <strong>GitHub</strong>
-              <span>OAuth + Markdown-only sync</span>
+              <span>{githubLogin ? "Připojeno · @" + githubLogin : "Device OAuth · Markdown-only sync"}</span>
             </div>
           </div>
+
           <p>
-            Adapter bude importovat a exportovat pouze Markdown přes GitHub API,
-            bez klonování celého repozitáře.
+            Repo se neklonuje. Ethical World čte a zapisuje pouze <code>.md</code>/<code>.mdx</code>
+            přes GitHub API. Přístupový token je uložený přes OS secure storage.
           </p>
-          <div className="connector-badge">OAuth credentials · další krok</div>
+
+          {!githubLogin ? (
+            <div className="connector-actions">
+              <button type="button" onClick={() => void connectGitHub()} disabled={!githubConfigured || githubBusy !== null}>
+                {githubBusy === "login" ? "Čekám na GitHub…" : "Připojit GitHub"}
+              </button>
+              {githubUserCode && <code className="connector-code">{githubUserCode}</code>}
+            </div>
+          ) : (
+            <>
+              <label className="connector-select">
+                Repository
+                <select value={githubRepo} onChange={(event) => setGithubRepo(event.target.value)}>
+                  {githubRepos.map((repo) => (
+                    <option key={repo.fullName} value={repo.fullName}>
+                      {repo.fullName}{repo.private ? " · private" : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="connector-actions">
+                <button type="button" onClick={() => void importGitHubMarkdown()} disabled={!selectedGitHubRepo || githubBusy !== null}>
+                  {githubBusy === "import" ? "Importuju…" : "Import MD"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void exportGitHubMarkdown()}
+                  disabled={!selectedGitHubRepo?.canPush || githubBusy !== null}
+                  title={selectedGitHubRepo?.canPush ? "Export do repozitáře" : "Pro toto repo nemáš write oprávnění"}
+                >
+                  {githubBusy === "export" ? "Exportuju…" : "Export vaultu"}
+                </button>
+                <button type="button" onClick={() => void disconnectGitHub()} disabled={githubBusy !== null}>
+                  Odpojit
+                </button>
+              </div>
+            </>
+          )}
+
+          <small>{githubStatusText}</small>
         </section>
 
         <section className="connector-card">
@@ -142,7 +350,7 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
             Notion stránky budou mapované na Markdown poznámky se zachovaným původem
             pro pozdější obousměrnou synchronizaci.
           </p>
-          <div className="connector-badge">OAuth credentials · další krok</div>
+          <div className="connector-badge">OAuth backend · připravuje se</div>
         </section>
       </div>
     </main>

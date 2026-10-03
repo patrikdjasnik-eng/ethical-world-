@@ -2362,3 +2362,40 @@ body,
   .connector-grid { grid-template-columns: 1fr; }
   .connector-card { min-height: auto; }
 }
+
+
+.connector-code {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px dashed #4a4263;
+  border-radius: 6px;
+  background: #111116;
+  color: #c3b7f5 !important;
+  font-size: 10px;
+  letter-spacing: .08em;
+}
+
+.connector-select {
+  display: grid;
+  gap: 5px;
+  color: #666671;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.connector-select select {
+  width: 100%;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid #2d2d35;
+  border-radius: 6px;
+  outline: 0;
+  background: #101014;
+  color: #b4b4bd;
+  font-size: 9px;
+  text-transform: none;
+  letter-spacing: 0;
+}

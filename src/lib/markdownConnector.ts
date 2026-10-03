@@ -26,12 +26,13 @@ function safeFileSegment(value: string): string {
 export function markdownFilesToNotes(
   files: MarkdownFile[],
   connectionId: string,
-  existingNotes: Note[]
+  existingNotes: Note[],
+  provider: "local-markdown" | "github" | "notion" = "local-markdown"
 ): Note[] {
   const bySource = new Map<string, Note>();
 
   for (const note of existingNotes) {
-    if (note.source?.provider === "local-markdown" && note.source.connectionId === connectionId) {
+    if (note.source?.provider === provider && note.source.connectionId === connectionId) {
       bySource.set(note.source.relativePath.toLocaleLowerCase("en-US"), note);
     }
   }
@@ -55,7 +56,7 @@ export function markdownFilesToNotes(
         createdAt: previous?.createdAt ?? timestamp,
         updatedAt: timestamp,
         source: {
-          provider: "local-markdown" as const,
+          provider,
           connectionId,
           relativePath
         }
@@ -63,11 +64,15 @@ export function markdownFilesToNotes(
     });
 }
 
-export function notesToMarkdownFiles(notes: Note[], connectionId: string): MarkdownFile[] {
+export function notesToMarkdownFiles(
+  notes: Note[],
+  connectionId: string,
+  provider: "local-markdown" | "github" | "notion" = "local-markdown"
+): MarkdownFile[] {
   const usedPaths = new Set<string>();
 
   return notes.map((note) => {
-    const preferredPath = note.source?.provider === "local-markdown" &&
+    const preferredPath = note.source?.provider === provider &&
       note.source.connectionId === connectionId
       ? normalizeRelativePath(note.source.relativePath)
       : "";
