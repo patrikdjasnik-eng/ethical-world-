@@ -79,12 +79,25 @@ export async function checkProviderStatus(settings: AiSettings): Promise<Provide
 }
 
 export async function sendAiMessage(input: SendAiMessageInput): Promise<ChatResponse> {
-  const vaultContext = input.notes.slice(0, 12).map((note) => ({
-    id: note.id,
-    title: note.title,
-    folder: note.folder,
-    content: note.content.slice(0, 4000)
-  }));
+  const contextCandidates = [
+    ...(input.activeNote ? [input.activeNote] : []),
+    ...[...input.notes].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+  ];
+
+  const seenContextIds = new Set<string>();
+  const vaultContext = contextCandidates
+    .filter((note) => {
+      if (seenContextIds.has(note.id)) return false;
+      seenContextIds.add(note.id);
+      return true;
+    })
+    .slice(0, 20)
+    .map((note) => ({
+      id: note.id,
+      title: note.title,
+      folder: note.folder,
+      content: note.content.slice(0, 5000)
+    }));
 
   const response = await fetch(`${apiUrl}/api/chat`, {
     method: "POST",

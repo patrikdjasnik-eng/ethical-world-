@@ -41,12 +41,12 @@ const initialMessage: AiMessage = {
 };
 
 function looksLikeActionRequest(value: string): boolean {
-  return /(vytvoř|vytvor|udělej|udelej|uprav|přidej|pridej|přepiš|prepis|zapiš|zapis|ulož|uloz|otevři|otevri|create|update|edit|open|folder|note|složk|slozk|poznámk|poznamk)/i.test(value);
+  return /(vytvoř|vytvor|udělej|udelej|uprav|přidej|pridej|přepiš|prepis|zapiš|zapis|ulož|uloz|otevři|otevri|doplň|dopln|vlož|vloz|zapracuj|zakresli|rozšiř|rozsir|aktualizuj|create|update|edit|append|open|folder|note|složk|slozk|poznámk|poznamk)/i.test(value);
 }
 
 function looksLikeKnowledgeNoteRequest(value: string): boolean {
   return /(poznám|poznam|markdown|(?:^|\s)md(?:\s|$)|(?:^|\s)note(?:\s|$)|dokument)/i.test(value) &&
-    /(vytvoř|vytvor|udělej|udelej|napiš|napis|zpracuj|připrav|priprav|přepracuj|prepracuj|create|write|update)/i.test(value);
+    /(vytvoř|vytvor|udělej|udelej|napiš|napis|zpracuj|připrav|priprav|přepracuj|prepracuj|uprav|přidej|pridej|doplň|dopln|vlož|vloz|zapracuj|zakresli|rozšiř|rozsir|aktualizuj|create|write|update|edit|append)/i.test(value);
 }
 
 export const AiPanel = memo(function AiPanel({

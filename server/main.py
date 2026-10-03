@@ -412,7 +412,9 @@ async def chat(request: ChatRequest) -> ChatResponse:
     action_words = (
         "vytvoř", "vytvor", "udělej", "udelej", "napiš", "napis",
         "zpracuj", "připrav", "priprav", "přepracuj", "prepracuj",
-        "update", "create", "write",
+        "uprav", "přidej", "pridej", "doplň", "dopln", "vlož", "vloz",
+        "zapracuj", "zakresli", "rozšiř", "rozsir", "aktualizuj",
+        "update", "create", "write", "edit", "append",
     )
     knowledge_note_mode = (
         request.permissionMode == "assist"
@@ -434,6 +436,12 @@ async def chat(request: ChatRequest) -> ChatResponse:
             "Pokud uživatel požádá o více samostatných poznámek, vrať přesně tolik samostatných <ethical-note> envelope bloků. "
             "Například 3 poznámky znamenají 3 různé envelope bloky, 3 různé názvy a 3 samostatné Markdown dokumenty. Nikdy je neslepuj do jedné note. "
             "Každý dokument musí skutečně pokrývat jiné požadované téma, ne opakovat stejný text. "
+            "NAVAZUJÍCÍ EDITACE: Pokud uživatel říká doplň/vlož/zakresli/zapracuj/uprav něco do existujících poznámek, nevytvářej nový chatový výpis. "
+            "Najdi přesné cílové poznámky podle poslední konverzace, VAULT INDEXU a VAULT KONTEXTU a vrať pro každou cílovou note samostatný envelope s action=update a přesným noteId. "
+            "Výraz jako 'všechny tři' nebo 'do těch tří' odkazuje na nedávno vytvořené či řešené poznámky z konverzace; jejich IDs vezmi pouze z VAULT INDEXU. "
+            "Při update vrať celý výsledný Markdown dokument, ne jen vložený fragment. Obsah určený k zápisu neopakuj před envelope v chatu. "
+            "U cybersecurity ukázek můžeš vysvětlovat mechanismus a vkládat bezpečné laboratorní simulace, pseudokód, detekční nebo obranné příklady. "
+            "Nevkládej funkční destruktivní payloady, skutečné šifrování cizích souborů, credential theft, persistence nebo síťové šíření; takové chování simuluj neškodně na demo datech. "
             "Folder smí být jen existující cesta nebo prázdný string. Před envelope napiš jen krátkou větu, co jsi připravila; celý dokument neopakuj v chatu."
         )
     elif request.permissionMode == "assist":
