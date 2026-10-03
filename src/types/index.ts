@@ -65,3 +65,22 @@ export interface AuthSession {
   sessionToken: string;
   expiresAt: string;
 }
+
+
+export interface CarrotCommit {
+  id: string;
+  noteId: string;
+  parentId: string | null;
+  title: string;
+  folder: string;
+  content: string;
+  snapshotHash: string;
+  message: string;
+  authorUserId: string;
+  authorDisplayName: string;
+  createdAt: string;
+  signatureAlgorithm: "Ed25519" | "unsigned-browser";
+  signature: string | null;
+  publicKey: string | null;
+  keyId: string | null;
+}

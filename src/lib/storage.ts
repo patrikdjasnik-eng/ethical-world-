@@ -1,9 +1,10 @@
-import type { Note, VaultFolder } from "../types";
+import type { CarrotCommit, Note, VaultFolder } from "../types";
 
 const databaseName = "ethical-world";
-const databaseVersion = 2;
+const databaseVersion = 3;
 const notesStore = "notes";
 const foldersStore = "folders";
+const carrotStore = "carrotCommits";
 
 function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -35,6 +36,12 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!database.objectStoreNames.contains(foldersStore)) {
         const store = database.createObjectStore(foldersStore, { keyPath: "id" });
         store.createIndex("path", "path", { unique: true });
+      }
+
+      if (!database.objectStoreNames.contains(carrotStore)) {
+        const store = database.createObjectStore(carrotStore, { keyPath: "id" });
+        store.createIndex("noteId", "noteId");
+        store.createIndex("createdAt", "createdAt");
       }
     };
 
@@ -125,6 +132,30 @@ export async function removeFolder(folderId: string): Promise<void> {
   const transaction = database.transaction(foldersStore, "readwrite");
   const done = transactionDone(transaction);
   transaction.objectStore(foldersStore).delete(folderId);
+  await done;
+  database.close();
+}
+
+
+export async function listCarrotCommits(noteId: string): Promise<CarrotCommit[]> {
+  const database = await openDatabase();
+  const transaction = database.transaction(carrotStore, "readonly");
+  const done = transactionDone(transaction);
+  const index = transaction.objectStore(carrotStore).index("noteId");
+  const commits = await requestToPromise(
+    index.getAll(IDBKeyRange.only(noteId)) as IDBRequest<CarrotCommit[]>
+  );
+  await done;
+  database.close();
+
+  return commits.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+export async function saveCarrotCommit(commit: CarrotCommit): Promise<void> {
+  const database = await openDatabase();
+  const transaction = database.transaction(carrotStore, "readwrite");
+  const done = transactionDone(transaction);
+  transaction.objectStore(carrotStore).put(commit);
   await done;
   database.close();
 }
