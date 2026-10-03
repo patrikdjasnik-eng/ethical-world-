@@ -35,6 +35,8 @@ interface RenderNode extends KnowledgeGraphNode {
 interface RenderLink {
   source: string | RenderNode;
   target: string | RenderNode;
+  kind?: "wiki" | "related";
+  score?: number;
 }
 
 interface GraphApi {
@@ -103,6 +105,7 @@ export const GraphPane = memo(function GraphPane({
   const [showLabels, setShowLabels] = useState(true);
   const [showOrphans, setShowOrphans] = useState(true);
   const [colorByFolder, setColorByFolder] = useState(false);
+  const [showRelated, setShowRelated] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [stageSize, setStageSize] = useState({ width: 900, height: 620 });
@@ -131,7 +134,10 @@ export const GraphPane = memo(function GraphPane({
     }
   }, [activeNoteId, localRootId]);
 
-  const globalGraph = useMemo(() => buildKnowledgeGraph(notes), [notes]);
+  const globalGraph = useMemo(
+    () => buildKnowledgeGraph(notes, showRelated),
+    [notes, showRelated]
+  );
   const scopedGraph = useMemo(
     () => scope === "local"
       ? buildLocalKnowledgeGraph(globalGraph, localRootId)
@@ -392,7 +398,9 @@ export const GraphPane = memo(function GraphPane({
                 : "rgba(92,92,92,0.10)";
             }
 
-            return "rgba(100,100,100,0.48)";
+            return link.kind === "related"
+              ? "rgba(117,104,154,0.30)"
+              : "rgba(118,118,118,0.58)";
           }}
           linkWidth={(rawLink) => {
             const link = rawLink as unknown as RenderLink;
@@ -402,7 +410,8 @@ export const GraphPane = memo(function GraphPane({
               || targetId === hoveredNodeId
               || sourceId === selectedNodeId
               || targetId === selectedNodeId;
-            return highlighted ? 0.9 : 0.55;
+            if (highlighted) return link.kind === "related" ? 0.72 : 1.15;
+            return link.kind === "related" ? 0.34 : 0.68;
           }}
           onNodeHover={(rawNode) => setHoveredNodeId(rawNode ? (rawNode as RenderNode).id : null)}
           onNodeClick={(rawNode, event) => {
@@ -492,6 +501,12 @@ export const GraphPane = memo(function GraphPane({
             <label><span>Popisky</span><input type="checkbox" checked={showLabels} onChange={() => setShowLabels((current) => !current)} /></label>
             <label><span>Izolované uzly</span><input type="checkbox" checked={showOrphans} onChange={() => setShowOrphans((current) => !current)} /></label>
             <label><span>Barvy podle složek</span><input type="checkbox" checked={colorByFolder} onChange={() => setColorByFolder((current) => !current)} /></label>
+            <label><span>Tematické vazby</span><input type="checkbox" checked={showRelated} onChange={() => setShowRelated((current) => !current)} /></label>
+
+            <div className="graph-link-legend">
+              <span><i className="wiki-edge" /> wiki link</span>
+              <span><i className="related-edge" /> tematická vazba</span>
+            </div>
 
             {hiddenNodeIds.size > 0 && (
               <button className="obsidian-restore-button" type="button" onClick={() => setHiddenNodeIds(new Set())}>
@@ -510,7 +525,9 @@ export const GraphPane = memo(function GraphPane({
         )}
 
         <div className="obsidian-graph-stats">
-          {graphData.nodes.length} uzlů&nbsp;&nbsp; {graphData.links.length} vazeb
+          {graphData.nodes.length} uzlů&nbsp;&nbsp;
+          {graphData.links.filter((link) => link.kind === "wiki").length} wiki&nbsp;&nbsp;
+          {graphData.links.filter((link) => link.kind === "related").length} related
         </div>
       </div>
 

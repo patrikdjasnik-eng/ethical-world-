@@ -11,6 +11,8 @@ export interface KnowledgeGraphNode {
 export interface KnowledgeGraphLink {
   source: string;
   target: string;
+  kind: "wiki" | "related";
+  score: number;
 }
 
 export interface KnowledgeGraphData {
@@ -18,32 +20,98 @@ export interface KnowledgeGraphData {
   links: KnowledgeGraphLink[];
 }
 
-export function buildKnowledgeGraph(notes: Note[]): KnowledgeGraphData {
-  const notesByTitle = new Map(
-    notes.map((note) => [normalizeTitle(note.title), note])
+const stopWords = new Set([
+  "and", "the", "for", "with", "from", "into", "about",
+  "script", "scripts", "note", "notes", "markdown",
+  "ale", "bez", "jak", "jako", "jsou", "nad", "nebo", "pod", "pro", "pri",
+  "při", "se", "ve"
+]);
+
+function normalizedTokens(value: string): Set<string> {
+  return new Set(
+    value
+      .toLocaleLowerCase("cs-CZ")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .split(/[^a-z0-9]+/g)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 3 && !stopWords.has(token))
   );
+}
+
+function markdownTags(content: string): Set<string> {
+  const tags = new Set<string>();
+
+  for (const match of content.matchAll(/(?:^|\s)#([\p{L}\p{N}_-]{2,64})/gu)) {
+    tags.add(match[1].toLocaleLowerCase("cs-CZ"));
+  }
+
+  return tags;
+}
+
+function overlap(left: Set<string>, right: Set<string>): number {
+  if (left.size === 0 || right.size === 0) return 0;
+
+  let shared = 0;
+  for (const item of left) {
+    if (right.has(item)) shared += 1;
+  }
+
+  return shared / Math.min(left.size, right.size);
+}
+
+function relatedScore(left: Note, right: Note): number {
+  const titleScore = overlap(normalizedTokens(left.title), normalizedTokens(right.title));
+  const tagScore = overlap(markdownTags(left.content), markdownTags(right.content));
+  const sameFolder = Boolean(left.folder && right.folder && left.folder === right.folder);
+
+  let score = titleScore * 0.82 + tagScore * 0.46;
+  if (sameFolder) score += 0.12;
+
+  return Math.min(1, score);
+}
+
+export function buildKnowledgeGraph(notes: Note[], includeRelated = true): KnowledgeGraphData {
+  const notesByTitle = new Map(notes.map((note) => [normalizeTitle(note.title), note]));
   const links: KnowledgeGraphLink[] = [];
   const seenLinks = new Set<string>();
   const degreeById = new Map(notes.map((note) => [note.id, 0]));
 
+  const addLink = (
+    source: Note,
+    target: Note,
+    kind: "wiki" | "related",
+    score: number
+  ) => {
+    const edgeKey = [source.id, target.id].sort().join("::");
+    if (seenLinks.has(edgeKey)) return;
+
+    seenLinks.add(edgeKey);
+    links.push({ source: source.id, target: target.id, kind, score });
+    degreeById.set(source.id, (degreeById.get(source.id) ?? 0) + 1);
+    degreeById.set(target.id, (degreeById.get(target.id) ?? 0) + 1);
+  };
+
   for (const note of notes) {
     for (const linkedTitle of extractWikiLinks(note.content)) {
       const target = notesByTitle.get(normalizeTitle(linkedTitle));
+      if (!target || target.id === note.id) continue;
+      addLink(note, target, "wiki", 1);
+    }
+  }
 
-      if (!target || target.id === note.id) {
-        continue;
+  if (includeRelated) {
+    for (let leftIndex = 0; leftIndex < notes.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < notes.length; rightIndex += 1) {
+        const left = notes[leftIndex];
+        const right = notes[rightIndex];
+        const edgeKey = [left.id, right.id].sort().join("::");
+
+        if (seenLinks.has(edgeKey)) continue;
+
+        const score = relatedScore(left, right);
+        if (score >= 0.4) addLink(left, right, "related", score);
       }
-
-      const edgeKey = [note.id, target.id].sort().join("::");
-
-      if (seenLinks.has(edgeKey)) {
-        continue;
-      }
-
-      seenLinks.add(edgeKey);
-      links.push({ source: note.id, target: target.id });
-      degreeById.set(note.id, (degreeById.get(note.id) ?? 0) + 1);
-      degreeById.set(target.id, (degreeById.get(target.id) ?? 0) + 1);
     }
   }
 
@@ -62,18 +130,13 @@ export function buildLocalKnowledgeGraph(
   graph: KnowledgeGraphData,
   activeNoteId: string | null
 ): KnowledgeGraphData {
-  if (!activeNoteId) {
-    return { nodes: [], links: [] };
-  }
+  if (!activeNoteId) return { nodes: [], links: [] };
 
   const visibleNodeIds = new Set<string>([activeNoteId]);
 
   for (const link of graph.links) {
-    if (link.source === activeNoteId) {
-      visibleNodeIds.add(link.target);
-    } else if (link.target === activeNoteId) {
-      visibleNodeIds.add(link.source);
-    }
+    if (link.source === activeNoteId) visibleNodeIds.add(link.target);
+    else if (link.target === activeNoteId) visibleNodeIds.add(link.source);
   }
 
   return {
@@ -91,11 +154,8 @@ export function getConnectedNodeIds(
   const connected = new Set<string>([nodeId]);
 
   for (const link of graph.links) {
-    if (link.source === nodeId) {
-      connected.add(link.target);
-    } else if (link.target === nodeId) {
-      connected.add(link.source);
-    }
+    if (link.source === nodeId) connected.add(link.target);
+    else if (link.target === nodeId) connected.add(link.source);
   }
 
   return connected;

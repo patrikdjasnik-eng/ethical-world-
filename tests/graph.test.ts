@@ -66,3 +66,67 @@ describe("knowledge graph", () => {
     expect(Array.from(getConnectedNodeIds(graph, "a")).sort()).toEqual(["a", "b", "c"]);
   });
 });
+
+
+describe("related graph edges", () => {
+  it("creates inferred edges for strongly related note titles", () => {
+    const relatedNotes: Note[] = [
+      {
+        id: "ransomware",
+        title: "Malware Script - Ransomware",
+        folder: "",
+        content: "",
+        createdAt: timestamp,
+        updatedAt: timestamp
+      },
+      {
+        id: "trojan",
+        title: "Malware Script - Trojan",
+        folder: "",
+        content: "",
+        createdAt: timestamp,
+        updatedAt: timestamp
+      },
+      {
+        id: "welcome",
+        title: "Vítej v Ethical World",
+        folder: "",
+        content: "",
+        createdAt: timestamp,
+        updatedAt: timestamp
+      }
+    ];
+
+    const graph = buildKnowledgeGraph(relatedNotes, true);
+
+    expect(graph.links).toHaveLength(1);
+    expect(graph.links[0]).toMatchObject({
+      source: "ransomware",
+      target: "trojan",
+      kind: "related"
+    });
+  });
+
+  it("keeps inferred edges optional", () => {
+    const relatedNotes: Note[] = [
+      {
+        id: "one",
+        title: "Malware Ransomware",
+        folder: "",
+        content: "",
+        createdAt: timestamp,
+        updatedAt: timestamp
+      },
+      {
+        id: "two",
+        title: "Malware Trojan",
+        folder: "",
+        content: "",
+        createdAt: timestamp,
+        updatedAt: timestamp
+      }
+    ];
+
+    expect(buildKnowledgeGraph(relatedNotes, false).links).toHaveLength(0);
+  });
+});

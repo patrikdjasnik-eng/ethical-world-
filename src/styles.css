@@ -3277,3 +3277,36 @@ body,
     border-bottom: 1px solid #242229;
   }
 }
+
+
+/* Obsidian-like graph relation legend */
+.graph-link-legend {
+  display: grid;
+  gap: 5px;
+  margin-top: 7px;
+  padding: 7px 4px 1px;
+  border-top: 1px solid #333;
+}
+
+.graph-link-legend span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #777;
+  font-size: 8px;
+}
+
+.graph-link-legend i {
+  display: inline-block;
+  width: 22px;
+  height: 1px;
+}
+
+.graph-link-legend .wiki-edge {
+  background: #777;
+}
+
+.graph-link-legend .related-edge {
+  background: #75699a;
+  opacity: .55;
+}

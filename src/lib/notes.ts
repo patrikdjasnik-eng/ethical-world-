@@ -6,7 +6,14 @@ export function normalizeTitle(value: string): string {
 
 export function extractWikiLinks(content: string): string[] {
   const matches = content.matchAll(/\[\[([^\]]+)\]\]/g);
-  return Array.from(new Set(Array.from(matches, (match) => match[1].trim()).filter(Boolean)));
+
+  return Array.from(new Set(
+    Array.from(matches, (match) => {
+      const rawTarget = match[1].trim();
+      const withoutAlias = rawTarget.split("|", 1)[0]?.trim() ?? "";
+      return withoutAlias.split("#", 1)[0]?.trim() ?? "";
+    }).filter(Boolean)
+  ));
 }
 
 export function getBacklinks(notes: Note[], targetTitle: string): Note[] {
