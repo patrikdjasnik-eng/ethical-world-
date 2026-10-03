@@ -441,7 +441,7 @@ export default function App() {
     <div className={`workbench ${sidebarOpen ? "sidebar-open" : ""} ${aiOpen ? "ai-open" : ""}`}>
       <header className="app-topbar">
         <div className="topbar-brand">
-          <div className="topbar-logo">E</div>
+          <div className="topbar-logo">\n            <img src="/ethical-world-mark.svg" alt="" aria-hidden="true" />\n          </div>
           <strong>Ethical World</strong>
         </div>
 

@@ -2904,3 +2904,34 @@ body,
     height: min(68vh, 520px);
   }
 }
+
+
+/* Ethical World brand mark */
+.topbar-logo {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.topbar-logo img {
+  display: block;
+  width: 23px;
+  height: 23px;
+}
+
+.account-brand-mark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.account-brand-mark img {
+  width: 28px;
+  height: 28px;
+}
+
+.account-brand-mark span {
+  margin-top: 1px;
+}
