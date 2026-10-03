@@ -3,20 +3,34 @@
 ![Architecture](https://img.shields.io/badge/docs-architecture-2563eb)
 ![Status](https://img.shields.io/badge/status-active-16a34a)
 ![Version](https://img.shields.io/badge/version-0.1.0-6f42c1)
+![Desktop](https://img.shields.io/badge/desktop-Electron-47848F)
 
 ## Cíl
 
-Ethical World je navržený jako local-first knowledge workspace s oddělenou prezentační, storage a AI vrstvou.
+Ethical World je local-first knowledge workspace s odděleným rendererem, vault službami, desktop bridge a AI vrstvou.
 
 ```text
-React UI
-  ↓
-Vault services
-  ├─ IndexedDB
-  ├─ wiki links
-  ├─ backlinks
-  └─ search
-  ↓
+                    Ethical World
+                         │
+                 React + TypeScript
+                         │
+       ┌─────────────────┼─────────────────┐
+       │                 │                 │
+   Vault UI          Knowledge Graph     Máša UI
+       │                                   │
+       └──────────────┬────────────────────┘
+                      │
+              Domain / vault services
+                      │
+        ┌─────────────┴─────────────┐
+        │                           │
+ Browser storage               Electron bridge
+   IndexedDB                 contextBridge + IPC
+                                    │
+                              Desktop main process
+                                    │
+                         native filesystem / menus
+
 AI client
   ↓
 FastAPI gateway
@@ -26,39 +40,66 @@ Provider router
   └─ OpenAI-compatible
 ```
 
-## Frontend
+## Renderer
 
-Frontend je React + TypeScript aplikace. Stav poznámek je načten z IndexedDB a aktivní editace se průběžně ukládá. UI má tři hlavní části: vault sidebar, editor/preview a AI panel.
+React + TypeScript renderer je společný pro web i desktop. Nemá přímý přístup k Node.js ani k Electron internals.
 
-Frontend neobsahuje provider-specific logiku kromě konfiguračních hodnot. Všechny AI požadavky procházejí přes jednotné `/api/chat` rozhraní.
+Aktuální funkce:
 
-## Storage
+- nested vault explorer;
+- Markdown editor;
+- one-click Markdown inserts;
+- wiki links a backlinks;
+- fulltext search;
+- interaktivní knowledge graph;
+- Máša chat panel.
 
-v0.1 používá IndexedDB, protože funguje bez serveru a dovoluje offline-first chování. Pozdější desktop verze přidá skutečný filesystem vault s Markdown soubory a kompatibilní import/export.
+## Browser storage
 
-Zdroj pravdy pro jednu poznámku:
+Web fallback používá IndexedDB. Díky tomu může aplikace dál fungovat přes Vite bez Electronu.
 
-```ts
-interface Note {
-  id: string;
-  title: string;
-  content: string;
-  folder: string;
-  createdAt: string;
-  updatedAt: string;
-}
+## Desktop shell
+
+Electron main process otevírá stejný Vite renderer. Privilegované operace jsou dostupné pouze přes úzké metody v `preload.cjs`.
+
+Security konfigurace:
+
+- `contextIsolation: true`;
+- `nodeIntegration: false`;
+- `sandbox: true`;
+- žádné obecné `ipcRenderer.send` vystavené rendereru.
+
+První desktop bridge podporuje native context menu a výběr vault adresáře.
+
+## Filesystem vault
+
+Další storage adapter bude používat skutečné `.md` soubory jako source of truth.
+
+```text
+vault/
+├─ Projects/
+├─ Knowledge/
+├─ Cybersecurity/
+├─ Assets/
+└─ .ethical/
+   ├─ index.db
+   └─ settings.json
 ```
+
+Renderer nebude dostávat raw filesystem. Main process bude kontrolovat, že každá cesta zůstává uvnitř vybraného vault rootu.
 
 ## Wiki graph
 
-`[[Název poznámky]]` se parsuje na frontendové vrstvě. Backlinks jsou odvozené dynamicky z obsahu vaultu. V budoucnu bude nad stejným modelem postaven globální graph view.
+`[[Název poznámky]]` je společný kontrakt editoru, graphu i budoucích Máša tools. Graph v2 podporuje focus, auto-fit, local graph, search, hidden nodes, native/browser context menu a degree-based rendering.
 
 ## AI gateway
 
-FastAPI backend chrání frontend před provider-specific API detaily. Provider router přijímá jednotný chat payload a podle konfigurace volá Ollamu nebo OpenAI-compatible endpoint.
+FastAPI backend zatím drží provider-specific komunikaci mimo renderer. Další desktop iterace může gateway buď spouštět jako lokální child process, nebo její provider router přesunout do Electron main procesu.
 
-AI dostává pouze kontext, který jí klient předá. v0.1 posílá aktivní poznámku a omezený výběr vaultu; další verze přidá embeddings a RAG retrieval.
+## Agent tools
 
-## Budoucí agent tools
+Máša bude používat stejné doménové operace jako UI:
 
-Plánované tools: `searchNotes`, `readNote`, `createNote`, `updateNote`, `linkNotes`, `createTask` a `createCanvas`. Zápisové operace budou používat proposal/diff flow místo tichého přepisu.
+`searchNotes`, `readNote`, `createNote`, `updateNote`, `linkNotes`, `moveNote`, `createFolder`, `createTask` a další.
+
+Zápisové operace budou používat permission gate a proposal/diff flow.

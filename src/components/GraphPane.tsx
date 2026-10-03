@@ -273,6 +273,50 @@ export const GraphPane = memo(function GraphPane({
     setContextMenu(null);
   };
 
+  const runNodeAction = async (action: string | null, nodeId: string) => {
+    switch (action) {
+      case "open":
+        onOpenNote(nodeId);
+        break;
+      case "local":
+        openLocalGraph(nodeId);
+        break;
+      case "copy":
+        await copyWikiLink(nodeId);
+        break;
+      case "hide":
+        hideNode(nodeId);
+        break;
+      default:
+        break;
+    }
+  };
+
+  const showNodeContextMenu = async (node: RenderNode, event: MouseEvent) => {
+    setSelectedNodeId(node.id);
+
+    if (window.ethicalDesktop?.isDesktop) {
+      setContextMenu(null);
+
+      const action = await window.ethicalDesktop.showContextMenu([
+        { id: "open", label: "Otevřít poznámku" },
+        { id: "local", label: "Lokální graph" },
+        { type: "separator" },
+        { id: "copy", label: "Kopírovat wiki link" },
+        { id: "hide", label: "Skrýt z grafu" }
+      ]);
+
+      await runNodeAction(action, node.id);
+      return;
+    }
+
+    setContextMenu({
+      nodeId: node.id,
+      x: Math.min(event.clientX, window.innerWidth - 230),
+      y: Math.min(event.clientY, window.innerHeight - 220)
+    });
+  };
+
   return (
     <main className="graph-pane">
       <div className="graph-topbar">
@@ -465,14 +509,7 @@ export const GraphPane = memo(function GraphPane({
           onNodeRightClick={(rawNode, event) => {
             event?.preventDefault?.();
             event?.stopPropagation?.();
-            const node = rawNode as RenderNode;
-
-            setSelectedNodeId(node.id);
-            setContextMenu({
-              nodeId: node.id,
-              x: Math.min((event as MouseEvent).clientX, window.innerWidth - 230),
-              y: Math.min((event as MouseEvent).clientY, window.innerHeight - 220)
-            });
+            void showNodeContextMenu(rawNode as RenderNode, event as MouseEvent);
           }}
           onBackgroundClick={() => {
             setContextMenu(null);

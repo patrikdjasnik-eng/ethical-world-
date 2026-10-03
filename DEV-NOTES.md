@@ -127,3 +127,18 @@ GitHub Actions workflow zůstává nakonfigurovaný, ale dostupné runy dříve 
 - přidaný Fit button a restore skrytých uzlů;
 - vybraný node zvýrazní sousední hrany a ztlumí zbytek;
 - labels mají jemné pozadí kvůli čitelnosti v husté síti.
+
+
+### Desktop v0.1
+
+- přidaný Electron shell pro Windows;
+- browser renderer zůstává zachovaný;
+- `contextIsolation` zapnuté, `nodeIntegration` vypnuté, sandbox zapnutý;
+- přidaný úzký preload API bridge;
+- graph v desktop režimu používá native right-click menu;
+- přidaný native folder picker jako základ filesystem vaultu;
+- Vite používá relative base, aby produkční build šel načíst přes `file://`;
+- `npm run desktop:dev` spustí Vite + Electron;
+- `npm run desktop:make` vytvoří lokální Windows distributable;
+- `npm run verify` nahrazuje běžný CI gate při lokálním vývoji;
+- GitHub Actions workflow je nyní pouze manuální přes `workflow_dispatch`.

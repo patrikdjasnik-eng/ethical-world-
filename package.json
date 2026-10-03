@@ -1,11 +1,19 @@
 {
   "name": "ethical-world",
+  "productName": "Ethical World",
+  "description": "Local-first knowledge workspace with AI-assisted notes and cybersecurity workflows.",
+  "author": "patrikdjasnik-eng",
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
+    "desktop:dev": "concurrently -k -n UI,DESKTOP \"vite --host 127.0.0.1\" \"wait-on http-get://127.0.0.1:5173 && electron electron/main.cjs\"",
     "build": "tsc -p tsconfig.json && vite build",
+    "verify": "npm test && npm run build",
+    "desktop:package": "npm run build && electron-forge package",
+    "desktop:make": "npm run build && electron-forge make",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -17,11 +25,17 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@electron-forge/cli": "^8.0.1",
+    "@electron-forge/maker-squirrel": "^8.0.1",
+    "@electron-forge/maker-zip": "^8.0.1",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.2",
+    "concurrently": "^10.0.5",
+    "electron": "^44.5.1",
     "typescript": "^5.9.2",
     "vite": "^7.1.4",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wait-on": "^9.5.1"
   }
 }

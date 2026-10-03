@@ -1,13 +1,7 @@
-name: CI
+name: CI (manual)
 
 on:
-  push:
-    branches:
-      - main
-      - dev/first-runnable
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   frontend:
@@ -18,8 +12,7 @@ jobs:
         with:
           node-version: 20
       - run: npm install
-      - run: npm test
-      - run: npm run build
+      - run: npm run verify
 
   backend:
     runs-on: ubuntu-latest
