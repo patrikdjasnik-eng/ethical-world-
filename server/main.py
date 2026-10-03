@@ -3,8 +3,9 @@ from __future__ import annotations
 import os
 from typing import Literal
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from .auth_store import (
@@ -14,6 +15,16 @@ from .auth_store import (
     login_user,
     register_user,
     user_from_session,
+)
+from .notion_connector import (
+    NotionConnectorError,
+    disconnect as notion_disconnect,
+    finish_oauth as notion_finish_oauth,
+    list_pages as notion_list_pages,
+    read_markdown as notion_read_markdown,
+    start_oauth as notion_start_oauth,
+    status as notion_status,
+    write_markdown as notion_write_markdown,
 )
 from .providers import (
     ProviderError,
@@ -122,6 +133,18 @@ app.add_middleware(
 )
 
 
+def _require_user(authorization: str | None) -> dict:
+    prefix = "Bearer "
+    if not authorization or not authorization.startswith(prefix):
+        raise HTTPException(status_code=401, detail="Chybí session token.")
+
+    user = user_from_session(authorization[len(prefix):].strip())
+    if not user:
+        raise HTTPException(status_code=401, detail="Session není platná nebo vypršela.")
+
+    return user
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -153,16 +176,91 @@ async def login(request: LoginRequest) -> AuthResponse:
 
 @app.get("/api/auth/me", response_model=UserResponse)
 async def me(authorization: str | None = Header(default=None)) -> UserResponse:
-    prefix = "Bearer "
+    return UserResponse(**_require_user(authorization))
 
-    if not authorization or not authorization.startswith(prefix):
-        raise HTTPException(status_code=401, detail="Chybí session token.")
 
-    user = user_from_session(authorization[len(prefix):].strip())
-    if not user:
-        raise HTTPException(status_code=401, detail="Session není platná nebo vypršela.")
+@app.post("/api/connectors/notion/start")
+async def notion_start(authorization: str | None = Header(default=None)) -> dict[str, str]:
+    user = _require_user(authorization)
+    try:
+        return {"authorizationUrl": notion_start_oauth(user["id"])}
+    except NotionConnectorError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
-    return UserResponse(**user)
+
+@app.get("/api/connectors/notion/callback", response_class=HTMLResponse)
+async def notion_callback(code: str = Query(...), state: str = Query(...)) -> HTMLResponse:
+    try:
+        result = await notion_finish_oauth(code, state)
+    except NotionConnectorError as error:
+        return HTMLResponse(
+            "<h2>Ethical World · Notion</h2><p>" + str(error) + "</p>",
+            status_code=400,
+        )
+
+    workspace = result.get("workspaceName") or "workspace"
+    return HTMLResponse(
+        "<h2>Ethical World · Notion connected</h2>"
+        "<p>" + str(workspace) + "</p>"
+        "<p>Můžeš zavřít toto okno a vrátit se do aplikace.</p>"
+    )
+
+
+@app.post("/api/connectors/notion/status")
+async def notion_connector_status(authorization: str | None = Header(default=None)) -> dict:
+    user = _require_user(authorization)
+    return notion_status(user["id"])
+
+
+@app.post("/api/connectors/notion/pages")
+async def notion_pages(authorization: str | None = Header(default=None)) -> dict:
+    user = _require_user(authorization)
+    try:
+        return {"pages": await notion_list_pages(user["id"])}
+    except NotionConnectorError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+
+class NotionPageRequest(BaseModel):
+    pageId: str = Field(min_length=1, max_length=100)
+
+
+class NotionWriteRequest(NotionPageRequest):
+    markdown: str = Field(max_length=200000)
+
+
+@app.post("/api/connectors/notion/read")
+async def notion_read(
+    request: NotionPageRequest,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    user = _require_user(authorization)
+    try:
+        return await notion_read_markdown(user["id"], request.pageId)
+    except NotionConnectorError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+
+@app.post("/api/connectors/notion/write")
+async def notion_write(
+    request: NotionWriteRequest,
+    authorization: str | None = Header(default=None),
+) -> dict[str, bool]:
+    user = _require_user(authorization)
+    try:
+        await notion_write_markdown(user["id"], request.pageId, request.markdown)
+        return {"written": True}
+    except NotionConnectorError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+
+@app.post("/api/connectors/notion/disconnect")
+async def notion_disconnect_route(
+    authorization: str | None = Header(default=None),
+) -> dict[str, bool]:
+    user = _require_user(authorization)
+    notion_disconnect(user["id"])
+    return {"connected": False}
 
 
 @app.post("/api/providers/detect")

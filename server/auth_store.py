@@ -105,6 +105,15 @@ def init_auth_store() -> None:
                 FOREIGN KEY(recipient_user_id) REFERENCES users(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS connector_secrets (
+                user_id TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                encrypted_payload BLOB NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(user_id, provider),
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
             CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash);
             CREATE INDEX IF NOT EXISTS idx_message_recipient_time
                 ON message_envelopes(recipient_user_id, created_at);
@@ -255,3 +264,33 @@ def bootstrap_admin_from_env() -> None:
         return
 
     register_user(email, password, display_name)
+
+
+def save_connector_secret(user_id: str, provider: str, encrypted_payload: bytes) -> None:
+    with _connect() as connection:
+        connection.execute(
+            """
+            INSERT INTO connector_secrets(user_id, provider, encrypted_payload, updated_at)
+            VALUES(?, ?, ?, ?)
+            ON CONFLICT(user_id, provider)
+            DO UPDATE SET encrypted_payload = excluded.encrypted_payload, updated_at = excluded.updated_at
+            """,
+            (user_id, provider, encrypted_payload, _utc_now().isoformat()),
+        )
+
+
+def load_connector_secret(user_id: str, provider: str) -> bytes | None:
+    with _connect() as connection:
+        row = connection.execute(
+            "SELECT encrypted_payload FROM connector_secrets WHERE user_id = ? AND provider = ?",
+            (user_id, provider),
+        ).fetchone()
+    return bytes(row["encrypted_payload"]) if row else None
+
+
+def delete_connector_secret(user_id: str, provider: str) -> None:
+    with _connect() as connection:
+        connection.execute(
+            "DELETE FROM connector_secrets WHERE user_id = ? AND provider = ?",
+            (user_id, provider),
+        )

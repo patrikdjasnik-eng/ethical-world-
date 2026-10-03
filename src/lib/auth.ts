@@ -3,7 +3,7 @@ import type { AuthSession, UserProfile } from "../types";
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:8787";
 const browserSessionKey = "ethical-world-session-token";
 
-async function readStoredToken(): Promise<string | null> {
+export async function getStoredSessionToken(): Promise<string | null> {
   if (window.ethicalDesktop) {
     return window.ethicalDesktop.authLoadSessionToken();
   }
@@ -64,7 +64,7 @@ export async function loginAccount(email: string, password: string): Promise<Aut
 }
 
 export async function restoreAccount(): Promise<UserProfile | null> {
-  const token = await readStoredToken();
+  const token = await getStoredSessionToken();
   if (!token) return null;
 
   const response = await fetch(apiUrl + "/api/auth/me", {
