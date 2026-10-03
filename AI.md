@@ -159,3 +159,43 @@ Aktuálně dostupné akce:
 Model nikdy nezapisuje přímo do IndexedDB. Vrací omezený `ethical-actions` JSON blok, renderer ho validuje a uživatel musí každou zapisovací akci potvrdit tlačítkem `Použít`. READ režim žádné tool akce nepřijímá.
 
 Mazání, přejmenování, hromadné přesuny a jiné destruktivní operace v této verzi nejsou dostupné.
+
+
+## Knowledge Note mode
+
+Máša má specializovaný režim pro tvorbu celých Markdown dokumentů přímo z LLM chatu.
+
+Detekovaný požadavek typu „vytvoř / napiš / zpracuj kompletní MD poznámku…“ přepne backend na delší generation budget a model vrací raw Markdown přes `<ethical-note>` envelope. Díky tomu může dokument bezpečně obsahovat běžné trojité code fences bez JSON escapování.
+
+Knowledge note pipeline:
+
+```text
+LLM chat input
+  ↓
+Knowledge Note mode
+  ↓
+raw Markdown envelope
+  ↓
+parser + schema validation
+  ↓
+Ethical World badge header
+  ↓
+wiki-link validation against vault index
+  ↓
+ASSIST approval
+  ↓
+vault note
+```
+
+Máša má při authoringu rozhodovat podle významu, nikoli mechanicky:
+
+- Mermaid pro architekturu, flow, síťové vztahy, lifecycle a procesy;
+- Prisma schema pro databázové entity, identity, messaging, backendové vztahy a ORM návrhy;
+- správně označené code blocks pro relevantní programovací/shell/config příklady;
+- tabulky a checklisty tam, kde zvyšují čitelnost;
+- `[[wiki links]]` pouze na přesně existující názvy poznámek z vault indexu;
+- krátkou sekci souvisejících poznámek pouze pokud existují skutečné návaznosti.
+
+Každá AI-authored knowledge note dostává programově badge hlavičku, takže ji model nemůže omylem vynechat.
+
+Cybersecurity persona je edukativně široká: Máša může vysvětlovat malware, útočné techniky, exploit concepts, reverse engineering i obranu. Samotná registrace účtu není bezpečnostní bypass; rizikové praktické kroky se mají držet v autorizovaném lab/defenzivním scope.

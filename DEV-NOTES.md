@@ -245,3 +245,24 @@ GitHub Actions workflow zůstává nakonfigurovaný, ale dostupné runy dříve 
 - session token desktop ukládá přes OS safeStorage;
 - browser fallback používá pouze sessionStorage;
 - account view je dostupný přes spodní Settings/Account ikonu.
+
+### Máša Knowledge Engineer v0.2
+
+- přidaný raw `<ethical-note>` envelope pro dlouhé Markdown dokumenty bez JSON escapování;
+- knowledge note output limit navýšený na 6144 tokenů;
+- AI-authored note dostává programově Ethical World / Máša / Markdown badges;
+- Máša dostává index až 500 poznámek pro rozhodování o wiki vazbách;
+- neexistující AI wiki link se před uložením převede na obyčejný text;
+- Mermaid diagramy se používají podle významu architektury/flow;
+- Prisma schema se používá u databázových a backendových modelů, ne mechanicky;
+- knowledge notes podporují plné code blocks, tabulky, checklisty a návazné poznámky;
+- přidané testy pro Mermaid, Prisma, badges, wiki link validation a full-note update.
+
+### In-app Guide + Updates v0.1
+
+- nová Guide záložka v activity railu;
+- přepínač CZ / EN;
+- sekce Začínáme, Máša, Knowledge Notes, Connectors a Accounts/Security;
+- samostatná Updates záložka s verzovaným seznamem změn;
+- guide data jsou centralizovaná v `src/content/guide.ts`, aby se aktualizovala spolu s releasy;
+- přidaný test bilingvního guide/update obsahu.
