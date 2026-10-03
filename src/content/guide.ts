@@ -55,6 +55,32 @@ export const guideSections: Record<GuideLanguage, GuideSection[]> = {
       ]
     },
     {
+      id: "carrot",
+      title: "Carrot historie",
+      paragraphs: [
+        "Carrot je interní auditní historie Markdown poznámek. Po změně ukládá snapshot, autora, čas, SHA-256 hash a vazbu na předchozí commit.",
+        "Desktop Carrot commity podepisuje per-device Ed25519 klíčem uloženým přes OS secure storage. V editoru lze historii otevřít přes tlačítko 🥕 Carrot a ověřit podpis starších verzí."
+      ],
+      tips: [
+        "Stejný snapshot se nezapíše dvakrát.",
+        "Smazání nebo změna staršího záznamu poruší hash chain nebo podpis.",
+        "Carrot není náhrada Gitu; je to auditní historie knowledge vaultu."
+      ]
+    },
+    {
+      id: "carrot",
+      title: "Carrot history",
+      paragraphs: [
+        "Carrot is the internal audit history for Markdown notes. Each change stores a snapshot, author, timestamp, SHA-256 hash and a link to the previous commit.",
+        "Desktop Carrot commits are signed with a per-device Ed25519 key protected by OS secure storage. Open the history from the 🥕 Carrot button in the editor and verify older signatures."
+      ],
+      tips: [
+        "Identical snapshots are not committed twice.",
+        "Tampering with an older record breaks the hash chain or its signature.",
+        "Carrot is not a Git replacement; it is an audit history for the knowledge vault."
+      ]
+    },
+    {
       id: "connectors",
       title: "Connectors",
       paragraphs: [
@@ -130,6 +156,30 @@ export const guideSections: Record<GuideLanguage, GuideSection[]> = {
 };
 
 export const productUpdates: ProductUpdate[] = [
+  {
+    version: "0.1-dev.8",
+    date: "2026-10-04",
+    title: {
+      cs: "Carrot signed history a Rabbithollow licence",
+      en: "Carrot signed history and Rabbithollow license"
+    },
+    items: {
+      cs: [
+        "Carrot ukládá verzovanou historii Markdown snapshotů.",
+        "Commity jsou provázané SHA-256 hash chainem.",
+        "Desktop commity podepisuje per-device Ed25519 klíčem.",
+        "Editor umí zobrazit kompletní historii, autora, hash, fingerprint a ověření podpisu.",
+        "Přidána source-available licence, trademark policy a Rabbithollow Code Studio™ attribution."
+      ],
+      en: [
+        "Carrot stores versioned Markdown snapshot history.",
+        "Commits are linked through a SHA-256 hash chain.",
+        "Desktop commits are signed by a per-device Ed25519 key.",
+        "The editor can inspect full history, author, hash, fingerprint and signature verification.",
+        "Added the source-available license, trademark policy and Rabbithollow Code Studio™ attribution."
+      ]
+    }
+  },
   {
     version: "0.1-dev.7",
     date: "2026-10-04",

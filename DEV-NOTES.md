@@ -311,3 +311,26 @@ GitHub Actions workflow zůstává nakonfigurovaný, ale dostupné runy dříve 
 - topbar používá SVG místo textového E;
 - stejný mark je v Identity view a faviconu;
 - SVG zůstává master asset pro budoucí převod na installer ICO.
+
+
+### Carrot history v0.1
+
+- IndexedDB schema zvýšené na v3 s `carrotCommits` store;
+- každý Markdown snapshot má autora, čas, message a SHA-256 snapshot hash;
+- Carrot commit ukládá `parentId`, `commitHash` a `parentCommitHash`;
+- stejné snapshoty se neduplikují;
+- desktop generuje per-device Ed25519 keypair;
+- private key je uložený přes Electron `safeStorage`;
+- podpis pokrývá metadata, snapshot hash a parent commit hash;
+- editor má `🥕 Carrot` historii s náhledem kompletního staršího Markdownu;
+- historie zobrazuje autora, commit hash, key fingerprint a stav ověření podpisu;
+- Carrot zachycuje autosave, vytvoření note, přesun, connector import i změny provedené Mášou.
+
+### Rabbithollow Code Studio™ branding + licence
+
+- aplikace zobrazuje nenápadné `Created by Rabbithollow Code Studio™`;
+- přidána vlastní source-available licence;
+- licence povoluje používání neupraveného Ethical World, ale bez písemného souhlasu zakazuje modifikace, deriváty, rebrand/white-label a redistribuci;
+- User Content zůstává mimo vlastnické nároky licence;
+- přidaný `TRADEMARKS.md` pro Ethical World™ a Rabbithollow Code Studio™;
+- licence je source-available/proprietary, nikoli open-source.

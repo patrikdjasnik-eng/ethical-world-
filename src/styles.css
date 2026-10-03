@@ -3109,3 +3109,27 @@ body,
     border-bottom: 1px solid #242229;
   }
 }
+
+
+/* Studio attribution */
+.studio-credit {
+  position: fixed;
+  z-index: 15;
+  left: 62px;
+  bottom: 5px;
+  max-width: calc(100vw - 130px);
+  color: #45424b;
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: .035em;
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (max-width: 620px) {
+  .studio-credit {
+    left: 54px;
+    bottom: 3px;
+    font-size: 6px;
+  }
+}

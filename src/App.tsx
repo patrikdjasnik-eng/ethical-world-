@@ -563,6 +563,10 @@ export default function App() {
           </Suspense>
         )}
       </div>
+
+      <footer className="studio-credit">
+        Created by Rabbithollow Code Studio™
+      </footer>
     </div>
   );
 }
