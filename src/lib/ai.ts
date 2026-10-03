@@ -99,6 +99,11 @@ export async function sendAiMessage(input: SendAiMessageInput): Promise<ChatResp
       activeNoteId: input.activeNote?.id ?? null,
       permissionMode: input.permissionMode,
       vaultFolders: input.folders.map((folder) => folder.path),
+      vaultIndex: input.notes.map((note) => ({
+        id: note.id,
+        title: note.title,
+        folder: note.folder
+      })),
       vaultContext,
       messages: input.messages.map(({ role, content }) => ({ role, content }))
     })

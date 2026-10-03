@@ -6,6 +6,13 @@ export interface ParsedAgentResponse {
 }
 
 const actionBlockPattern = new RegExp("\\x60\\x60\\x60ethical-actions\\s*([\\s\\S]*?)\\x60\\x60\\x60", "gi");
+const knowledgeNotePattern = /<ethical-note>\s*(\{[^\r\n]+\})\s*<content>\s*([\s\S]*?)\s*<\/content>\s*<\/ethical-note>/gi;
+
+const knowledgeBadges = [
+  "![Ethical World](https://img.shields.io/badge/Ethical_World-Knowledge-6f42c1)",
+  "![Máša](https://img.shields.io/badge/M%C3%A1%C5%A1a-AI--authored-111827)",
+  "![Markdown](https://img.shields.io/badge/format-Markdown-0ea5e9)"
+].join(" ");
 
 function nonEmptyString(value: unknown, maxLength: number): string | null {
   if (typeof value !== "string") return null;
@@ -20,62 +27,87 @@ function optionalString(value: unknown, maxLength: number): string | undefined |
   return value;
 }
 
+function normalizeTitle(value: string): string {
+  return value.trim().toLocaleLowerCase("cs-CZ");
+}
+
+function sanitizeWikiLinks(markdown: string, notes: Note[]): string {
+  const knownTitles = new Set(notes.map((note) => normalizeTitle(note.title)));
+
+  return markdown.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, rawTarget: string, rawAlias?: string) => {
+    const target = rawTarget.trim();
+    const alias = rawAlias?.trim();
+
+    if (knownTitles.has(normalizeTitle(target))) {
+      return alias ? `[[${target}|${alias}]]` : `[[${target}]]`;
+    }
+
+    return alias || target;
+  });
+}
+
+export function finalizeKnowledgeMarkdown(markdown: string, title: string, notes: Note[]): string {
+  let body = markdown.replace(/^\uFEFF/, "").trim();
+
+  if (!/^#\s+/m.test(body)) {
+    body = `# ${title}\n\n${body}`;
+  }
+
+  body = sanitizeWikiLinks(body, notes);
+
+  if (!/img\.shields\.io\/badge\/Ethical_World-/i.test(body)) {
+    body = `${knowledgeBadges}\n\n${body}`;
+  }
+
+  return body.trim();
+}
+
 export function validateAgentAction(value: unknown): AgentAction | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-
   const candidate = value as Record<string, unknown>;
 
   if (candidate.type === "create_note") {
     const title = nonEmptyString(candidate.title, 300);
-    const content = optionalString(candidate.content, 20000);
+    const content = optionalString(candidate.content, 60000);
     const folder = optionalString(candidate.folder, 500);
     if (!title || content === null || folder === null) return null;
-
     return {
       type: "create_note",
       title,
       content: content ?? "",
-      ...(folder !== undefined ? { folder } : {})
+      ...(folder !== undefined ? { folder } : {}),
+      ...(candidate.knowledgeNote === true ? { knowledgeNote: true } : {})
     };
   }
 
   if (candidate.type === "update_note") {
     const noteId = nonEmptyString(candidate.noteId, 200);
     const title = optionalString(candidate.title, 300);
-    const content = optionalString(candidate.content, 20000);
+    const content = optionalString(candidate.content, 60000);
     const folder = optionalString(candidate.folder, 500);
-
     if (!noteId || title === null || content === null || folder === null) return null;
     if (title === undefined && content === undefined && folder === undefined) return null;
-
     return {
       type: "update_note",
       noteId,
       ...(title !== undefined ? { title } : {}),
       ...(content !== undefined ? { content } : {}),
-      ...(folder !== undefined ? { folder } : {})
+      ...(folder !== undefined ? { folder } : {}),
+      ...(candidate.knowledgeNote === true ? { knowledgeNote: true } : {})
     };
   }
 
   if (candidate.type === "create_folder") {
     const name = nonEmptyString(candidate.name, 160);
     if (!name) return null;
-
     let parentPath: string | null | undefined;
-    if (candidate.parentPath === undefined) {
-      parentPath = undefined;
-    } else if (candidate.parentPath === null) {
-      parentPath = null;
-    } else {
+    if (candidate.parentPath === undefined) parentPath = undefined;
+    else if (candidate.parentPath === null) parentPath = null;
+    else {
       parentPath = optionalString(candidate.parentPath, 500);
       if (parentPath === null) return null;
     }
-
-    return {
-      type: "create_folder",
-      name,
-      ...(parentPath !== undefined ? { parentPath } : {})
-    };
+    return { type: "create_folder", name, ...(parentPath !== undefined ? { parentPath } : {}) };
   }
 
   if (candidate.type === "open_note") {
@@ -87,17 +119,55 @@ export function validateAgentAction(value: unknown): AgentAction | null {
   return null;
 }
 
-export function parseAgentResponse(raw: string): ParsedAgentResponse {
+function parseKnowledgeEnvelope(metadataRaw: string, markdownRaw: string, notes: Note[]): AgentAction | null {
+  let metadata: Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(metadataRaw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    metadata = parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const action = metadata.action === "update" ? "update" : "create";
+  const title = nonEmptyString(metadata.title, 300);
+  const folder = optionalString(metadata.folder, 500);
+  if (!title || folder === null) return null;
+  const content = finalizeKnowledgeMarkdown(markdownRaw.slice(0, 60000), title, notes);
+
+  if (action === "update") {
+    const noteId = nonEmptyString(metadata.noteId, 200);
+    if (!noteId) return null;
+    return {
+      type: "update_note", noteId, title, content,
+      ...(folder !== undefined ? { folder } : {}),
+      knowledgeNote: true
+    };
+  }
+
+  return {
+    type: "create_note", title, content,
+    ...(folder !== undefined ? { folder } : {}),
+    knowledgeNote: true
+  };
+}
+
+export function parseAgentResponse(raw: string, notes: Note[] = []): ParsedAgentResponse {
   const actions: AgentAction[] = [];
-  let matchedActionBlock = false;
+  let matchedMachineBlock = false;
 
-  const content = raw.replace(actionBlockPattern, (_match, payload: string) => {
-    matchedActionBlock = true;
+  let content = raw.replace(knowledgeNotePattern, (_match, metadataRaw: string, markdownRaw: string) => {
+    matchedMachineBlock = true;
+    const action = parseKnowledgeEnvelope(metadataRaw, markdownRaw, notes);
+    if (action) actions.push(action);
+    return "";
+  });
 
+  content = content.replace(actionBlockPattern, (_match, payload: string) => {
+    matchedMachineBlock = true;
     try {
       const parsed = JSON.parse(payload) as unknown;
       if (!Array.isArray(parsed)) return "";
-
       for (const item of parsed.slice(0, 8)) {
         const action = validateAgentAction(item);
         if (action) actions.push(action);
@@ -105,13 +175,12 @@ export function parseAgentResponse(raw: string): ParsedAgentResponse {
     } catch {
       // Malformed machine data is never executed.
     }
-
     return "";
   }).trim();
 
   return {
-    content: content || (matchedActionBlock && actions.length > 0
-      ? "Připravil jsem návrh akce v Ethical World."
+    content: content || (matchedMachineBlock && actions.length > 0
+      ? "Připravil jsem návrh změny v Ethical World."
       : raw.trim()),
     actions
   };
@@ -119,19 +188,16 @@ export function parseAgentResponse(raw: string): ParsedAgentResponse {
 
 export function describeAgentAction(action: AgentAction, notes: Note[]): string {
   if (action.type === "create_note") {
-    return "Vytvořit poznámku „" + action.title + "“";
+    return (action.knowledgeNote ? "Vytvořit kompletní knowledge note „" : "Vytvořit poznámku „") + action.title + "“";
   }
-
   if (action.type === "update_note") {
     const note = notes.find((candidate) => candidate.id === action.noteId);
-    return "Upravit poznámku „" + (note?.title ?? action.noteId) + "“";
+    return (action.knowledgeNote ? "Přepracovat knowledge note „" : "Upravit poznámku „") + (note?.title ?? action.noteId) + "“";
   }
-
   if (action.type === "create_folder") {
     const parent = action.parentPath ? action.parentPath + "/" : "";
     return "Vytvořit složku „" + parent + action.name + "“";
   }
-
   const note = notes.find((candidate) => candidate.id === action.noteId);
   return "Otevřít poznámku „" + (note?.title ?? action.noteId) + "“";
 }
