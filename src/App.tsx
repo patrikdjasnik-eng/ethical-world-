@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityRail } from "./components/ActivityRail";
 import { EditorPane } from "./components/EditorPane";
 import { VaultSidebar, type WorkspaceView } from "./components/VaultSidebar";
 import {
@@ -41,16 +42,15 @@ export default function App() {
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<WorkspaceView>("note");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [aiOpen, setAiOpen] = useState(true);
   const [folderCreateNonce, setFolderCreateNonce] = useState(0);
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const loadVault = async () => {
       try {
-        let [storedNotes, storedFolders] = await Promise.all([
-          listNotes(),
-          listFolders()
-        ]);
+        let [storedNotes, storedFolders] = await Promise.all([listNotes(), listFolders()]);
 
         if (storedNotes.length === 0) {
           await saveNote(welcomeNote);
@@ -59,10 +59,7 @@ export default function App() {
 
         if (storedFolders.length === 0) {
           storedFolders = inferFoldersFromNotes(storedNotes);
-
-          if (storedFolders.length > 0) {
-            await saveFolders(storedFolders);
-          }
+          if (storedFolders.length > 0) await saveFolders(storedFolders);
         }
 
         setNotes(storedNotes);
@@ -84,9 +81,7 @@ export default function App() {
   );
 
   useEffect(() => {
-    if (!isReady || !activeNote) {
-      return;
-    }
+    if (!isReady || !activeNote) return;
 
     const timeout = window.setTimeout(() => {
       void saveNote(activeNote).catch((error) => console.error("Autosave failed", error));
@@ -101,21 +96,16 @@ export default function App() {
     setActiveNoteId(note.id);
     setSelectedFolderPath(folderPath ?? null);
     setView("note");
+    setSidebarOpen(true);
     void saveNote(note);
   }, [selectedFolderPath]);
 
   const handleCreateFolder = useCallback((parentPath: string | null, rawName: string) => {
     const name = sanitizeFolderName(rawName);
-
-    if (!name) {
-      return;
-    }
+    if (!name) return;
 
     const path = joinFolderPath(parentPath, name);
-
-    if (!path || folders.some((folder) => folder.path === path)) {
-      return;
-    }
+    if (!path || folders.some((folder) => folder.path === path)) return;
 
     const timestamp = new Date().toISOString();
     const folder: VaultFolder = {
@@ -136,21 +126,14 @@ export default function App() {
     const folder = folders.find((candidate) => candidate.id === folderId);
     const name = sanitizeFolderName(rawName);
 
-    if (!folder || !name || name === folder.name) {
-      return;
-    }
+    if (!folder || !name || name === folder.name) return;
 
     const newPath = joinFolderPath(folder.parentPath, name);
-
-    if (folders.some((candidate) => candidate.id !== folderId && candidate.path === newPath)) {
-      return;
-    }
+    if (folders.some((candidate) => candidate.id !== folderId && candidate.path === newPath)) return;
 
     const timestamp = new Date().toISOString();
     const nextFolders = folders.map((candidate) => {
-      if (!isPathInsideFolder(candidate.path, folder.path)) {
-        return candidate;
-      }
+      if (!isPathInsideFolder(candidate.path, folder.path)) return candidate;
 
       const nextPath = renameFolderPath(candidate.path, folder.path, newPath);
       const nextParentPath = candidate.parentPath && isPathInsideFolder(candidate.parentPath, folder.path)
@@ -191,10 +174,7 @@ export default function App() {
 
   const handleDeleteFolder = useCallback((folderId: string) => {
     const folder = folders.find((candidate) => candidate.id === folderId);
-
-    if (!folder) {
-      return;
-    }
+    if (!folder) return;
 
     const hasNestedFolders = folders.some(
       (candidate) => candidate.id !== folder.id && isPathInsideFolder(candidate.path, folder.path)
@@ -217,10 +197,7 @@ export default function App() {
 
   const handleMoveNote = useCallback((noteId: string, folderPath: string | null) => {
     const note = notes.find((candidate) => candidate.id === noteId);
-
-    if (!note || note.folder === (folderPath ?? "")) {
-      return;
-    }
+    if (!note || note.folder === (folderPath ?? "")) return;
 
     const nextNote: Note = {
       ...note,
@@ -236,13 +213,10 @@ export default function App() {
   const handleDeleteNote = useCallback((noteId: string) => {
     setNotes((current) => {
       const nextNotes = current.filter((note) => note.id !== noteId);
-
-      if (activeNoteId === noteId) {
-        setActiveNoteId(nextNotes[0]?.id ?? null);
-      }
-
+      if (activeNoteId === noteId) setActiveNoteId(nextNotes[0]?.id ?? null);
       return nextNotes;
     });
+
     void removeNote(noteId);
   }, [activeNoteId]);
 
@@ -257,20 +231,31 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyboardShortcut = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.altKey) {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+
+      const key = event.key.toLocaleLowerCase("cs-CZ");
+
+      if (key === "n") {
+        event.preventDefault();
+
+        if (event.shiftKey) {
+          setSidebarOpen(true);
+          setFolderCreateNonce((current) => current + 1);
+        } else {
+          handleCreateNote(selectedFolderPath);
+        }
+
         return;
       }
 
-      if (event.key.toLocaleLowerCase("cs-CZ") !== "n") {
-        return;
+      if (key === "b") {
+        event.preventDefault();
+        setSidebarOpen((current) => !current);
       }
 
-      event.preventDefault();
-
-      if (event.shiftKey) {
-        setFolderCreateNonce((current) => current + 1);
-      } else {
-        handleCreateNote(selectedFolderPath);
+      if (key === "j") {
+        event.preventDefault();
+        setAiOpen((current) => !current);
       }
     };
 
@@ -282,45 +267,84 @@ export default function App() {
     return <div className="loading-screen">Načítám lokální vault…</div>;
   }
 
+  const workspaceLabel = view === "graph" ? "Knowledge graph" : activeNote?.title || "Žádná poznámka";
+  const workspacePath = view === "graph" ? "Global view" : activeNote?.folder || "Vault root";
+
   return (
-    <div className="app-shell">
-      <VaultSidebar
-        notes={notes}
-        folders={folders}
-        activeNoteId={activeNoteId}
-        selectedFolderPath={selectedFolderPath}
-        query={query}
-        view={view}
-        folderCreateNonce={folderCreateNonce}
-        onViewChange={setView}
-        onQueryChange={setQuery}
-        onSelectNote={setActiveNoteId}
-        onSelectFolder={setSelectedFolderPath}
-        onCreateNote={handleCreateNote}
-        onCreateFolder={handleCreateFolder}
-        onRenameFolder={handleRenameFolder}
-        onDeleteFolder={handleDeleteFolder}
-        onDeleteNote={handleDeleteNote}
-        onMoveNote={handleMoveNote}
-      />
+    <div className={`workbench ${sidebarOpen ? "sidebar-open" : ""} ${aiOpen ? "ai-open" : ""}`}>
+      <header className="app-topbar">
+        <div className="topbar-brand">
+          <div className="topbar-logo">E</div>
+          <strong>Ethical World</strong>
+        </div>
 
-      {view === "graph" ? (
-        <Suspense fallback={<main className="graph-pane loading-screen">Načítám knowledge graph…</main>}>
-          <GraphPane notes={notes} activeNoteId={activeNoteId} onOpenNote={handleOpenGraphNote} />
-        </Suspense>
-      ) : (
-        <EditorPane
-          note={activeNote}
-          notes={notes}
-          folders={folders}
-          onChange={handleChangeNote}
-          onOpenNote={setActiveNoteId}
+        <div className="topbar-context">
+          <span>{workspacePath}</span>
+          <b>›</b>
+          <strong>{workspaceLabel}</strong>
+        </div>
+
+        <div className="topbar-actions">
+          <button type="button" onClick={() => setSidebarOpen((current) => !current)} title="Files panel (Ctrl+B)">
+            {sidebarOpen ? "Hide files" : "Files"}
+          </button>
+          <button type="button" onClick={() => setAiOpen((current) => !current)} title="Máša panel (Ctrl+J)">
+            {aiOpen ? "Hide Máša" : "Máša"}
+          </button>
+        </div>
+      </header>
+
+      <div className="workbench-body">
+        <ActivityRail
+          view={view}
+          sidebarOpen={sidebarOpen}
+          aiOpen={aiOpen}
+          onViewChange={setView}
+          onToggleSidebar={() => setSidebarOpen((current) => !current)}
+          onToggleAi={() => setAiOpen((current) => !current)}
         />
-      )}
 
-      <Suspense fallback={<aside className="ai-panel loading-screen">Načítám AI panel…</aside>}>
-        <AiPanel activeNote={activeNote} notes={notes} />
-      </Suspense>
+        {sidebarOpen && (
+          <VaultSidebar
+            notes={notes}
+            folders={folders}
+            activeNoteId={activeNoteId}
+            selectedFolderPath={selectedFolderPath}
+            query={query}
+            folderCreateNonce={folderCreateNonce}
+            onViewChange={setView}
+            onQueryChange={setQuery}
+            onSelectNote={setActiveNoteId}
+            onSelectFolder={setSelectedFolderPath}
+            onCreateNote={handleCreateNote}
+            onCreateFolder={handleCreateFolder}
+            onRenameFolder={handleRenameFolder}
+            onDeleteFolder={handleDeleteFolder}
+            onDeleteNote={handleDeleteNote}
+            onMoveNote={handleMoveNote}
+          />
+        )}
+
+        {view === "graph" ? (
+          <Suspense fallback={<main className="graph-pane loading-screen">Načítám knowledge graph…</main>}>
+            <GraphPane notes={notes} activeNoteId={activeNoteId} onOpenNote={handleOpenGraphNote} />
+          </Suspense>
+        ) : (
+          <EditorPane
+            note={activeNote}
+            notes={notes}
+            folders={folders}
+            onChange={handleChangeNote}
+            onOpenNote={setActiveNoteId}
+          />
+        )}
+
+        {aiOpen && (
+          <Suspense fallback={<aside className="ai-panel loading-screen">Načítám AI panel…</aside>}>
+            <AiPanel activeNote={activeNote} notes={notes} />
+          </Suspense>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,10 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import {
+  memo,
+  useEffect,
+  useMemo,
+  useState,
+  type DragEvent
+} from "react";
 import { buildFolderTree, type FolderTreeNode } from "../lib/folders";
 import { searchNotes } from "../lib/notes";
 import type { Note, VaultFolder } from "../types";
@@ -11,7 +17,6 @@ interface VaultSidebarProps {
   activeNoteId: string | null;
   selectedFolderPath: string | null;
   query: string;
-  view: WorkspaceView;
   folderCreateNonce: number;
   onViewChange: (view: WorkspaceView) => void;
   onQueryChange: (value: string) => void;
@@ -41,12 +46,12 @@ interface FolderRowProps {
   onMoveNote: (noteId: string, folderPath: string | null) => void;
 }
 
-function beginNoteDrag(event: React.DragEvent, noteId: string) {
+function beginNoteDrag(event: DragEvent, noteId: string) {
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("application/x-ethical-world-note", noteId);
 }
 
-function getDraggedNoteId(event: React.DragEvent): string {
+function getDraggedNoteId(event: DragEvent): string {
   return event.dataTransfer.getData("application/x-ethical-world-note");
 }
 
@@ -72,7 +77,7 @@ function FolderRow({
     <div className="tree-branch">
       <div
         className={`folder-row ${isSelected ? "selected" : ""}`}
-        style={{ paddingLeft: 6 + depth * 14 }}
+        style={{ paddingLeft: 7 + depth * 13 }}
         onDragOver={(event) => {
           event.preventDefault();
           event.dataTransfer.dropEffect = "move";
@@ -103,9 +108,9 @@ function FolderRow({
         </button>
 
         <div className="tree-actions">
-          <button type="button" onClick={() => onCreateNote(node.folder.path)} title="Nová poznámka ve složce">＋</button>
-          <button type="button" onClick={() => onStartRename(node.folder)} title="Přejmenovat složku">✎</button>
-          <button type="button" onClick={() => onDeleteFolder(node.folder.id)} title="Smazat složku">×</button>
+          <button type="button" onClick={() => onCreateNote(node.folder.path)} title="Nová poznámka">＋</button>
+          <button type="button" onClick={() => onStartRename(node.folder)} title="Přejmenovat">✎</button>
+          <button type="button" onClick={() => onDeleteFolder(node.folder.id)} title="Smazat">×</button>
         </div>
       </div>
 
@@ -133,7 +138,7 @@ function FolderRow({
           {node.notes.map((note) => (
             <div
               className={`tree-note-row ${note.id === activeNoteId ? "active" : ""}`}
-              style={{ paddingLeft: 28 + depth * 14 }}
+              style={{ paddingLeft: 28 + depth * 13 }}
               key={note.id}
               draggable
               onDragStart={(event) => beginNoteDrag(event, note.id)}
@@ -142,7 +147,14 @@ function FolderRow({
                 <span>▱</span>
                 <strong>{note.title || "Bez názvu"}</strong>
               </button>
-              <button className="tree-note-delete" type="button" onClick={() => onDeleteNote(note.id)} title="Smazat poznámku">×</button>
+              <button
+                className="tree-note-delete"
+                type="button"
+                onClick={() => onDeleteNote(note.id)}
+                title="Smazat poznámku"
+              >
+                ×
+              </button>
             </div>
           ))}
         </div>
@@ -157,7 +169,6 @@ export const VaultSidebar = memo(function VaultSidebar({
   activeNoteId,
   selectedFolderPath,
   query,
-  view,
   folderCreateNonce,
   onViewChange,
   onQueryChange,
@@ -183,13 +194,23 @@ export const VaultSidebar = memo(function VaultSidebar({
   );
 
   useEffect(() => {
-    if (folderCreateNonce === 0) {
-      return;
-    }
-
+    if (folderCreateNonce === 0) return;
     setNewFolderParent(selectedFolderPath);
     setNewFolderName("");
   }, [folderCreateNonce]);
+
+  useEffect(() => {
+    if (!selectedFolderPath) return;
+
+    const parts = selectedFolderPath.split("/");
+    const ancestors = parts.map((_, index) => parts.slice(0, index + 1).join("/"));
+
+    setExpandedFolders((current) => {
+      const next = new Set(current);
+      ancestors.forEach((path) => next.add(path));
+      return next;
+    });
+  }, [selectedFolderPath]);
 
   const openNote = (noteId: string) => {
     onSelectNote(noteId);
@@ -199,10 +220,8 @@ export const VaultSidebar = memo(function VaultSidebar({
   const toggleFolder = (folderPath: string) => {
     setExpandedFolders((current) => {
       const next = new Set(current);
-
       if (next.has(folderPath)) next.delete(folderPath);
       else next.add(folderPath);
-
       return next;
     });
   };
@@ -228,7 +247,6 @@ export const VaultSidebar = memo(function VaultSidebar({
 
   const submitRenameFolder = () => {
     if (!renamingFolder || !renameValue.trim()) return;
-
     onRenameFolder(renamingFolder.id, renameValue.trim());
     setRenamingFolder(null);
     setRenameValue("");
@@ -236,35 +254,28 @@ export const VaultSidebar = memo(function VaultSidebar({
 
   return (
     <aside className="vault-sidebar">
-      <div className="workspace-header">
-        <div className="workspace-mark">E</div>
-        <div className="workspace-copy">
-          <strong>Ethical World</strong>
-          <span>Local vault</span>
-        </div>
-        <button className="icon-button subtle" type="button" title="Nastavení vaultu" aria-label="Nastavení vaultu">⋯</button>
-      </div>
-
-      <div className="workspace-nav">
-        <button type="button" className={view === "note" ? "active" : ""} onClick={() => onViewChange("note")}>
-          <span>▱</span> Notes
-        </button>
-        <button type="button" className={view === "graph" ? "active" : ""} onClick={() => onViewChange("graph")}>
-          <span>⌘</span> Graph
-        </button>
-      </div>
-
-      <div className="file-toolbar">
-        <span>FILES</span>
+      <div className="pane-header">
         <div>
-          <button type="button" onClick={() => onCreateNote(selectedFolderPath)} title="Nová poznámka (Ctrl+N)">＋▱</button>
-          <button type="button" onClick={beginCreateFolder} title="Nová složka (Ctrl+Shift+N)">＋□</button>
+          <span className="pane-eyebrow">VAULT</span>
+          <strong>Files</strong>
+        </div>
+        <div className="pane-header-actions">
+          <button type="button" onClick={() => onCreateNote(selectedFolderPath)} title="Nová poznámka (Ctrl+N)">＋</button>
+          <button type="button" onClick={beginCreateFolder} title="Nová složka (Ctrl+Shift+N)">□＋</button>
         </div>
       </div>
 
-      <div className="search-shell">
-        <span>⌕</span>
-        <input className="search-input" value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Hledat ve vaultu" aria-label="Hledat poznámky" />
+      <div className="sidebar-search-wrap">
+        <div className="search-shell">
+          <span>⌕</span>
+          <input
+            className="search-input"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="Search files…"
+            aria-label="Hledat poznámky"
+          />
+        </div>
       </div>
 
       {newFolderParent !== undefined && (
@@ -318,7 +329,9 @@ export const VaultSidebar = memo(function VaultSidebar({
             if (noteId) onMoveNote(noteId, null);
           }}
         >
-          <span>⌂</span> Vault root
+          <span className="root-icon">⌂</span>
+          <span>Vault root</span>
+          <small>{notes.filter((note) => !note.folder).length}</small>
         </button>
 
         {tree.rootNotes.map((note) => (
@@ -332,7 +345,14 @@ export const VaultSidebar = memo(function VaultSidebar({
               <span>▱</span>
               <strong>{note.title || "Bez názvu"}</strong>
             </button>
-            <button className="tree-note-delete" type="button" onClick={() => onDeleteNote(note.id)} title="Smazat poznámku">×</button>
+            <button
+              className="tree-note-delete"
+              type="button"
+              onClick={() => onDeleteNote(note.id)}
+              title="Smazat poznámku"
+            >
+              ×
+            </button>
           </div>
         ))}
 
@@ -362,9 +382,11 @@ export const VaultSidebar = memo(function VaultSidebar({
       </div>
 
       <div className="sidebar-footer">
-        <span><i className="footer-dot" /> Local</span>
-        <span>{folders.length} složek · {notes.length} poznámek</span>
+        <span><i className="footer-dot" /> local vault</span>
+        <span>{folders.length} folders · {notes.length} notes</span>
       </div>
     </aside>
   );
 });
+
+export default VaultSidebar;
