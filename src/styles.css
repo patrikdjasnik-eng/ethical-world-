@@ -2776,3 +2776,131 @@ body,
   font-weight: 750;
   letter-spacing: .1em;
 }
+
+
+/* Máša compact bottom dock v0.3 */
+.workbench.ai-open:not(.sidebar-open) .workbench-body {
+  grid-template-columns: 48px minmax(0, 1fr);
+}
+
+.workbench.sidebar-open.ai-open .workbench-body {
+  grid-template-columns: 48px 268px minmax(0, 1fr);
+}
+
+.ai-panel {
+  position: fixed;
+  z-index: 60;
+  right: 18px;
+  bottom: 18px;
+  width: min(430px, calc(100vw - 86px));
+  height: min(470px, calc(100vh - 92px));
+  min-width: 320px;
+  min-height: 320px;
+  overflow: hidden;
+  border: 1px solid #2e2b38;
+  border-radius: 14px;
+  background: rgba(13, 13, 17, .985);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, .52),
+    0 0 0 1px rgba(255, 255, 255, .018) inset;
+  backdrop-filter: blur(18px);
+}
+
+.ai-panel .pane-titlebar {
+  min-height: 29px;
+  border-bottom-color: #211f28;
+  background: #0c0c10;
+  border-radius: 14px 14px 0 0;
+}
+
+.ai-panel .ai-header {
+  padding: 8px 10px;
+}
+
+.ai-panel .ai-avatar {
+  width: 25px;
+  height: 25px;
+}
+
+.ai-panel .ai-context {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  margin: 5px 8px 2px;
+  padding: 6px 8px;
+}
+
+.ai-panel .ai-context strong {
+  flex: 1;
+}
+
+.ai-panel .ai-context small {
+  display: none;
+}
+
+.ai-panel .message-list {
+  gap: 5px;
+  padding: 7px 8px;
+}
+
+.ai-panel .message {
+  padding: 7px 8px;
+}
+
+.ai-panel .message p {
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.48;
+}
+
+.ai-panel .chat-composer {
+  padding: 8px;
+}
+
+.ai-panel .chat-composer textarea {
+  min-height: 62px;
+  max-height: 112px;
+  padding: 8px 9px 29px;
+}
+
+.ai-panel .chat-composer .primary-button {
+  right: 12px;
+  bottom: 12px;
+}
+
+.ai-panel .ai-settings {
+  max-height: 230px;
+  overflow-y: auto;
+}
+
+.ai-panel .ai-offline-banner {
+  margin: 6px 8px 2px;
+}
+
+@media (max-width: 820px) {
+  .workbench.sidebar-open.ai-open .ai-panel {
+    display: flex;
+  }
+
+  .ai-panel {
+    position: fixed;
+    top: auto;
+    right: 10px;
+    bottom: 10px;
+    width: calc(100vw - 66px);
+    min-width: 0;
+    height: min(62vh, 500px);
+    box-shadow: 0 18px 55px rgba(0, 0, 0, .55);
+  }
+}
+
+@media (max-width: 560px) {
+  .ai-panel {
+    left: 56px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+    height: min(68vh, 520px);
+  }
+}

@@ -312,7 +312,9 @@ export const AiPanel = memo(function AiPanel({
           <span>
             {connection.backendOnline
               ? "Spusť Ollamu nebo llama-server. Ethical World je automaticky zkusí najít."
-              : "Spusť FastAPI backend na portu 8787."}
+              : window.ethicalDesktop
+                ? "Desktop runtime backend se nepodařilo spustit. Zkus aplikaci restartovat."
+                : "Spusť FastAPI backend na portu 8787."}
           </span>
           <button type="button" onClick={() => void refreshConnection(true)}>Zkontrolovat znovu</button>
         </div>
