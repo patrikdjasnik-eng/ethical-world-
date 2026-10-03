@@ -142,3 +142,17 @@ GitHub Actions workflow zůstává nakonfigurovaný, ale dostupné runy dříve 
 - `npm run desktop:make` vytvoří lokální Windows distributable;
 - `npm run verify` nahrazuje běžný CI gate při lokálním vývoji;
 - GitHub Actions workflow je nyní pouze manuální přes `workflow_dispatch`.
+
+
+### Desktop auto-update v0.1
+
+- přidaný `update-electron-app`;
+- updater běží pouze v packaged EXE, nikdy v dev režimu;
+- update source je veřejný GitHub repo `patrikdjasnik-eng/ethical-world-`;
+- kontrola update proběhne při startu a poté každých 10 minut;
+- update se stahuje na pozadí a aplikace nabídne restart;
+- přidaný `electron-squirrel-startup` pro korektní Windows Squirrel lifecycle;
+- přidaný Electron Forge GitHub Publisher;
+- `npm run desktop:publish` vytvoří a publikuje release z lokálního Windows PC;
+- GitHub Actions nejsou pro release povinné;
+- release vyžaduje vyšší SemVer verzi v `package.json`.

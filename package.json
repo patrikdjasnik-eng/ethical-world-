@@ -7,6 +7,10 @@
   "version": "0.1.0",
   "type": "module",
   "main": "electron/main.cjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/patrikdjasnik-eng/ethical-world-.git"
+  },
   "scripts": {
     "dev": "vite",
     "desktop:dev": "concurrently -k -n UI,DESKTOP \"vite --host 127.0.0.1\" \"wait-on http-get://127.0.0.1:5173 && electron electron/main.cjs\"",
@@ -14,20 +18,27 @@
     "verify": "npm test && npm run build",
     "desktop:package": "npm run build && electron-forge package",
     "desktop:make": "npm run build && electron-forge make",
+    "desktop:publish": "npm run verify && electron-forge publish",
+    "version:patch": "npm version patch",
+    "version:minor": "npm version minor",
+    "version:major": "npm version major",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "electron-squirrel-startup": "^1.0.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-force-graph-2d": "^1.29.2",
     "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "update-electron-app": "^3.3.0"
   },
   "devDependencies": {
     "@electron-forge/cli": "^8.0.1",
     "@electron-forge/maker-squirrel": "^8.0.1",
     "@electron-forge/maker-zip": "^8.0.1",
+    "@electron-forge/publisher-github": "^8.0.1",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.2",

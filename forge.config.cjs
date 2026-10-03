@@ -16,5 +16,19 @@ module.exports = {
       name: "@electron-forge/maker-zip",
       platforms: ["win32"]
     }
+  ],
+  publishers: [
+    {
+      name: "@electron-forge/publisher-github",
+      config: {
+        repository: {
+          owner: "patrikdjasnik-eng",
+          name: "ethical-world-"
+        },
+        draft: false,
+        prerelease: false,
+        generateReleaseNotes: true
+      }
+    }
   ]
 };
