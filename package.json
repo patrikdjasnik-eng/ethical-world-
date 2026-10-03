@@ -52,5 +52,9 @@
     "vite": "^7.1.4",
     "vitest": "^3.2.4",
     "wait-on": "^9.5.1"
+  },
+  "allowScripts": {
+    "electron-winstaller": true,
+    "esbuild": true
   }
 }
