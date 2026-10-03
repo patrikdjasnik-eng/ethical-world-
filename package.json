@@ -25,7 +25,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "desktop:test-install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-desktop-install.ps1",
-    "desktop:test-install:launch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-desktop-install.ps1 -Launch"
+    "desktop:test-install:launch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-desktop-install.ps1 -Launch",
+    "desktop:make:squirrel": "npm run build && electron-forge make --targets @electron-forge/maker-squirrel",
+    "desktop:make:zip": "npm run build && electron-forge make --targets @electron-forge/maker-zip"
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",

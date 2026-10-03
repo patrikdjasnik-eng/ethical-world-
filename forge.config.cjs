@@ -11,7 +11,9 @@ module.exports = {
       config: {
         name: "ethical_world",
         title: "Ethical World",
-        setupExe: "EthicalWorldSetup.exe"
+        exe: "EthicalWorld.exe",
+        setupExe: "EthicalWorldSetup.exe",
+        noMsi: true
       }
     },
     {

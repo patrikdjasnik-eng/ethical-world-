@@ -55,10 +55,17 @@ Write-Host "------------------------------------"
 
 if (-not $SkipMake) {
   Write-Host "[1/4] Building Windows installer..."
+  Write-Host "Running Electron Forge make. If this fails, the maker output above is the primary error."
   npm run desktop:make
 
   if ($LASTEXITCODE -ne 0) {
-    throw "desktop:make failed with exit code $LASTEXITCODE."
+    $exitCode = $LASTEXITCODE
+    Write-Host ""
+    Write-Host "[FAIL] Electron Forge desktop:make failed." -ForegroundColor Red
+    Write-Host "Run these separately to isolate the failing maker:" -ForegroundColor Yellow
+    Write-Host "  npm run desktop:make:squirrel"
+    Write-Host "  npm run desktop:make:zip"
+    throw "desktop:make failed with exit code $exitCode."
   }
 } else {
   Write-Host "[1/4] Build skipped."

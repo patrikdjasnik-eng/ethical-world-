@@ -184,3 +184,12 @@ GitHub Actions workflow zůstává nakonfigurovaný, ale dostupné runy dříve 
 - `npm run desktop:test-install` vytvoří installer, spustí jej a ověří Desktop shortcut;
 - test čte skutečný `.lnk` přes Windows COM a validuje target/arguments;
 - `npm run desktop:test-install:launch` navíc spustí aplikaci přes Desktop shortcut a ověří proces `EthicalWorld.exe`.
+
+
+### Squirrel maker executable fix
+
+- opravený nesoulad mezi Packager executableName `EthicalWorld` a Squirrel default executable názvem;
+- Squirrel má nyní explicitně `exe: "EthicalWorld.exe"`;
+- MSI generování je vypnuté přes `noMsi: true`, protože distribuce používá Squirrel Setup.exe;
+- přidané izolované maker příkazy `desktop:make:squirrel` a `desktop:make:zip`;
+- installer smoke test při pádu vypíše příkazy pro izolaci konkrétního makeru.
