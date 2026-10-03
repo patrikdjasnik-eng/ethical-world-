@@ -27,6 +27,7 @@ const AiPanel = lazy(() => import("./components/AiPanel"));
 const GraphPane = lazy(() => import("./components/GraphPane"));
 const ConnectorPanel = lazy(() => import("./components/ConnectorPanel"));
 const AccountPanel = lazy(() => import("./components/AccountPanel"));
+const GuidePanel = lazy(() => import("./components/GuidePanel"));
 const now = new Date().toISOString();
 
 const welcomeNote: Note = {
@@ -388,16 +389,20 @@ export default function App() {
     ? "Knowledge graph"
     : view === "connectors"
       ? "Connectors"
-      : view === "account"
-        ? "Account"
-        : activeNote?.title || "Žádná poznámka";
+      : view === "guide"
+        ? "Guide"
+        : view === "account"
+          ? "Account"
+          : activeNote?.title || "Žádná poznámka";
   const workspacePath = view === "graph"
     ? "Global view"
     : view === "connectors"
       ? "Integrations"
-      : view === "account"
-        ? "Identity"
-        : activeNote?.folder || "Vault root";
+      : view === "guide"
+        ? "Help"
+        : view === "account"
+          ? "Identity"
+          : activeNote?.folder || "Vault root";
 
   return (
     <div className={`workbench ${sidebarOpen ? "sidebar-open" : ""} ${aiOpen ? "ai-open" : ""}`}>
@@ -461,6 +466,10 @@ export default function App() {
         ) : view === "connectors" ? (
           <Suspense fallback={<main className="connector-pane loading-screen">Načítám konektory…</main>}>
             <ConnectorPanel notes={notes} onImportNotes={handleImportConnectorNotes} />
+          </Suspense>
+        ) : view === "guide" ? (
+          <Suspense fallback={<main className="guide-pane loading-screen">Načítám návod…</main>}>
+            <GuidePanel />
           </Suspense>
         ) : view === "account" ? (
           <Suspense fallback={<main className="account-pane loading-screen">Načítám účet…</main>}>

@@ -9,7 +9,7 @@ import { buildFolderTree, type FolderTreeNode } from "../lib/folders";
 import { searchNotes } from "../lib/notes";
 import type { Note, VaultFolder } from "../types";
 
-export type WorkspaceView = "note" | "graph" | "connectors" | "account";
+export type WorkspaceView = "note" | "graph" | "connectors" | "guide" | "account";
 
 interface VaultSidebarProps {
   notes: Note[];
