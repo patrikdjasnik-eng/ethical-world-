@@ -26,6 +26,7 @@ Current development includes:
 - GitHub Device OAuth Markdown sync;
 - Notion Markdown import and write-back;
 - local SQLite identity layer;
+- **Carrot** signed Markdown history with hash chaining and per-device Ed25519 signatures;
 - Windows Electron desktop shell and standalone backend packaging;
 - bilingual in-app Guide and Updates.
 
@@ -60,6 +61,7 @@ Developer documentation currently lives there:
 - `SECURITY.md`
 - `AI.md`
 - `CONNECTORS.md`
+- `CARROT.md`
 
 ## Brand
 
