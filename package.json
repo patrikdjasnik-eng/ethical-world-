@@ -27,7 +27,10 @@
     "desktop:test-install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-desktop-install.ps1",
     "desktop:test-install:launch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-desktop-install.ps1 -Launch",
     "desktop:make:squirrel": "npm run build && electron-forge make --targets @electron-forge/maker-squirrel",
-    "desktop:make:zip": "npm run build && electron-forge make --targets @electron-forge/maker-zip"
+    "desktop:make:zip": "npm run build && electron-forge make --targets @electron-forge/maker-zip",
+    "desktop:backend:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-backend.ps1",
+    "desktop:make:standalone": "npm run desktop:backend:build && npm run desktop:make",
+    "desktop:package:standalone": "npm run desktop:backend:build && npm run desktop:package"
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",

@@ -1,8 +1,16 @@
+const fs = require("node:fs");
+const path = require("node:path");
+
+const extraResource = ["server"];
+const bundledBackend = path.join(__dirname, "resources", "backend");
+if (fs.existsSync(bundledBackend)) extraResource.push(bundledBackend);
+
 module.exports = {
   packagerConfig: {
     asar: true,
     name: "Ethical World",
-    executableName: "EthicalWorld"
+    executableName: "EthicalWorld",
+    extraResource
   },
   rebuildConfig: {},
   makers: [
@@ -16,19 +24,13 @@ module.exports = {
         noMsi: true
       }
     },
-    {
-      name: "@electron-forge/maker-zip",
-      platforms: ["win32"]
-    }
+    { name: "@electron-forge/maker-zip", platforms: ["win32"] }
   ],
   publishers: [
     {
       name: "@electron-forge/publisher-github",
       config: {
-        repository: {
-          owner: "patrikdjasnik-eng",
-          name: "ethical-world-"
-        },
+        repository: { owner: "patrikdjasnik-eng", name: "ethical-world-" },
         draft: false,
         prerelease: false,
         generateReleaseNotes: true
