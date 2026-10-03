@@ -118,3 +118,19 @@ FastAPI vrstva má lokální SQLite identity store:
 ```
 
 `users` drží pouze password verifier (scrypt + salt), `sessions` pouze hash session tokenu. `devices` a `message_envelopes` jsou připravené pro budoucí per-device E2E komunikaci, ale samotný ratchet/protokol zatím implementovaný není.
+
+
+## Connector layer
+
+```text
+ConnectorPanel
+   ├─ Local / VS Code → Electron IPC → approved Markdown root
+   ├─ GitHub → Device OAuth → OS safeStorage → GitHub API
+   └─ Notion → server OAuth (next) → enhanced Markdown API
+```
+
+Externí dokumenty používají společný `NoteSource` kontrakt: provider, connection ID a relativní cesta.
+
+## Account UI
+
+AccountPanel používá FastAPI `register/login/me` endpointy. Desktop session token je persistovaný pouze přes Electron secure bridge, takže renderer nemá přístup k obecnému secret store.

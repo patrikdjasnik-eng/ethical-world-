@@ -44,3 +44,14 @@ Lokální backend používá SQLite databázi v uživatelském data adresáři (
 Schema `message_envelopes` je záměrně ciphertext-only. Serverová databáze má v budoucnu ukládat šifrovanou zprávu, nonce a metadata nutná k doručení, nikoli plaintext.
 
 Kryptografický protokol pro týmový chat nebude vlastní návrh. Produkční verze má použít auditovanou implementaci typu Signal protocol / Double Ratchet s per-device identity keys a prekeys. Dokud tato vrstva není implementovaná a auditovaná, dokumentace nesmí tvrdit, že chat má Signal/Telegram-equivalentní E2E bezpečnost.
+
+
+## Connector a session secrets
+
+GitHub OAuth token ani Ethical World session token nejsou ukládané v renderer storage. Desktop používá Electron `safeStorage`, takže na disk jde pouze OS-encrypted blob.
+
+GitHub Device OAuth MVP používá širší `repo` scope kvůli private repositories. Produkční distribuce má přejít na GitHub App s minimálními Contents permissions.
+
+Notion public OAuth client secret nesmí být součástí desktop aplikace. Code exchange a refresh tokeny musí obsluhovat serverová vrstva.
+
+Browser fallback ukládá app session pouze do `sessionStorage`, nikoli persistentního localStorage.

@@ -216,3 +216,32 @@ GitHub Actions workflow zůstává nakonfigurovaný, ale dostupné runy dříve 
 - admin účet lze bootstrapnout výhradně přes environment variables;
 - přidané tabulky devices a ciphertext-only message_envelopes jako základ budoucího E2E chatu;
 - dokumentace výslovně zakazuje vlastní neauditovanou kryptografii pro budoucí team messaging.
+
+
+### Máša chat UX v0.2
+
+- automatický scroll na poslední zprávu;
+- Enter odesílá, Shift+Enter přidá nový řádek;
+- odpovědi Máši mají copy akci;
+- běžný dotaz ukazuje `Přemýšlím nad odpovědí…`; 
+- požadavek na změnu ukazuje `Připravuju změnu v Ethical World…`; 
+- system prompt už není omezený pouze na vault a dovoluje obecné technické/cybersecurity vysvětlování.
+
+### Connectors v0.1
+
+- nový Connectors workspace;
+- funkční Local / VS Code Markdown import/export;
+- session-scoped filesystem root + path traversal ochrana;
+- GitHub Device OAuth;
+- GitHub token přes Electron OS safeStorage;
+- GitHub Markdown-only import bez clone;
+- GitHub Markdown export jako jeden commit;
+- Notion public OAuth ponechán server-side kvůli client secretu.
+
+### Account UI v0.1
+
+- registrace a login přes FastAPI identity DB;
+- session restore po restartu desktopu;
+- session token desktop ukládá přes OS safeStorage;
+- browser fallback používá pouze sessionStorage;
+- account view je dostupný přes spodní Settings/Account ikonu.
