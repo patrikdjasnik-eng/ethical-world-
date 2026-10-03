@@ -85,7 +85,7 @@ function linkEndpointId(endpoint: string | RenderNode): string {
 }
 
 function shortenTitle(title: string): string {
-  return title.length > 34 ? `${title.slice(0, 32)}…` : title;
+  return title.length > 42 ? `${title.slice(0, 40)}…` : title;
 }
 
 export const GraphPane = memo(function GraphPane({
@@ -99,24 +99,21 @@ export const GraphPane = memo(function GraphPane({
   const [localRootId, setLocalRootId] = useState<string | null>(activeNoteId);
   const [query, setQuery] = useState("");
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(activeNoteId);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [hiddenNodeIds, setHiddenNodeIds] = useState<Set<string>>(() => new Set());
   const [showLabels, setShowLabels] = useState(true);
   const [showOrphans, setShowOrphans] = useState(true);
   const [colorByFolder, setColorByFolder] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [stageSize, setStageSize] = useState({ width: 900, height: 620 });
 
   useEffect(() => {
     const element = containerRef.current;
-
-    if (!element) {
-      return;
-    }
+    if (!element) return;
 
     const updateSize = () => {
       const bounds = element.getBoundingClientRect();
-
       setStageSize({
         width: Math.max(320, Math.floor(bounds.width)),
         height: Math.max(320, Math.floor(bounds.height))
@@ -124,20 +121,14 @@ export const GraphPane = memo(function GraphPane({
     };
 
     updateSize();
-
     const observer = new ResizeObserver(updateSize);
     observer.observe(element);
-
     return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
-    if (activeNoteId) {
-      setSelectedNodeId(activeNoteId);
-
-      if (!localRootId) {
-        setLocalRootId(activeNoteId);
-      }
+    if (activeNoteId && !localRootId) {
+      setLocalRootId(activeNoteId);
     }
   }, [activeNoteId, localRootId]);
 
@@ -151,10 +142,7 @@ export const GraphPane = memo(function GraphPane({
 
   const graphData = useMemo(() => {
     const visibleNodes = scopedGraph.nodes.filter((node) => {
-      if (hiddenNodeIds.has(node.id)) {
-        return false;
-      }
-
+      if (hiddenNodeIds.has(node.id)) return false;
       return showOrphans || node.degree > 0;
     });
 
@@ -185,40 +173,46 @@ export const GraphPane = memo(function GraphPane({
   );
 
   const normalizedQuery = query.trim().toLocaleLowerCase("cs-CZ");
-  const folders = useMemo(
-    () => Array.from(new Set(graphData.nodes.map((node) => node.folder))).sort(),
-    [graphData.nodes]
-  );
 
-  const selectedNode = useMemo(
-    () => graphData.nodes.find((node) => node.id === selectedNodeId) ?? null,
-    [graphData.nodes, selectedNodeId]
-  );
-
-  const fitGraph = useCallback((duration = 450) => {
+  const fitGraph = useCallback((duration = 360) => {
     window.requestAnimationFrame(() => {
-      graphRef.current?.zoomToFit(duration, 72);
+      const api = graphRef.current;
+      const nodeCount = graphData.nodes.length;
+      if (!api || nodeCount === 0) return;
+
+      if (nodeCount === 1) {
+        const node = graphData.nodes[0] as RenderNode;
+        api.centerAt(node.x ?? 0, node.y ?? 0, duration);
+        api.zoom(0.9, duration);
+        return;
+      }
+
+      const padding = nodeCount <= 4 ? 190 : nodeCount <= 12 ? 125 : 90;
+      api.zoomToFit(duration, padding);
+
+      window.setTimeout(() => {
+        const currentZoom = api.zoom();
+        const maxZoom = nodeCount <= 4 ? 1.25 : 1.9;
+        if (currentZoom > maxZoom) api.zoom(maxZoom, 160);
+      }, duration + 20);
     });
-  }, []);
+  }, [graphData.nodes]);
 
   useEffect(() => {
     const api = graphRef.current;
-
-    if (!api) {
-      return;
-    }
+    if (!api) return;
 
     const chargeForce = api.d3Force("charge") as StrengthForce | undefined;
     const linkForce = api.d3Force("link") as LinkForce | undefined;
 
-    chargeForce?.strength(-105);
-    linkForce?.distance(72);
-    linkForce?.strength(0.42);
+    chargeForce?.strength(-78);
+    linkForce?.distance(62);
+    linkForce?.strength(0.5);
     api.d3ReheatSimulation();
   }, [graphData.links.length, graphData.nodes.length, scope]);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => fitGraph(300), 120);
+    const timeout = window.setTimeout(() => fitGraph(320), 180);
     return () => window.clearTimeout(timeout);
   }, [fitGraph, scope, showOrphans, stageSize.height, stageSize.width]);
 
@@ -226,8 +220,8 @@ export const GraphPane = memo(function GraphPane({
     setSelectedNodeId(node.id);
 
     if (typeof node.x === "number" && typeof node.y === "number") {
-      graphRef.current?.centerAt(node.x, node.y, 320);
-      graphRef.current?.zoom(2.05, 320);
+      graphRef.current?.centerAt(node.x, node.y, 240);
+      graphRef.current?.zoom(1.45, 240);
     }
   }, []);
 
@@ -242,9 +236,7 @@ export const GraphPane = memo(function GraphPane({
       || candidate.folder.toLocaleLowerCase("cs-CZ").includes(normalizedQuery)
     );
 
-    if (node) {
-      focusNode(node);
-    }
+    if (node) focusNode(node);
   };
 
   const openLocalGraph = (nodeId: string) => {
@@ -265,11 +257,7 @@ export const GraphPane = memo(function GraphPane({
 
   const copyWikiLink = async (nodeId: string) => {
     const node = globalGraph.nodes.find((candidate) => candidate.id === nodeId);
-
-    if (node) {
-      await navigator.clipboard.writeText(`[[${node.title}]]`);
-    }
-
+    if (node) await navigator.clipboard.writeText(`[[${node.title}]]`);
     setContextMenu(null);
   };
 
@@ -297,7 +285,6 @@ export const GraphPane = memo(function GraphPane({
 
     if (window.ethicalDesktop?.isDesktop) {
       setContextMenu(null);
-
       const action = await window.ethicalDesktop.showContextMenu([
         { id: "open", label: "Otevřít poznámku" },
         { id: "local", label: "Lokální graph" },
@@ -305,7 +292,6 @@ export const GraphPane = memo(function GraphPane({
         { id: "copy", label: "Kopírovat wiki link" },
         { id: "hide", label: "Skrýt z grafu" }
       ]);
-
       await runNodeAction(action, node.id);
       return;
     }
@@ -318,63 +304,9 @@ export const GraphPane = memo(function GraphPane({
   };
 
   return (
-    <main className="graph-pane">
-      <div className="graph-topbar">
-        <div className="graph-title-block">
-          <span className="graph-kicker">KNOWLEDGE GRAPH</span>
-          <strong>{scope === "global" ? "Celý vault" : "Lokální okolí"}</strong>
-          <small>{graphData.nodes.length} uzlů · {graphData.links.length} vazeb</small>
-        </div>
-
-        <div className="graph-toolbar">
-          <div className="graph-scope-switch">
-            <button
-              type="button"
-              className={scope === "global" ? "selected" : ""}
-              onClick={() => {
-                setScope("global");
-                setContextMenu(null);
-              }}
-            >
-              Global
-            </button>
-            <button
-              type="button"
-              className={scope === "local" ? "selected" : ""}
-              onClick={() => {
-                if (localRootId || activeNoteId) {
-                  setLocalRootId(localRootId ?? activeNoteId);
-                  setScope("local");
-                }
-              }}
-              disabled={!localRootId && !activeNoteId}
-            >
-              Local
-            </button>
-          </div>
-
-          <div className="graph-search">
-            <span>⌕</span>
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  focusSearchResult();
-                }
-              }}
-              placeholder="Najít uzel…"
-            />
-          </div>
-
-          <button className="graph-fit-button" type="button" onClick={() => fitGraph()}>
-            Fit
-          </button>
-        </div>
-      </div>
-
+    <main className="graph-pane obsidian-graph">
       <div
-        className="graph-stage"
+        className="graph-stage obsidian-graph-stage"
         ref={containerRef}
         onContextMenu={(event) => event.preventDefault()}
         onClick={() => setContextMenu(null)}
@@ -384,9 +316,9 @@ export const GraphPane = memo(function GraphPane({
           width={stageSize.width}
           height={stageSize.height}
           graphData={graphData}
-          backgroundColor="rgba(0,0,0,0)"
-          nodeRelSize={4}
-          nodeVal={(rawNode) => 1.2 + Math.min((rawNode as RenderNode).degree, 10) * 0.34}
+          backgroundColor="#1e1e1e"
+          nodeRelSize={1}
+          nodeVal={() => 1}
           nodeLabel={(rawNode) => {
             const node = rawNode as RenderNode;
             return `${node.title} · ${node.folder || "Vault root"} · ${node.degree} vazeb`;
@@ -395,7 +327,6 @@ export const GraphPane = memo(function GraphPane({
             const node = rawNode as RenderNode;
             const x = node.x ?? 0;
             const y = node.y ?? 0;
-            const isActive = node.id === activeNoteId;
             const isSelected = node.id === selectedNodeId;
             const isHovered = node.id === hoveredNodeId;
             const isConnected = !hoveredNodeId || connectedNodeIds.has(node.id);
@@ -403,65 +334,45 @@ export const GraphPane = memo(function GraphPane({
               || node.title.toLocaleLowerCase("cs-CZ").includes(normalizedQuery)
               || node.folder.toLocaleLowerCase("cs-CZ").includes(normalizedQuery);
             const dimmed = !isConnected || !matchesQuery;
-            const radius = 3.7 + Math.min(node.degree, 10) * 0.42 + (isSelected ? 1.1 : 0);
+            const safeScale = Math.max(globalScale, 0.4);
+            const baseRadiusPx = node.degree >= 8 ? 7 : node.degree >= 4 ? 6 : 5;
+            const radius = baseRadiusPx / safeScale;
             const nodeColor = colorByFolder
               ? colorForFolder(node.folder || "Vault root")
               : node.degree === 0
-                ? "#73737d"
-                : "#b8b8c1";
+                ? "#6f6f6f"
+                : "#b7b7b7";
 
             context.save();
-            context.globalAlpha = dimmed ? 0.13 : node.degree === 0 ? 0.62 : 1;
+            context.globalAlpha = dimmed ? 0.14 : node.degree === 0 ? 0.7 : 1;
 
             if (isSelected || isHovered) {
               context.beginPath();
-              context.arc(x, y, radius + 4.2, 0, Math.PI * 2);
-              context.fillStyle = isSelected
-                ? "rgba(139,124,246,0.16)"
-                : "rgba(255,255,255,0.055)";
-              context.fill();
+              context.arc(x, y, radius + 2 / safeScale, 0, Math.PI * 2);
+              context.strokeStyle = isSelected ? "#9b8cf5" : "#d8d8d8";
+              context.lineWidth = 1 / safeScale;
+              context.stroke();
             }
 
             context.beginPath();
             context.arc(x, y, radius, 0, Math.PI * 2);
-            context.fillStyle = isSelected ? "#9a89ff" : nodeColor;
+            context.fillStyle = isSelected ? "#a79af2" : nodeColor;
             context.fill();
 
-            context.lineWidth = Math.max(0.7, 1.1 / globalScale);
-            context.strokeStyle = isActive
-              ? "#d7d0ff"
-              : isHovered
-                ? "#f0f0f5"
-                : "rgba(255,255,255,0.24)";
-            context.stroke();
-
-            if (showLabels && globalScale > 0.52) {
+            if (showLabels && globalScale >= 0.42) {
               const label = shortenTitle(node.title);
-              const fontSize = Math.max(11.5 / globalScale, 3.7);
-              context.font = `${isSelected ? 620 : 500} ${fontSize}px Inter, sans-serif`;
+              const fontPx = isSelected ? 16 : 15;
+              const fontSize = fontPx / safeScale;
+              const labelY = y + radius + 5 / safeScale;
+
+              context.font = `${isSelected ? 520 : 400} ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
               context.textAlign = "center";
               context.textBaseline = "top";
-
-              const labelY = y + radius + 3 / globalScale;
-              const textWidth = context.measureText(label).width;
-              const padX = 3 / globalScale;
-              const padY = 1.8 / globalScale;
-
               context.fillStyle = dimmed
-                ? "rgba(13,13,17,0.15)"
-                : "rgba(13,13,17,0.72)";
-              context.fillRect(
-                x - textWidth / 2 - padX,
-                labelY - padY,
-                textWidth + padX * 2,
-                fontSize + padY * 2
-              );
-
-              context.fillStyle = dimmed
-                ? "rgba(215,215,222,0.16)"
+                ? "rgba(210,210,210,0.12)"
                 : isSelected
-                  ? "#f2efff"
-                  : "#d1d1d7";
+                  ? "#e8e5ff"
+                  : "#d0d0d0";
               context.fillText(label, x, labelY);
             }
 
@@ -469,11 +380,6 @@ export const GraphPane = memo(function GraphPane({
           }}
           linkColor={(rawLink) => {
             const link = rawLink as unknown as RenderLink;
-
-            if (!hoveredNodeId && !selectedNodeId) {
-              return "rgba(155,155,168,0.19)";
-            }
-
             const sourceId = linkEndpointId(link.source);
             const targetId = linkEndpointId(link.target);
             const highlighted = sourceId === hoveredNodeId
@@ -481,9 +387,13 @@ export const GraphPane = memo(function GraphPane({
               || sourceId === selectedNodeId
               || targetId === selectedNodeId;
 
-            return highlighted
-              ? "rgba(154,137,255,0.72)"
-              : "rgba(130,130,142,0.055)";
+            if (hoveredNodeId || selectedNodeId) {
+              return highlighted
+                ? "rgba(126,126,126,0.72)"
+                : "rgba(92,92,92,0.10)";
+            }
+
+            return "rgba(100,100,100,0.48)";
           }}
           linkWidth={(rawLink) => {
             const link = rawLink as unknown as RenderLink;
@@ -493,20 +403,15 @@ export const GraphPane = memo(function GraphPane({
               || targetId === hoveredNodeId
               || sourceId === selectedNodeId
               || targetId === selectedNodeId;
-
-            return highlighted ? 1.45 : 0.72;
+            return highlighted ? 0.9 : 0.55;
           }}
           onNodeHover={(rawNode) => setHoveredNodeId(rawNode ? (rawNode as RenderNode).id : null)}
           onNodeClick={(rawNode, event) => {
             event?.stopPropagation?.();
             const node = rawNode as RenderNode;
             focusNode(node);
-
             const clickCount = (event as MouseEvent | undefined)?.detail ?? 0;
-
-            if (clickCount >= 2) {
-              onOpenNote(node.id);
-            }
+            if (clickCount >= 2) onOpenNote(node.id);
           }}
           onNodeRightClick={(rawNode, event) => {
             event?.preventDefault?.();
@@ -517,96 +422,96 @@ export const GraphPane = memo(function GraphPane({
             setContextMenu(null);
             setSelectedNodeId(null);
           }}
-          onEngineStop={() => fitGraph(420)}
-          cooldownTicks={120}
-          d3AlphaDecay={0.025}
-          d3VelocityDecay={0.34}
+          cooldownTicks={100}
+          d3AlphaDecay={0.03}
+          d3VelocityDecay={0.38}
           enableNodeDrag
           enablePanInteraction
           enableZoomInteraction
-          minZoom={0.24}
+          minZoom={0.25}
           maxZoom={8}
         />
 
-        {graphData.nodes.length === 0 && (
-          <div className="graph-empty-overlay">
-            <span className="graph-empty-orbit"><i /><i /><i /></span>
-            <strong>Graph čeká na první poznámku</strong>
-            <p>Vytvoř poznámku nebo znovu zapni skryté uzly.</p>
+        <div className="obsidian-graph-title">
+          {scope === "global" ? "Graf" : "Lokální graf"}
+        </div>
+
+        <div className="obsidian-graph-controls">
+          <div className="obsidian-search">
+            <span>⌕</span>
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") focusSearchResult();
+              }}
+              placeholder="Hledat…"
+            />
           </div>
+          <button type="button" onClick={() => fitGraph()} title="Přizpůsobit graf">⊙</button>
+          <button
+            type="button"
+            className={settingsOpen ? "active" : ""}
+            onClick={(event) => {
+              event.stopPropagation();
+              setSettingsOpen((current) => !current);
+            }}
+            title="Nastavení grafu"
+          >
+            ⚙
+          </button>
+        </div>
+
+        {settingsOpen && (
+          <div className="obsidian-graph-settings" onClick={(event) => event.stopPropagation()}>
+            <div className="obsidian-settings-row">
+              <span>Pohled</span>
+              <div>
+                <button
+                  type="button"
+                  className={scope === "global" ? "active" : ""}
+                  onClick={() => setScope("global")}
+                >
+                  Global
+                </button>
+                <button
+                  type="button"
+                  className={scope === "local" ? "active" : ""}
+                  disabled={!localRootId && !activeNoteId}
+                  onClick={() => {
+                    if (localRootId || activeNoteId) {
+                      setLocalRootId(localRootId ?? activeNoteId);
+                      setScope("local");
+                    }
+                  }}
+                >
+                  Local
+                </button>
+              </div>
+            </div>
+
+            <label><span>Popisky</span><input type="checkbox" checked={showLabels} onChange={() => setShowLabels((current) => !current)} /></label>
+            <label><span>Izolované uzly</span><input type="checkbox" checked={showOrphans} onChange={() => setShowOrphans((current) => !current)} /></label>
+            <label><span>Barvy podle složek</span><input type="checkbox" checked={colorByFolder} onChange={() => setColorByFolder((current) => !current)} /></label>
+
+            {hiddenNodeIds.size > 0 && (
+              <button className="obsidian-restore-button" type="button" onClick={() => setHiddenNodeIds(new Set())}>
+                Obnovit skryté uzly ({hiddenNodeIds.size})
+              </button>
+            )}
+          </div>
+        )}
+
+        {graphData.nodes.length === 0 && (
+          <div className="obsidian-empty-graph">Žádné poznámky k zobrazení</div>
         )}
 
         {graphData.nodes.length > 0 && graphData.links.length === 0 && (
-          <div className="graph-orphan-hint">
-            Žádné vazby · vlož <code>[[odkaz]]</code> nebo použij Link v editoru
-          </div>
+          <div className="obsidian-orphan-note">Žádné vazby</div>
         )}
 
-        <div className="graph-floating-tools">
-          <button
-            type="button"
-            className={showLabels ? "active" : ""}
-            onClick={(event) => {
-              event.stopPropagation();
-              setShowLabels((current) => !current);
-            }}
-          >
-            Labels
-          </button>
-          <button
-            type="button"
-            className={showOrphans ? "active" : ""}
-            onClick={(event) => {
-              event.stopPropagation();
-              setShowOrphans((current) => !current);
-            }}
-          >
-            Orphans
-          </button>
-          <button
-            type="button"
-            className={colorByFolder ? "active" : ""}
-            onClick={(event) => {
-              event.stopPropagation();
-              setColorByFolder((current) => !current);
-            }}
-          >
-            Folders
-          </button>
-          {hiddenNodeIds.size > 0 && (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                setHiddenNodeIds(new Set());
-              }}
-            >
-              Restore {hiddenNodeIds.size}
-            </button>
-          )}
-        </div>
-
-        <div className="graph-help">
-          click focus · double click open · right click actions · wheel zoom · drag move
-        </div>
-      </div>
-
-      <div className="graph-statusbar">
-        <div className="graph-stats">
-          <span><strong>{graphData.nodes.length}</strong> uzlů</span>
-          <span><strong>{graphData.links.length}</strong> vazeb</span>
-          <span><strong>{folders.length}</strong> skupin</span>
-          {selectedNode && <span className="graph-selected-stat">● {selectedNode.title}</span>}
-        </div>
-
-        <div className="graph-legend">
-          {colorByFolder && folders.slice(0, 5).map((folder) => (
-            <span key={folder}>
-              <i style={{ background: colorForFolder(folder) }} />
-              {folder || "Vault root"}
-            </span>
-          ))}
-          {colorByFolder && folders.length > 5 && <span>+{folders.length - 5}</span>}
+        <div className="obsidian-graph-stats">
+          {graphData.nodes.length} uzlů&nbsp;&nbsp; {graphData.links.length} vazeb
         </div>
       </div>
 
@@ -618,26 +523,12 @@ export const GraphPane = memo(function GraphPane({
         >
           <div className="graph-context-heading">
             <span>NODE</span>
-            <strong>
-              {globalGraph.nodes.find((node) => node.id === contextMenu.nodeId)?.title || "Poznámka"}
-            </strong>
+            <strong>{globalGraph.nodes.find((node) => node.id === contextMenu.nodeId)?.title || "Poznámka"}</strong>
           </div>
-          <button type="button" onClick={() => onOpenNote(contextMenu.nodeId)}>
-            <span>↗</span>
-            Otevřít poznámku
-          </button>
-          <button type="button" onClick={() => openLocalGraph(contextMenu.nodeId)}>
-            <span>◎</span>
-            Lokální graph
-          </button>
-          <button type="button" onClick={() => void copyWikiLink(contextMenu.nodeId)}>
-            <span>[[ ]]</span>
-            Kopírovat wiki link
-          </button>
-          <button type="button" onClick={() => hideNode(contextMenu.nodeId)}>
-            <span>◌</span>
-            Skrýt z grafu
-          </button>
+          <button type="button" onClick={() => onOpenNote(contextMenu.nodeId)}><span>↗</span>Otevřít poznámku</button>
+          <button type="button" onClick={() => openLocalGraph(contextMenu.nodeId)}><span>◎</span>Lokální graf</button>
+          <button type="button" onClick={() => void copyWikiLink(contextMenu.nodeId)}><span>[[ ]]</span>Kopírovat wiki link</button>
+          <button type="button" onClick={() => hideNode(contextMenu.nodeId)}><span>◌</span>Skrýt z grafu</button>
         </div>
       )}
     </main>

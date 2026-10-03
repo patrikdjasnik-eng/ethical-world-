@@ -156,3 +156,20 @@ GitHub Actions workflow zůstává nakonfigurovaný, ale dostupné runy dříve 
 - `npm run desktop:publish` vytvoří a publikuje release z lokálního Windows PC;
 - GitHub Actions nejsou pro release povinné;
 - release vyžaduje vyšší SemVer verzi v `package.json`.
+
+
+### Knowledge Graph v4 – Obsidian-matched visual pass
+
+- graph canvas přepnutý na ploché `#1e1e1e` pozadí;
+- odstraněné glow, radial gradients a velká selection halo;
+- uzly jsou malé, neutrálně šedé a vizuálně stabilní při zoomu;
+- velikost uzlu roste jen velmi mírně podle degree;
+- links jsou tenké a šedé, zvýraznění zůstává pouze při hover/selection;
+- labels jsou lehčí, bez tmavých boxů pod textem;
+- výchozí aktivní poznámka už není automaticky fialový selected node;
+- horní dashboard toolbar byl nahrazen minimálním overlay ovládáním;
+- title `Graf` je zobrazený subtilně u horní hrany;
+- settings graphu jsou schované pod nenápadným tlačítkem;
+- stats jsou pouze drobný text u spodní hrany;
+- single-node pohled má omezený zoom, takže uzel nevypadá jako obří logo;
+- zachované native right-click menu a všechny Graph v2 interakce.

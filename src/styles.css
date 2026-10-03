@@ -1846,3 +1846,240 @@ body,
     display: none;
   }
 }
+
+
+/* Graph v4 — Obsidian-matched visual layer */
+.obsidian-graph {
+  position: relative;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #1e1e1e;
+}
+
+.obsidian-graph-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #1e1e1e;
+}
+
+.obsidian-graph-stage > div:first-child,
+.obsidian-graph-stage canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.obsidian-graph-title {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  z-index: 6;
+  color: #e8e8e8;
+  font-size: 12px;
+  font-style: italic;
+  font-weight: 400;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.obsidian-graph-controls {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: .42;
+  transition: opacity 120ms ease;
+}
+
+.obsidian-graph:hover .obsidian-graph-controls {
+  opacity: 1;
+}
+
+.obsidian-graph-controls > button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #9a9a9a;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.obsidian-graph-controls > button:hover,
+.obsidian-graph-controls > button.active {
+  background: #2a2a2a;
+  color: #d8d8d8;
+}
+
+.obsidian-search {
+  display: grid;
+  width: 145px;
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+  padding: 0 6px;
+  border: 1px solid #353535;
+  border-radius: 4px;
+  background: #202020;
+  color: #777;
+}
+
+.obsidian-search input {
+  min-width: 0;
+  padding: 6px 2px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #c8c8c8;
+  font-size: 10px;
+}
+
+.obsidian-search input::placeholder {
+  color: #777;
+}
+
+.obsidian-graph-settings {
+  position: absolute;
+  top: 42px;
+  right: 10px;
+  z-index: 10;
+  width: 220px;
+  padding: 8px;
+  border: 1px solid #363636;
+  border-radius: 5px;
+  background: #252525;
+  box-shadow: 0 12px 30px rgba(0,0,0,.28);
+  color: #bdbdbd;
+  font-size: 10px;
+}
+
+.obsidian-graph-settings > label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 30px;
+  gap: 12px;
+  padding: 0 5px;
+}
+
+.obsidian-graph-settings input {
+  accent-color: #7f6ddd;
+}
+
+.obsidian-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 34px;
+  gap: 10px;
+  padding: 0 5px 6px;
+  border-bottom: 1px solid #333;
+  margin-bottom: 4px;
+}
+
+.obsidian-settings-row > div {
+  display: flex;
+  gap: 3px;
+}
+
+.obsidian-settings-row button,
+.obsidian-restore-button {
+  padding: 4px 7px;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  background: #202020;
+  color: #999;
+  cursor: pointer;
+  font-size: 9px;
+}
+
+.obsidian-settings-row button.active {
+  border-color: #514775;
+  color: #c8bfff;
+}
+
+.obsidian-settings-row button:disabled {
+  opacity: .35;
+  cursor: default;
+}
+
+.obsidian-restore-button {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.obsidian-graph-stats {
+  position: absolute;
+  bottom: 7px;
+  left: 9px;
+  z-index: 5;
+  color: #666;
+  font-size: 9px;
+  pointer-events: none;
+}
+
+.obsidian-empty-graph,
+.obsidian-orphan-note {
+  position: absolute;
+  left: 50%;
+  z-index: 5;
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: rgba(30,30,30,.78);
+  color: #777;
+  font-size: 9px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.obsidian-empty-graph {
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.obsidian-orphan-note {
+  bottom: 9px;
+}
+
+.graph-context-menu {
+  border-color: #3a3a3a;
+  border-radius: 5px;
+  background: #252525;
+  box-shadow: 0 12px 30px rgba(0,0,0,.32);
+  backdrop-filter: none;
+}
+
+.graph-context-heading {
+  border-bottom-color: #353535;
+}
+
+.graph-context-heading strong {
+  color: #ddd;
+}
+
+.graph-context-menu > button {
+  color: #aaa;
+}
+
+.graph-context-menu > button:hover {
+  background: #303030;
+  color: #e2e2e2;
+}
+
+.graph-context-menu > button span {
+  color: #8f7ed8;
+}
+
+@media (max-width: 700px) {
+  .obsidian-search {
+    width: 110px;
+  }
+}
