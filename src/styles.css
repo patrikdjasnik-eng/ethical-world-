@@ -966,3 +966,262 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
     grid-template-columns: 1fr;
   }
 }
+
+
+.workspace-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  padding: 7px 8px 2px;
+}
+
+.workspace-nav button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 7px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #707070;
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.workspace-nav button:hover {
+  background: #242424;
+  color: #b7b7b7;
+}
+
+.workspace-nav button.active {
+  border-color: #3a3543;
+  background: #2a272e;
+  color: #c9bbff;
+}
+
+.graph-pane {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto 1fr auto;
+  background: #1e1e1e;
+  overflow: hidden;
+}
+
+.graph-topbar {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 14px;
+  border-bottom: 1px solid #303030;
+  background: #202020;
+}
+
+.graph-topbar > div:first-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.graph-kicker {
+  color: #666;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.graph-topbar strong {
+  color: #d0d0d0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.graph-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.graph-scope-switch {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid #343434;
+  border-radius: 4px;
+  background: #191919;
+}
+
+.graph-scope-switch button {
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #6f6f6f;
+  cursor: pointer;
+  font-size: 9px;
+}
+
+.graph-scope-switch button.selected {
+  background: #2c2931;
+  color: #c1b3f8;
+}
+
+.graph-scope-switch button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.graph-search {
+  display: grid;
+  width: 150px;
+  grid-template-columns: 18px 1fr;
+  align-items: center;
+  padding: 0 7px;
+  border: 1px solid #343434;
+  border-radius: 4px;
+  background: #191919;
+  color: #666;
+}
+
+.graph-search input {
+  min-width: 0;
+  padding: 6px 2px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #c7c7c7;
+  font-size: 10px;
+}
+
+.graph-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(139, 108, 255, 0.035), transparent 34%),
+    #1e1e1e;
+}
+
+.graph-stage > div:first-child,
+.graph-stage canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.graph-help {
+  position: absolute;
+  right: 10px;
+  bottom: 9px;
+  padding: 5px 7px;
+  border: 1px solid #303030;
+  border-radius: 4px;
+  background: rgba(24, 24, 24, 0.82);
+  color: #555;
+  font-size: 8px;
+  pointer-events: none;
+}
+
+.graph-empty-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: min(300px, calc(100% - 40px));
+  gap: 5px;
+  padding: 16px;
+  border: 1px solid #333;
+  border-radius: 6px;
+  background: rgba(28, 28, 28, 0.92);
+  text-align: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.graph-empty-overlay > span {
+  color: #5c4d6f;
+  font-size: 28px;
+}
+
+.graph-empty-overlay strong {
+  color: #bdbdbd;
+  font-size: 11px;
+}
+
+.graph-empty-overlay p {
+  margin: 0;
+  color: #6c6c6c;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.graph-empty-overlay code {
+  color: #9e8ae8;
+}
+
+.graph-statusbar {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 10px;
+  border-top: 1px solid #303030;
+  background: #191919;
+  overflow: hidden;
+}
+
+.graph-stats,
+.graph-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #666;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.graph-stats strong {
+  color: #9c9c9c;
+  font-weight: 600;
+}
+
+.graph-legend {
+  gap: 9px;
+  overflow: hidden;
+}
+
+.graph-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.graph-legend i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+@media (max-width: 850px) {
+  .graph-topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .graph-toolbar {
+    width: 100%;
+  }
+
+  .graph-search {
+    flex: 1;
+    width: auto;
+  }
+
+  .graph-legend {
+    display: none;
+  }
+}

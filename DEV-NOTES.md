@@ -79,3 +79,20 @@ Lokálně ověřit `npm test`, `npm run build` a `python -m compileall server`. 
 - pravý panel Máši vizuálně sjednocený se sekundárním panelem aplikace;
 - hover/active stavy jsou subtilnější a blíž desktop knowledge editorům;
 - zachovaná veškerá existující logika vaultu, wiki links, backlinks, autosave a AI health-checků.
+
+
+### Knowledge Graph v1
+
+- přidaný interaktivní 2D force-directed knowledge graph;
+- graf je generovaný přímo z `[[wiki links]]` ve vaultu;
+- Global režim zobrazuje celý vault;
+- Local režim zobrazuje aktivní poznámku a její přímé sousedy;
+- velikost uzlu se mění podle počtu vazeb;
+- aktivní poznámka má zvýrazněný uzel;
+- barvy uzlů jsou deterministicky odvozené od folderu;
+- hover zvýrazní lokální síť uzlu a potlačí zbytek;
+- kliknutí na uzel otevře příslušnou poznámku;
+- podporovaný zoom, pan a drag uzlů;
+- vyhledávání v grafu tlumí uzly mimo dotaz;
+- statusbar zobrazuje počet uzlů, vazeb a skupin;
+- přidané unit testy pro stavbu graph dat, deduplikaci vazeb a local graph.

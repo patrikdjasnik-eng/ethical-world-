@@ -2,10 +2,14 @@ import { memo, useMemo } from "react";
 import { searchNotes } from "../lib/notes";
 import type { Note } from "../types";
 
+export type WorkspaceView = "note" | "graph";
+
 interface VaultSidebarProps {
   notes: Note[];
   activeNoteId: string | null;
   query: string;
+  view: WorkspaceView;
+  onViewChange: (view: WorkspaceView) => void;
   onQueryChange: (value: string) => void;
   onSelectNote: (noteId: string) => void;
   onCreateNote: () => void;
@@ -16,12 +20,19 @@ export const VaultSidebar = memo(function VaultSidebar({
   notes,
   activeNoteId,
   query,
+  view,
+  onViewChange,
   onQueryChange,
   onSelectNote,
   onCreateNote,
   onDeleteNote
 }: VaultSidebarProps) {
   const filteredNotes = useMemo(() => searchNotes(notes, query), [notes, query]);
+
+  const openNote = (noteId: string) => {
+    onSelectNote(noteId);
+    onViewChange("note");
+  };
 
   return (
     <aside className="vault-sidebar">
@@ -33,6 +44,25 @@ export const VaultSidebar = memo(function VaultSidebar({
         </div>
         <button className="icon-button subtle" type="button" title="Nastavení vaultu" aria-label="Nastavení vaultu">
           ⋯
+        </button>
+      </div>
+
+      <div className="workspace-nav">
+        <button
+          type="button"
+          className={view === "note" ? "active" : ""}
+          onClick={() => onViewChange("note")}
+        >
+          <span>▱</span>
+          Notes
+        </button>
+        <button
+          type="button"
+          className={view === "graph" ? "active" : ""}
+          onClick={() => onViewChange("graph")}
+        >
+          <span>⌘</span>
+          Graph
         </button>
       </div>
 
@@ -62,11 +92,11 @@ export const VaultSidebar = memo(function VaultSidebar({
       <div className="note-list" role="list">
         {filteredNotes.map((note) => (
           <div
-            className={`note-row ${note.id === activeNoteId ? "active" : ""}`}
+            className={`note-row ${note.id === activeNoteId && view === "note" ? "active" : ""}`}
             key={note.id}
             role="listitem"
           >
-            <button type="button" className="note-open" onClick={() => onSelectNote(note.id)}>
+            <button type="button" className="note-open" onClick={() => openNote(note.id)}>
               <span className="file-icon">▱</span>
               <span className="note-copy">
                 <strong>{note.title || "Bez názvu"}</strong>
