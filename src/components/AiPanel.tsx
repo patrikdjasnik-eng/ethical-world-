@@ -41,11 +41,11 @@ const initialMessage: AiMessage = {
 };
 
 function looksLikeActionRequest(value: string): boolean {
-  return /\\b(vytvoř|vytvor|udělej|udelej|uprav|přidej|pridej|přepiš|prepis|zapiš|zapis|ulož|uloz|otevři|otevri|create|update|edit|open|folder|note|složk\\w*|slozk\\w*|poznámk\\w*|poznamk\\w*)\\b/i.test(value);
+  return /(vytvoř|vytvor|udělej|udelej|uprav|přidej|pridej|přepiš|prepis|zapiš|zapis|ulož|uloz|otevři|otevri|create|update|edit|open|folder|note|složk|slozk|poznámk|poznamk)/i.test(value);
 }
 
 function looksLikeKnowledgeNoteRequest(value: string): boolean {
-  return /(poznám|poznam|markdown|\\bmd\\b|\\bnote\\b|dokument)/i.test(value) &&
+  return /(poznám|poznam|markdown|(?:^|\s)md(?:\s|$)|(?:^|\s)note(?:\s|$)|dokument)/i.test(value) &&
     /(vytvoř|vytvor|udělej|udelej|napiš|napis|zpracuj|připrav|priprav|přepracuj|prepracuj|create|write|update)/i.test(value);
 }
 
