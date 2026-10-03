@@ -68,19 +68,6 @@ export const guideSections: Record<GuideLanguage, GuideSection[]> = {
       ]
     },
     {
-      id: "carrot",
-      title: "Carrot history",
-      paragraphs: [
-        "Carrot is the internal audit history for Markdown notes. Each change stores a snapshot, author, timestamp, SHA-256 hash and a link to the previous commit.",
-        "Desktop Carrot commits are signed with a per-device Ed25519 key protected by OS secure storage. Open the history from the 🥕 Carrot button in the editor and verify older signatures."
-      ],
-      tips: [
-        "Identical snapshots are not committed twice.",
-        "Tampering with an older record breaks the hash chain or its signature.",
-        "Carrot is not a Git replacement; it is an audit history for the knowledge vault."
-      ]
-    },
-    {
       id: "connectors",
       title: "Connectors",
       paragraphs: [
@@ -134,6 +121,19 @@ export const guideSections: Record<GuideLanguage, GuideSection[]> = {
       tips: [
         "Wiki links [[Note title]] are created only for notes that actually exist in the vault.",
         "Schemas are inserted only when they improve the explanation."
+      ]
+    },
+    {
+      id: "carrot",
+      title: "Carrot history",
+      paragraphs: [
+        "Carrot is the internal audit history for Markdown notes. Each change stores a snapshot, author, timestamp, SHA-256 hash and a link to the previous commit.",
+        "Desktop Carrot commits are signed with a per-device Ed25519 key protected by OS secure storage. Open the history from the 🥕 Carrot button in the editor and verify older signatures."
+      ],
+      tips: [
+        "Identical snapshots are not committed twice.",
+        "Tampering with an older record breaks the hash chain or its signature.",
+        "Carrot is not a Git replacement; it is an audit history for the knowledge vault."
       ]
     },
     {
