@@ -109,3 +109,21 @@ GitHub Actions workflow zůstává nakonfigurovaný, ale dostupné runy dříve 
 - nový floating popover pro insert menu;
 - mírné accent glow pouze u interaktivních prvků;
 - UI zůstává čitelné i bez aktivního AI panelu.
+
+
+### Knowledge Graph v2 – Obsidian-level interaction pass
+
+- opravený empty-state: už nikdy neleží přes existující izolovaný uzel;
+- graf po stabilizaci a resize automaticky provede zoom-to-fit;
+- upravená fyzika: menší charge, delší link distance a stabilnější velocity decay;
+- single click uzel focusne a přiblíží;
+- double click otevře poznámku;
+- pravý klik otevře vlastní node context menu;
+- context menu: otevřít note, local graph, kopírovat wiki link, skrýt uzel;
+- přidané Labels / Orphans / Folders toggles;
+- folder coloring je volitelné, default je čistý neutrální Obsidian-like graph;
+- izolované uzly jsou vizuálně tlumené, ale zůstávají součástí globálního grafu;
+- hledání na Enter skočí na první odpovídající node;
+- přidaný Fit button a restore skrytých uzlů;
+- vybraný node zvýrazní sousední hrany a ztlumí zbytek;
+- labels mají jemné pozadí kvůli čitelnosti v husté síti.
