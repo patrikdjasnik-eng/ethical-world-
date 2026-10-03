@@ -62,14 +62,23 @@ async def chat_ollama(
     base_url: str,
     model: str,
     messages: list[dict[str, str]],
+    max_output_tokens: int = 2048,
 ) -> str:
     endpoint = f"{base_url.rstrip('/')}/api/chat"
 
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=240.0) as client:
             response = await client.post(
                 endpoint,
-                json={"model": model, "messages": messages, "stream": False},
+                json={
+                    "model": model,
+                    "messages": messages,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.25,
+                        "num_predict": max_output_tokens,
+                    },
+                },
             )
             response.raise_for_status()
     except httpx.HTTPError as error:
@@ -89,6 +98,7 @@ async def chat_openai_compatible(
     model: str,
     messages: list[dict[str, str]],
     api_key: str | None,
+    max_output_tokens: int = 2048,
 ) -> str:
     endpoint = f"{_openai_base_url(base_url)}/chat/completions"
     headers = {"Content-Type": "application/json"}
@@ -97,14 +107,15 @@ async def chat_openai_compatible(
         headers["Authorization"] = f"Bearer {api_key}"
 
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=240.0) as client:
             response = await client.post(
                 endpoint,
                 headers=headers,
                 json={
                     "model": model,
                     "messages": messages,
-                    "temperature": 0.3,
+                    "temperature": 0.25,
+                    "max_tokens": max_output_tokens,
                 },
             )
             response.raise_for_status()
