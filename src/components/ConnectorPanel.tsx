@@ -1,5 +1,14 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { markdownFilesToNotes, notesToMarkdownFiles } from "../lib/markdownConnector";
+import {
+  disconnectNotion,
+  getNotionStatus,
+  listNotionPages,
+  readNotionMarkdown,
+  startNotionLogin,
+  writeNotionMarkdown,
+  type NotionPageSummary
+} from "../lib/notionConnector";
 import type { DesktopGitHubRepo } from "../types/desktop";
 import type { Note } from "../types";
 
@@ -26,9 +35,31 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
   const [githubStatusText, setGithubStatusText] = useState("Kontroluju GitHub connector…");
   const [githubUserCode, setGithubUserCode] = useState<string | null>(null);
 
+  const [notionConfigured, setNotionConfigured] = useState(false);
+  const [notionConnected, setNotionConnected] = useState(false);
+  const [notionWorkspace, setNotionWorkspace] = useState<string | null>(null);
+  const [notionPages, setNotionPages] = useState<NotionPageSummary[]>([]);
+  const [notionPageId, setNotionPageId] = useState("");
+  const [notionBusy, setNotionBusy] = useState<"login" | "pages" | "import" | "export" | null>(null);
+  const [notionStatusText, setNotionStatusText] = useState("Kontroluju Notion connector…");
+
   const selectedGitHubRepo = useMemo(
     () => githubRepos.find((repo) => repo.fullName === githubRepo) ?? null,
     [githubRepo, githubRepos]
+  );
+
+  const selectedNotionPage = useMemo(
+    () => notionPages.find((page) => page.id === notionPageId) ?? null,
+    [notionPageId, notionPages]
+  );
+
+  const mappedNotionNote = useMemo(
+    () => notes.find(
+      (note) =>
+        note.source?.provider === "notion" &&
+        note.source.connectionId === (notionPageId ? "notion:" + notionPageId : "")
+    ) ?? null,
+    [notionPageId, notes]
   );
 
   const loadGitHubRepos = useCallback(async () => {
@@ -76,6 +107,132 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
       cancelled = true;
     };
   }, [loadGitHubRepos]);
+
+  const refreshNotion = useCallback(async (loadPages = true) => {
+    try {
+      const status = await getNotionStatus();
+      setNotionConfigured(status.configured);
+      setNotionConnected(status.connected);
+      setNotionWorkspace(status.workspaceName);
+
+      if (!status.configured) {
+        setNotionStatusText("Chybí Notion OAuth konfigurace na backendu.");
+        setNotionPages([]);
+        setNotionPageId("");
+        return false;
+      }
+
+      if (!status.connected) {
+        setNotionStatusText("Notion je připravený k připojení.");
+        setNotionPages([]);
+        setNotionPageId("");
+        return false;
+      }
+
+      setNotionStatusText(
+        "Připojeno" + (status.workspaceName ? " · " + status.workspaceName : "") + "."
+      );
+
+      if (loadPages) {
+        setNotionBusy("pages");
+        const pages = await listNotionPages();
+        setNotionPages(pages);
+        setNotionPageId((current) => current || pages[0]?.id || "");
+      }
+
+      return true;
+    } catch (error) {
+      setNotionStatusText(error instanceof Error ? error.message : "Notion connector není dostupný.");
+      return false;
+    } finally {
+      setNotionBusy(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshNotion(true);
+  }, [refreshNotion]);
+
+  const connectNotion = useCallback(async () => {
+    setNotionBusy("login");
+
+    try {
+      const authorizationUrl = await startNotionLogin();
+      window.open(authorizationUrl, "_blank", "noopener,noreferrer");
+      setNotionStatusText("Dokonči autorizaci v prohlížeči…");
+
+      const deadline = Date.now() + 2 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => window.setTimeout(resolve, 2500));
+        const connected = await refreshNotion(false);
+        if (connected) {
+          await refreshNotion(true);
+          return;
+        }
+      }
+
+      setNotionStatusText("Autorizace stále čeká. Po dokončení klikni na Zkontrolovat.");
+    } catch (error) {
+      setNotionStatusText(error instanceof Error ? error.message : "Notion přihlášení selhalo.");
+    } finally {
+      setNotionBusy(null);
+    }
+  }, [refreshNotion]);
+
+  const disconnectNotionAccount = useCallback(async () => {
+    try {
+      await disconnectNotion();
+      setNotionConnected(false);
+      setNotionWorkspace(null);
+      setNotionPages([]);
+      setNotionPageId("");
+      setNotionStatusText("Notion byl odpojen.");
+    } catch (error) {
+      setNotionStatusText(error instanceof Error ? error.message : "Notion odpojení selhalo.");
+    }
+  }, []);
+
+  const importNotionPage = useCallback(async () => {
+    if (!selectedNotionPage) return;
+    setNotionBusy("import");
+
+    try {
+      const result = await readNotionMarkdown(selectedNotionPage.id);
+      const connectionId = "notion:" + result.pageId;
+      const imported = markdownFilesToNotes(
+        [{
+          relativePath: (result.title || "Notion page").replace(/[\\/:*?"<>|]/g, " ") + ".md",
+          content: result.markdown
+        }],
+        connectionId,
+        notes,
+        "notion"
+      );
+      await onImportNotes(imported);
+      setNotionStatusText(
+        "Importována stránka „" + result.title + "“" +
+        (result.truncated ? " (Notion označil výstup jako zkrácený)." : ".")
+      );
+    } catch (error) {
+      setNotionStatusText(error instanceof Error ? error.message : "Notion import selhal.");
+    } finally {
+      setNotionBusy(null);
+    }
+  }, [notes, onImportNotes, selectedNotionPage]);
+
+  const exportNotionPage = useCallback(async () => {
+    if (!selectedNotionPage || !mappedNotionNote) return;
+    setNotionBusy("export");
+
+    try {
+      await writeNotionMarkdown(selectedNotionPage.id, mappedNotionNote.content);
+      setNotionStatusText("Aktualizována Notion stránka „" + selectedNotionPage.title + "“.");
+    } catch (error) {
+      setNotionStatusText(error instanceof Error ? error.message : "Notion export selhal.");
+    } finally {
+      setNotionBusy(null);
+    }
+  }, [mappedNotionNote, selectedNotionPage]);
 
   const connectLocal = useCallback(async () => {
     if (!window.ethicalDesktop) {
@@ -338,19 +495,80 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
           <small>{githubStatusText}</small>
         </section>
 
-        <section className="connector-card">
+        <section className={"connector-card " + (notionConnected ? "connector-card-ready" : "")}>
           <div className="connector-card-head">
             <div className="connector-icon">N</div>
             <div>
               <strong>Notion</strong>
-              <span>OAuth workspace adapter</span>
+              <span>
+                {notionConnected
+                  ? "Připojeno" + (notionWorkspace ? " · " + notionWorkspace : "")
+                  : "OAuth · enhanced Markdown sync"}
+              </span>
             </div>
           </div>
+
           <p>
-            Notion stránky budou mapované na Markdown poznámky se zachovaným původem
-            pro pozdější obousměrnou synchronizaci.
+            Ethical World načte vybranou Notion stránku jako Markdown note a umí obsah
+            zapsat zpět přes Notion Markdown API. Token zůstává šifrovaný v backend DB.
           </p>
-          <div className="connector-badge">OAuth backend · připravuje se</div>
+
+          {!notionConnected ? (
+            <div className="connector-actions">
+              <button
+                type="button"
+                onClick={() => void connectNotion()}
+                disabled={!notionConfigured || notionBusy !== null}
+              >
+                {notionBusy === "login" ? "Čekám na Notion…" : "Připojit Notion"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void refreshNotion(true)}
+                disabled={notionBusy !== null}
+              >
+                Zkontrolovat
+              </button>
+            </div>
+          ) : (
+            <>
+              <label className="connector-select">
+                Page
+                <select value={notionPageId} onChange={(event) => setNotionPageId(event.target.value)}>
+                  {notionPages.map((page) => (
+                    <option key={page.id} value={page.id}>{page.title}</option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="connector-actions">
+                <button
+                  type="button"
+                  onClick={() => void importNotionPage()}
+                  disabled={!selectedNotionPage || notionBusy !== null}
+                >
+                  {notionBusy === "import" ? "Importuju…" : "Import page"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void exportNotionPage()}
+                  disabled={!mappedNotionNote || notionBusy !== null}
+                  title={mappedNotionNote ? "Zapsat importovanou note zpět do Notion" : "Nejdřív stránku importuj"}
+                >
+                  {notionBusy === "export" ? "Exportuju…" : "Export zpět"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void disconnectNotionAccount()}
+                  disabled={notionBusy !== null}
+                >
+                  Odpojit
+                </button>
+              </div>
+            </>
+          )}
+
+          <small>{notionStatusText}</small>
         </section>
       </div>
     </main>
