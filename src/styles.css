@@ -3133,3 +3133,147 @@ body,
     font-size: 6px;
   }
 }
+
+
+/* Carrot floating window v0.2 */
+.carrot-history.carrot-floating {
+  position: fixed;
+  z-index: 80;
+  right: 18px;
+  bottom: 18px;
+  width: min(760px, calc(100vw - 92px));
+  height: min(460px, calc(100vh - 94px));
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-color: #3a3028;
+  border-radius: 12px;
+  background: rgba(14, 13, 16, .985);
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, .58),
+    0 0 0 1px rgba(255,255,255,.018) inset;
+  backdrop-filter: blur(18px);
+}
+
+.carrot-floating .carrot-history-head {
+  flex: 0 0 auto;
+  min-height: 42px;
+  padding: 9px 10px 9px 12px;
+  background: #111015;
+  user-select: none;
+}
+
+.carrot-drag-handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.carrot-drag-handle:active {
+  cursor: grabbing;
+}
+
+.carrot-floating .carrot-history-head > div:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
+
+.carrot-floating .carrot-history-head small {
+  color: #4f4950;
+  font-size: 7px;
+  font-weight: 500;
+}
+
+.carrot-window-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.carrot-window-actions button {
+  min-height: 24px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #746d76;
+  cursor: pointer;
+  font-size: 8px;
+}
+
+.carrot-window-actions button:hover:not(:disabled) {
+  border-color: #373139;
+  background: #1b181d;
+  color: #bbb4bd;
+}
+
+.carrot-window-actions button:last-child {
+  min-width: 26px;
+  padding: 0;
+  font-size: 14px;
+}
+
+.carrot-floating .carrot-grid {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
+.carrot-floating .carrot-list {
+  max-height: none;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.carrot-floating .carrot-preview {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.carrot-floating .carrot-preview pre {
+  height: calc(100% - 54px);
+  max-height: none;
+  overflow: auto;
+}
+
+@media (max-width: 760px) {
+  .carrot-history.carrot-floating {
+    right: 10px;
+    bottom: 10px;
+    width: calc(100vw - 68px);
+    height: min(64vh, 520px);
+  }
+
+  .carrot-floating .carrot-grid {
+    grid-template-columns: minmax(150px, 200px) minmax(0, 1fr);
+  }
+
+  .carrot-floating .carrot-list {
+    max-height: none;
+    border-right: 1px solid #242229;
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .carrot-history.carrot-floating {
+    left: 56px !important;
+    right: 8px !important;
+    top: auto !important;
+    bottom: 8px !important;
+    width: auto;
+    height: min(72vh, 560px);
+  }
+
+  .carrot-floating .carrot-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .carrot-floating .carrot-list {
+    max-height: 150px;
+    border-right: 0;
+    border-bottom: 1px solid #242229;
+  }
+}

@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { InsertMenu } from "./InsertMenu";
@@ -30,6 +30,9 @@ export const EditorPane = memo(function EditorPane({
   const [carrotSelectedId, setCarrotSelectedId] = useState<string | null>(null);
   const [carrotVerified, setCarrotVerified] = useState<Record<string, boolean | null>>({});
   const [carrotLoading, setCarrotLoading] = useState(false);
+  const [carrotPosition, setCarrotPosition] = useState<{ x: number; y: number } | null>(null);
+  const carrotPanelRef = useRef<HTMLElement | null>(null);
+  const carrotDragOffsetRef = useRef<{ x: number; y: number } | null>(null);
   const backlinks = useMemo(() => note ? getBacklinks(notes, note.title) : [], [note, notes]);
   const outgoingLinks = useMemo(() => note ? extractWikiLinks(note.content) : [], [note]);
 
@@ -63,7 +66,50 @@ export const EditorPane = memo(function EditorPane({
     setCarrotCommits([]);
     setCarrotSelectedId(null);
     setCarrotVerified({});
+    setCarrotPosition(null);
   }, [note?.id]);
+
+  const beginCarrotDrag = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    if ((event.target as HTMLElement).closest("button")) return;
+
+    const panel = carrotPanelRef.current;
+    if (!panel) return;
+
+    const rect = panel.getBoundingClientRect();
+    carrotDragOffsetRef.current = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+    setCarrotPosition({ x: rect.left, y: rect.top });
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const offset = carrotDragOffsetRef.current;
+      const currentPanel = carrotPanelRef.current;
+      if (!offset || !currentPanel) return;
+
+      const width = currentPanel.offsetWidth;
+      const height = currentPanel.offsetHeight;
+      const minX = 54;
+      const minY = 46;
+      const maxX = Math.max(minX, window.innerWidth - width - 8);
+      const maxY = Math.max(minY, window.innerHeight - height - 8);
+
+      setCarrotPosition({
+        x: Math.min(maxX, Math.max(minX, moveEvent.clientX - offset.x)),
+        y: Math.min(maxY, Math.max(minY, moveEvent.clientY - offset.y))
+      });
+    };
+
+    const handlePointerUp = () => {
+      carrotDragOffsetRef.current = null;
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  }, []);
 
   const selectedCarrotCommit = useMemo(
     () => carrotCommits.find((commit) => commit.id === carrotSelectedId) ?? null,
@@ -165,15 +211,31 @@ export const EditorPane = memo(function EditorPane({
           )}
 
           {carrotOpen && (
-            <section className="carrot-history">
-              <div className="carrot-history-head">
+            <section
+              ref={carrotPanelRef}
+              className="carrot-history carrot-floating"
+              style={carrotPosition
+                ? { left: carrotPosition.x, top: carrotPosition.y, right: "auto", bottom: "auto" }
+                : undefined}
+            >
+              <div className="carrot-history-head carrot-drag-handle" onPointerDown={beginCarrotDrag}>
                 <div>
-                  <span>CARROT HISTORY</span>
+                  <span>🥕 CARROT HISTORY</span>
                   <strong>{carrotCommits.length} commitů</strong>
+                  <small>chyť a přesuň</small>
                 </div>
-                <button type="button" onClick={() => void loadCarrotHistory()} disabled={carrotLoading}>
-                  {carrotLoading ? "Načítám…" : "Obnovit"}
-                </button>
+
+                <div className="carrot-window-actions">
+                  <button type="button" onClick={() => void loadCarrotHistory()} disabled={carrotLoading}>
+                    {carrotLoading ? "Načítám…" : "Obnovit"}
+                  </button>
+                  <button type="button" onClick={() => setCarrotPosition(null)} title="Vrátit výchozí pozici">
+                    Reset
+                  </button>
+                  <button type="button" onClick={() => setCarrotOpen(false)} title="Zavřít Carrot">
+                    ×
+                  </button>
+                </div>
               </div>
 
               {carrotCommits.length === 0 ? (
