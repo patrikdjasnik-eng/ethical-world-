@@ -2,7 +2,7 @@
 
 ![Dev Notes](https://img.shields.io/badge/dev--notes-live-0ea5e9)
 ![Branch](https://img.shields.io/badge/branch-dev%2Ffirst--runnable-6f42c1)
-![Date](https://img.shields.io/badge/date-2026--10--03-334155)
+![Date](https://img.shields.io/badge/date-2026--10--04-334155)
 
 ## 2026-10-03
 
@@ -334,3 +334,602 @@ GitHub Actions workflow zůstává nakonfigurovaný, ale dostupné runy dříve 
 - User Content zůstává mimo vlastnické nároky licence;
 - přidaný `TRADEMARKS.md` pro Ethical World™ a Rabbithollow Code Studio™;
 - licence je source-available/proprietary, nikoli open-source.
+
+
+---
+
+## 2026-10-04 — desktop milestone, Máša agent workflow, Carrot a knowledge graph
+
+![Desktop](https://img.shields.io/badge/desktop-standalone_backend-47848F)
+![Máša](https://img.shields.io/badge/M%C3%A1%C5%A1a-agentic_knowledge_engineer-6f42c1)
+![Carrot](https://img.shields.io/badge/Carrot-signed_history-f97316)
+![Graph](https://img.shields.io/badge/graph-wiki_%2B_related-64748b)
+![Security](https://img.shields.io/badge/security-approval_gated-16a34a)
+
+Dnešní práce uzavřela několik samostatných vývojových větví do jednoho funkčního desktopového flow. Hlavní cíl byl dostat Ethical World blíž k aplikaci, kterou uživatel spustí jako normální Windows program a většinu práce provádí uvnitř UI bez ručního spouštění backendu nebo editace Markdownu mimo aplikaci.
+
+Aktuální vývojová větev: `dev/first-runnable`.
+
+### Standalone Windows runtime — reálně ověřeno
+
+- FastAPI gateway už nemusí být ručně spouštěná přes `uvicorn` v samostatném PowerShell okně.
+- Electron při startu kontroluje `http://127.0.0.1:8787/health`.
+- Pokud backend neběží, desktop runtime se ho pokusí spustit automaticky.
+- V dev režimu se preferuje projektový `.venv\Scripts\python.exe`.
+- Pro packaged build vzniká samostatný `EthicalWorldBackend.exe` přes PyInstaller.
+- Standalone backend je balený do:
+  `resources/backend/EthicalWorldBackend.exe`.
+- Přidané build příkazy:
+  - `npm run desktop:backend:build`
+  - `npm run desktop:package:standalone`
+  - `npm run desktop:make:standalone`
+- GitHub OAuth Client ID je veřejný konfigurační údaj a je nyní dostupný jako default přímo v desktop runtime:
+  `Ov23liJffFw6fPudRTQ1`.
+- Client Secret se do Electron bundle nevkládá.
+
+#### Ověřený runtime test
+
+Po spuštění packaged `EthicalWorld.exe` byl na portu `8787` nalezen proces:
+
+```text
+ProcessName: EthicalWorldBackend
+Path: ...\out\Ethical World-win32-x64\resources\backend\EthicalWorldBackend.exe
+```
+
+Tím je potvrzené, že packaged desktop opravdu spouští vlastní přibalený backend bez ručního PowerShell/uvicorn workflow.
+
+#### Packaging stav
+
+- Vite produkční build prošel.
+- Electron packaging pro `win32/x64` prošel.
+- Squirrel vytvořil:
+  - `EthicalWorldSetup.exe`
+  - `ethical_world-0.1.0-full.nupkg`
+  - `RELEASES`
+- Standalone backend byl fyzicky přítomný v packaged resources.
+- Celkový `make` ale v posledním testu vrátil `LASTEXITCODE = 1`.
+- Squirrel artifacts existují; ZIP distributable v daném běhu nebyl potvrzený.
+- Před release je potřeba ještě izolovat ZIP maker / postMake stav a vrátit celý make do green.
+
+### Owner onboarding a identity flow
+
+- SQLite users DB dostala role `owner | user`.
+- Přidán `mustChangePassword`.
+- Pokud databáze nemá owner účet, vytvoří se lokální bootstrap owner:
+  `owner@ethical.world.local`.
+- Neexistuje commitnuté univerzální default heslo.
+- Bootstrap owner dostane krátkodobou session.
+- Při prvním přihlášení je aplikace zamknutá do Identity/Account flow.
+- Odemčení vyžaduje nové vlastní heslo alespoň 12 znaků.
+- Po změně hesla se first-login bootstrap vypne.
+- UI AccountPanel propaguje aktuální user identity zpět do App state.
+- Owner/user identity se používá i jako autor Carrot commitů.
+
+### Notion Markdown connector
+
+- Dokončený server-side Notion OAuth flow.
+- Client Secret zůstává pouze v backend prostředí.
+- OAuth payload se ukládá do `connector_secrets` šifrovaně.
+- Renderer access token nikdy nedostává.
+- Implementováno:
+  - status;
+  - OAuth start;
+  - callback;
+  - list pages;
+  - import vybrané page jako Markdown note;
+  - write-back přes Notion enhanced Markdown API;
+  - disconnect.
+- Notion UI karta umí připojit workspace, vybrat page, importovat a exportovat zpět.
+- Reálné přihlášení čeká na vlastní Notion OAuth Client ID + Client Secret.
+
+### GitHub connector
+
+- GitHub Device OAuth zůstává desktop-native bez Client Secretu.
+- Veřejný Ethical World GitHub Client ID je součástí desktop konfigurace.
+- Token se ukládá přes Electron `safeStorage`.
+- Import/export pracuje pouze s Markdownem, ne s projektovým source tree.
+- Export zapisuje Markdown do vybraného repozitáře GitHub API commitem.
+
+### Máša — Knowledge Engineer
+
+Máša už není jen chat nad vaultem. Aktuální cíl je, aby uměla na základě přirozeného LLM vstupu připravovat celé strukturované knowledge dokumenty a navazující změny projektu.
+
+#### Knowledge Note protocol
+
+Přidaný raw envelope:
+
+```text
+<ethical-note>
+{"action":"create|update","title":"...","noteId":"...","folder":"..."}
+<content>
+raw Markdown
+</content>
+</ethical-note>
+```
+
+Výhody:
+
+- Markdown uvnitř nemusí být JSON escaped;
+- fungují trojité code fences;
+- lze generovat Mermaid;
+- lze generovat Prisma schema;
+- lze vložit Bash / PowerShell / Python / TypeScript / JSON a další code blocks;
+- knowledge note může být výrazně delší než běžná chat odpověď;
+- AI note dostává Ethical World / Máša / Markdown GitHub-style badge hlavičku programově.
+
+Knowledge Note generation má aktuálně output budget až 6144 tokenů.
+
+### Multi-note generation
+
+Dnešní reálný test odkryl, že lokální model uměl odpovědět vlastním legacy schema:
+
+```json
+{
+  "action": "create_note",
+  "note": {
+    "title": "...",
+    "content": "..."
+  }
+}
+```
+
+zatímco původní parser očekával:
+
+```json
+{
+  "type": "create_note",
+  "title": "...",
+  "content": "..."
+}
+```
+
+Parser byl proto rozšířený o kompatibilní normalizační vrstvu.
+
+Podporované jsou nyní i varianty:
+
+- `action + note`;
+- `create_notes + notes[]`;
+- více samostatných knowledge-note envelope bloků;
+- standardní `type=create_note`;
+- standardní `type=update_note`.
+
+Požadavek na tři poznámky má nově znamenat:
+
+```text
+3 témata
+→ 3 samostatné Markdown dokumenty
+→ 3 samostatné agent actions
+→ 3 approval karty
+→ teprve potom zápis do vaultu
+```
+
+Model dostal explicitní zákaz slepit více požadovaných notes do jednoho dokumentu s opakovanými nadpisy.
+
+### Máša — navazující questy a update workflow
+
+Další reálný test ukázal, že příkazy typu:
+
+- „doplň to do všech tří MD“;
+- „zakresli do nich...“;
+- „vlož do poznámek...“;
+- „zapracuj to do těch tří“;
+- „rozšiř ty poznámky“;
+
+končily jen jako textová odpověď v chatu místo změny souborů.
+
+Router proto dostal další akční slovesa:
+
+`doplň, vlož, zapracuj, zakresli, rozšiř, aktualizuj, edit, append` a další české varianty.
+
+Navazující editace mají nově:
+
+1. použít poslední konverzaci;
+2. použít `VAULT INDEX`;
+3. použít obsah nedávno upravených notes;
+4. najít přesná note IDs;
+5. vrátit samostatný `update_note` / `<ethical-note action=update>` pro každý cíl;
+6. čekat na explicitní potvrzení uživatele.
+
+`sendAiMessage()` už neposílá náhodných prvních 12 notes. Kontext se skládá z:
+
+- aktivní note;
+- nejčerstvěji upravených notes;
+- deduplikace podle ID;
+- až 20 notes;
+- až 5000 znaků na kontextovou note.
+
+To má zlepšit follow-up práci typu „teď uprav ty tři, které jsi právě vytvořila“.
+
+### Cybersecurity educational scope Máši
+
+Máša může edukativně probírat:
+
+- malware behavior;
+- ransomware;
+- worms;
+- trojans;
+- reverse engineering;
+- exploit concepts;
+- web security;
+- threat hunting;
+- detection engineering;
+- ofenzivní a defenzivní principy.
+
+Pro zápis do knowledge notes má používat bezpečné laboratorní simulace, pseudokód, detekční a obranné příklady.
+
+Při požadavku, který by vytvořil přímo destruktivní payload, credential theft, persistence nebo síťové šíření mimo autorizovaný lab, má operační část převést na bezpečnou simulaci.
+
+### Máša UX — compact dock
+
+- chat už nebere trvale celý pravý sloupec workspace;
+- funguje jako floating panel vpravo dole;
+- editor se při otevření Máši nezúží;
+- zachováno:
+  - Enter send;
+  - Shift+Enter newline;
+  - copy assistant message;
+  - READ / ASSIST;
+  - approval cards;
+  - online/offline status;
+  - knowledge generation state.
+
+Aktuální slabina: dlouhá multi-note generace na lokálním 7B modelu působí pomalu, protože backend používá non-streaming odpověď a UI čeká na celý výsledek.
+
+### Carrot signed Markdown history
+
+Carrot je vlastní Ethical World historie Markdown dokumentů.
+
+Aktuální model:
+
+```text
+note snapshot
+  ↓
+snapshotHash SHA-256
+  ↓
+parentCommitHash
+  ↓
+commitHash SHA-256
+  ↓
+Ed25519 signature
+  ↓
+Carrot history
+```
+
+Carrot commit obsahuje mimo jiné:
+
+- note ID;
+- parent ID;
+- title;
+- folder;
+- celý Markdown snapshot;
+- snapshot hash;
+- commit hash;
+- parent commit hash;
+- message;
+- author user ID;
+- author display name;
+- timestamp;
+- signature algorithm;
+- signature;
+- public key;
+- key fingerprint.
+
+Desktop při prvním podpisu vytvoří per-device Ed25519 keypair.
+
+- private key → Electron OS `safeStorage`;
+- public key → commit metadata;
+- renderer private key nikdy nedostává.
+
+Carrot zaznamenává:
+
+- autosave po idle;
+- vytvoření note;
+- přesun note;
+- folder změny;
+- connector import;
+- změny provedené Mášou.
+
+Identický snapshot se podruhé neukládá.
+
+### Carrot UI fix
+
+První verze Carrot History byla vložená inline do editoru a při otevření rozbíjela layout.
+
+Opraveno:
+
+- Carrot je nyní floating window;
+- editor se při otevření nepohne;
+- panel má vlastní scroll;
+- panel lze táhnout za header;
+- pozice je omezena na viewport;
+- přidané:
+  - `Obnovit`;
+  - `Reset`;
+  - `× Zavřít`;
+- mobilní breakpoint používá fixovaný sheet režim.
+
+### Knowledge Graph — Obsidian-like pavučina
+
+Původní graph engine uměl force-directed layout, ale hrany vznikaly pouze z explicitních `[[wiki links]]`.
+
+V reálném testu tedy tři nové malware notes existovaly jen jako izolované uzly.
+
+Graph byl rozšířený o dvě úrovně vztahů:
+
+#### 1. Wiki link
+
+Pevná skutečná vazba vytvořená Markdownem:
+
+```md
+[[Malware Script - Ransomware]]
+```
+
+#### 2. Related link
+
+Jemná automaticky odvozená vazba podle:
+
+- token overlap v názvu;
+- Markdown tag overlap;
+- stejného non-root folderu.
+
+Graph UI dostal nový přepínač:
+
+`Tematické vazby`
+
+a rozlišuje:
+
+- wiki link;
+- related link.
+
+Stats ukazují samostatně počet `wiki` a `related` vazeb.
+
+### Wiki link parser
+
+`extractWikiLinks()` nyní správně normalizuje i:
+
+```md
+[[Poznámka|alias]]
+[[Poznámka#Sekce]]
+```
+
+Graph tedy hledá cílovou note podle skutečného názvu místo celého raw wiki targetu.
+
+### Batch wiki linking Máši
+
+Knowledge-note parser byl připravený tak, aby v rámci jednoho multi-note batch requestu zachoval i wiki odkazy mezi právě vznikajícími notes.
+
+Cíl:
+
+```text
+Ransomware
+ ↕
+Worm
+ ↕
+Trojan
+```
+
+nemá být jen tematicky podobný graph, ale postupně skutečná knowledge network vytvořená přímo Markdown odkazy.
+
+Máša má při generování tematicky související série poznámek přidávat přirozené `[[wiki links]]` na přesné názvy ostatních notes stejného batch requestu.
+
+### Ethical World brand
+
+- vytvořený vlastní SVG mark:
+  - shield;
+  - knowledge graph;
+  - tmavá/fialová Ethical World identita.
+- použitý v:
+  - topbaru;
+  - Account / Identity view;
+  - browser faviconu.
+- UI obsahuje:
+  `Created by Rabbithollow Code Studio™`.
+
+SVG je zatím master asset. Nativní Windows `.ico` integrace ještě není dokončená.
+
+### Licence a contribution model
+
+Na `main` i `dev/first-runnable` jsou:
+
+- `LICENSE`;
+- `TRADEMARKS.md`.
+
+Aktuální model je source-available / proprietary, nikoli OSI open source.
+
+Cíl licence:
+
+- uživatel může Ethical World používat;
+- nesmí vzít projekt, přebrandovat ho a vydat jako vlastní produkt;
+- bez svolení nesmí vytvářet white-label / competing derivative;
+- User Content zůstává uživateli;
+- Rabbithollow Code Studio™ / Ethical World™ branding není převodem source kódu licencovaný.
+
+Bylo rozhodnuto, že contribution model ještě upravíme tak, aby:
+
+- kdokoliv mohl fork/edit/test pro účel příspěvku;
+- kdokoliv mohl poslat Pull Request;
+- contributor nesměl fork vydávat jako vlastní produkt;
+- přidal se contribution exception + CLA;
+- třetí MIT komponenty měly vlastní `THIRD_PARTY_NOTICES.md`.
+
+### Open-source integrace připravené k pozdější analýze/implementaci
+
+Pro budoucí rozšíření byly vybrané:
+
+1. Defuddle — HTML / URL → čistý Markdown;
+2. Knap — Markdown templates;
+3. JSON Canvas — otevřený `.canvas` knowledge format;
+4. Obsidian Importer adapters;
+5. vlastní Ethical World Web Clipper;
+6. MapLibre / Obsidian Maps-inspired MapPane.
+
+Všechny vybrané upstream projekty používají MIT licenci, ale jejich notices musí zůstat zachované.
+
+---
+
+## Známé problémy / neuzavřené body po dnešku
+
+- Multi-note generation je na lokálním modelu pomalá.
+- Ollama request je stále `stream: false`; uživatel dlouho vidí pouze pracovní stav.
+- Máša neumí zatím progress typu `1/3 notes hotovo`.
+- Follow-up agent workflow je stále hodně závislý na kvalitě lokálního modelu.
+- Graph related similarity je první heuristická verze a bude chtít ladění vah/thresholdů.
+- Carrot je lokální audit log; není remote transparency log.
+- Standalone Squirrel installer existuje a backend runtime je ověřený, ale celý `make` musí ještě projít s exit code 0.
+- ZIP maker nebyl v posledním packaging běhu potvrzený.
+- Notion potřebuje vlastní OAuth credentials.
+- Ethical World má SVG brand mark, ale Windows executable/shortcut zatím nemá finální vlastní `.ico`.
+
+---
+
+## Questy na 2026-10-05
+
+### 1. Zrychlit Mášu / orchestrace
+
+Priorita číslo jedna.
+
+Probrat a implementovat jednu nebo kombinaci možností:
+
+- token streaming z Ollamy do UI;
+- SSE nebo NDJSON stream endpoint z FastAPI;
+- progress stav pro dlouhé agent úlohy;
+- multi-note generace jako sekvenční job:
+  `1/3 → 2/3 → 3/3`;
+- oddělit planner od writeru;
+- lehký orchestration layer:
+  - router;
+  - planner;
+  - note writer;
+  - graph linker;
+  - verifier;
+- paralelizovat pouze operace, které nezvyšují VRAM nároky nepřijatelně;
+- zkrátit opakovaný prompt/context;
+- posílat pouze relevantní notes místo velkého vault dumpu;
+- případně použít menší model na routing/planning a `masa-cyber` pouze na content generation;
+- měřit time-to-first-token, tokens/s a total task time.
+
+Cíl: i když samotný 7B model nebude dramaticky rychlejší, uživatel musí průběžně vidět, že Máša skutečně pracuje.
+
+### 2. Zlepšit Mášin workflow uvnitř Ethical World
+
+- jasně rozlišit:
+  - odpověď;
+  - plánování;
+  - práce;
+  - čekání na approval;
+  - zápis;
+  - dokončeno;
+- follow-up quest musí automaticky chápat referenty typu:
+  - „ty tři“;
+  - „do předchozí poznámky“;
+  - „propoj je“;
+  - „doplň všude“;
+- zobrazit plán před dlouhým agent taskem;
+- po schválení více actions nabídnout:
+  - `Použít vše`;
+  - jednotlivé approval;
+- po provedení akce zobrazit výsledek a přímý odkaz na změněnou note;
+- při multi-note úkolu zobrazit progress per note;
+- napojit graph linking jako explicitní krok orchestrace;
+- zvážit agent task history, aby bylo vidět, co Máša skutečně provedla.
+
+### 3. Minimalizovat / zavřít / znovu otevřít Máša chat
+
+AI dock musí mít normální desktop window UX:
+
+- minimalizovat do malé bubliny / chipu;
+- zavřít panel bez ztráty chat session;
+- kdykoliv ho znovu otevřít z activity railu;
+- zachovat historii po zavření;
+- možnost úplně AI panel vypnout;
+- případně resize;
+- volitelně drag position podobně jako Carrot;
+- vizuálně odlišit:
+  - hidden;
+  - minimized;
+  - open;
+  - working in background.
+
+### 4. Nativní Ethical World Windows ikonka
+
+SVG brand mark převést na produkční Windows icon pipeline.
+
+Požadovaný výsledek:
+
+- vytvořit master icon exporty;
+- `.ico` s více velikostmi:
+  - 16×16;
+  - 24×24;
+  - 32×32;
+  - 48×48;
+  - 64×64;
+  - 128×128;
+  - 256×256;
+- nastavit icon v Electron Packager;
+- nastavit Squirrel `setupIcon`;
+- nastavit shortcut icon;
+- nastavit taskbar/window icon;
+- zachovat AppUserModelID;
+- ověřit Start Menu;
+- ověřit Desktop shortcut;
+- ověřit Windows Explorer;
+- ověřit taskbar;
+- znovu vytvořit standalone installer.
+
+Cíl: po instalaci už nesmí Ethical World na PC používat generickou Electron ikonu.
+
+### 5. Installer / packaging green
+
+- izolovat důvod posledního `LASTEXITCODE = 1`;
+- samostatně ověřit:
+  - Squirrel maker;
+  - ZIP maker;
+- vrátit celý:
+  `npm run desktop:make:standalone`
+  na exit code 0;
+- smoke test čisté instalace;
+- ověřit auto-start backendu z nainstalované aplikace;
+- ověřit shortcut + novou ikonku.
+
+### 6. Další questy
+
+Nechat prostor na nový návrh workflow/funkcí po zítřejší první kontrole.
+
+Možní kandidáti:
+
+- JSON Canvas workspace;
+- Defuddle URL import;
+- Knap templates;
+- contribution exception + CLA;
+- AI task history;
+- Carrot retention/export;
+- graph clustering;
+- semantic embeddings až později, pokud budou dávat smysl výkonově.
+
+---
+
+## Konec dne
+
+Dnešní stav je výrazně dál než původní browser prototype:
+
+```text
+Windows EXE
+  ↓
+vlastní standalone backend
+  ↓
+lokální Máša
+  ↓
+ASSIST / approvals
+  ↓
+Markdown Knowledge Notes
+  ↓
+wiki + related graph
+  ↓
+Carrot signed history
+  ↓
+connectors
+  ↓
+source-available Rabbithollow product
+```
+
+Největší zítřejší téma není přidat další hromadu funkcí, ale zlepšit pocit z práce s Mášou: rychlost, orchestrace, průběžná odezva a skutečně agentické workflow uvnitř Ethical World.
