@@ -9,6 +9,55 @@ class ProviderError(RuntimeError):
     pass
 
 
+def _openai_base_url(base_url: str) -> str:
+    normalized_base = base_url.rstrip("/")
+    return normalized_base if normalized_base.endswith("/v1") else f"{normalized_base}/v1"
+
+
+async def check_ollama(base_url: str) -> list[str]:
+    endpoint = f"{base_url.rstrip('/')}/api/tags"
+
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.get(endpoint)
+            response.raise_for_status()
+    except httpx.HTTPError:
+        return []
+
+    payload: dict[str, Any] = response.json()
+    models = payload.get("models", [])
+
+    return [
+        model["name"]
+        for model in models
+        if isinstance(model, dict) and isinstance(model.get("name"), str)
+    ]
+
+
+async def check_openai_compatible(base_url: str, api_key: str | None = None) -> list[str]:
+    endpoint = f"{_openai_base_url(base_url)}/models"
+    headers: dict[str, str] = {}
+
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.get(endpoint, headers=headers)
+            response.raise_for_status()
+    except httpx.HTTPError:
+        return []
+
+    payload: dict[str, Any] = response.json()
+    data = payload.get("data", [])
+
+    return [
+        model["id"]
+        for model in data
+        if isinstance(model, dict) and isinstance(model.get("id"), str)
+    ]
+
+
 async def chat_ollama(
     base_url: str,
     model: str,
@@ -41,12 +90,7 @@ async def chat_openai_compatible(
     messages: list[dict[str, str]],
     api_key: str | None,
 ) -> str:
-    normalized_base = base_url.rstrip('/')
-    endpoint = (
-        f"{normalized_base}/chat/completions"
-        if normalized_base.endswith("/v1")
-        else f"{normalized_base}/v1/chat/completions"
-    )
+    endpoint = f"{_openai_base_url(base_url)}/chat/completions"
     headers = {"Content-Type": "application/json"}
 
     if api_key:

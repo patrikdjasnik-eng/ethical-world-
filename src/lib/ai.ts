@@ -1,4 +1,4 @@
-import type { AiMessage, AiSettings, Note } from "../types";
+import type { AiMessage, AiProvider, AiSettings, Note } from "../types";
 
 interface SendAiMessageInput {
   settings: AiSettings;
@@ -13,7 +13,68 @@ interface ChatResponse {
   model: string;
 }
 
+export interface ProviderStatus {
+  online: boolean;
+  provider: AiProvider;
+  baseUrl: string;
+  models: string[];
+  model: string | null;
+}
+
 const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:8787";
+
+export async function checkGatewayHealth(): Promise<boolean> {
+  try {
+    const response = await fetch(`${apiUrl}/health`, {
+      signal: AbortSignal.timeout(2500)
+    });
+
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function autoDetectLocalProvider(): Promise<ProviderStatus | null> {
+  try {
+    const response = await fetch(`${apiUrl}/api/providers/auto-detect`, {
+      signal: AbortSignal.timeout(10000)
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return response.json() as Promise<ProviderStatus>;
+  } catch {
+    return null;
+  }
+}
+
+export async function checkProviderStatus(settings: AiSettings): Promise<ProviderStatus | null> {
+  try {
+    const response = await fetch(`${apiUrl}/api/providers/status`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        provider: settings.provider,
+        baseUrl: settings.baseUrl,
+        apiKey: settings.apiKey || null
+      }),
+      signal: AbortSignal.timeout(10000)
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return response.json() as Promise<ProviderStatus>;
+  } catch {
+    return null;
+  }
+}
 
 export async function sendAiMessage(input: SendAiMessageInput): Promise<ChatResponse> {
   const vaultContext = input.notes.slice(0, 12).map((note) => ({

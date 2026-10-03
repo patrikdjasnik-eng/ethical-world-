@@ -7,7 +7,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from .providers import ProviderError, chat_ollama, chat_openai_compatible
+from .providers import (
+    ProviderError,
+    chat_ollama,
+    chat_openai_compatible,
+    check_ollama,
+    check_openai_compatible,
+)
 
 
 class ChatMessage(BaseModel):
@@ -41,7 +47,21 @@ class KeyHintRequest(BaseModel):
     apiKey: str = Field(min_length=1, max_length=1000)
 
 
-app = FastAPI(title="Ethical World AI Gateway", version="0.1.0")
+class ProviderStatusRequest(BaseModel):
+    provider: Literal["ollama", "openai-compatible"]
+    baseUrl: str = Field(min_length=1, max_length=500)
+    apiKey: str | None = Field(default=None, max_length=1000)
+
+
+class ProviderStatusResponse(BaseModel):
+    online: bool
+    provider: str
+    baseUrl: str
+    models: list[str]
+    model: str | None = None
+
+
+app = FastAPI(title="Ethical World AI Gateway", version="0.1.1")
 
 allowed_origins = os.getenv(
     "ETHICAL_WORLD_ALLOWED_ORIGINS",
@@ -81,6 +101,54 @@ async def detect_provider(request: KeyHintRequest) -> dict[str, str]:
         "provider": provider,
         "confidence": "prefix-hint-only",
     }
+
+
+@app.post("/api/providers/status", response_model=ProviderStatusResponse)
+async def provider_status(request: ProviderStatusRequest) -> ProviderStatusResponse:
+    if request.provider == "ollama":
+        models = await check_ollama(request.baseUrl)
+    else:
+        models = await check_openai_compatible(request.baseUrl, request.apiKey)
+
+    return ProviderStatusResponse(
+        online=bool(models),
+        provider=request.provider,
+        baseUrl=request.baseUrl,
+        models=models,
+        model=models[0] if models else None,
+    )
+
+
+@app.get("/api/providers/auto-detect", response_model=ProviderStatusResponse)
+async def auto_detect_local_provider() -> ProviderStatusResponse:
+    candidates: list[tuple[str, str]] = [
+        ("ollama", "http://localhost:11434"),
+        ("openai-compatible", "http://localhost:8080/v1"),
+        ("openai-compatible", "http://127.0.0.1:8080/v1"),
+    ]
+
+    for provider, base_url in candidates:
+        if provider == "ollama":
+            models = await check_ollama(base_url)
+        else:
+            models = await check_openai_compatible(base_url)
+
+        if models:
+            return ProviderStatusResponse(
+                online=True,
+                provider=provider,
+                baseUrl=base_url,
+                models=models,
+                model=models[0],
+            )
+
+    return ProviderStatusResponse(
+        online=False,
+        provider="ollama",
+        baseUrl="http://localhost:11434",
+        models=[],
+        model=None,
+    )
 
 
 @app.post("/api/chat", response_model=ChatResponse)
