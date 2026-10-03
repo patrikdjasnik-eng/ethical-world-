@@ -9,7 +9,9 @@ module.exports = {
     {
       name: "@electron-forge/maker-squirrel",
       config: {
-        name: "ethical_world"
+        name: "ethical_world",
+        title: "Ethical World",
+        setupExe: "EthicalWorldSetup.exe"
       }
     },
     {

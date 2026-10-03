@@ -173,3 +173,14 @@ GitHub Actions workflow zůstává nakonfigurovaný, ale dostupné runy dříve 
 - stats jsou pouze drobný text u spodní hrany;
 - single-node pohled má omezený zoom, takže uzel nevypadá jako obří logo;
 - zachované native right-click menu a všechny Graph v2 interakce.
+
+
+### Windows desktop shortcut + installer smoke test
+
+- Squirrel install/update lifecycle dál obsluhuje `electron-squirrel-startup`;
+- přidaný Windows AppUserModelID `com.squirrel.ethical_world.EthicalWorld`;
+- Squirrel setup má deterministický název `EthicalWorldSetup.exe`;
+- přidaný `scripts/test-desktop-install.ps1`;
+- `npm run desktop:test-install` vytvoří installer, spustí jej a ověří Desktop shortcut;
+- test čte skutečný `.lnk` přes Windows COM a validuje target/arguments;
+- `npm run desktop:test-install:launch` navíc spustí aplikaci přes Desktop shortcut a ověří proces `EthicalWorld.exe`.

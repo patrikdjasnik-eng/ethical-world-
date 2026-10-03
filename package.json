@@ -23,7 +23,9 @@
     "version:minor": "npm version minor",
     "version:major": "npm version major",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "desktop:test-install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-desktop-install.ps1",
+    "desktop:test-install:launch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-desktop-install.ps1 -Launch"
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",

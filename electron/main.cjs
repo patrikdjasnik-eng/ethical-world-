@@ -7,6 +7,10 @@ const { updateElectronApp, UpdateSourceType } = require("update-electron-app");
 let mainWindow = null;
 
 if (!squirrelStartup) {
+  if (process.platform === "win32") {
+    app.setAppUserModelId("com.squirrel.ethical_world.EthicalWorld");
+  }
+
   if (app.isPackaged) {
     updateElectronApp({
       updateSource: {

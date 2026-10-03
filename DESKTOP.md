@@ -139,3 +139,56 @@ V Electron režimu graph používá native context menu pro pravý klik. Browser
 5. lokální AI gateway startovaná aplikací;
 6. custom titlebar a tray;
 7. release signing.
+
+
+## Desktop shortcut
+
+Squirrel.Windows při instalaci a update lifecycle vytváří zástupce aplikace v Start Menu a na ploše aktuálního Windows uživatele. Ethical World používá `electron-squirrel-startup` pro obsluhu těchto událostí.
+
+Windows AppUserModelID:
+
+```text
+com.squirrel.ethical_world.EthicalWorld
+```
+
+To drží identitu shortcutu, taskbaru a Squirrel package konzistentní.
+
+Installer má deterministický název:
+
+```text
+EthicalWorldSetup.exe
+```
+
+### Automatický instalační test
+
+Plný test od buildu až po shortcut:
+
+```powershell
+npm run desktop:test-install
+```
+
+Test:
+
+1. spustí `npm run desktop:make`;
+2. najde `EthicalWorldSetup.exe`;
+3. skutečně spustí Squirrel installer;
+4. čeká na vytvoření shortcutu;
+5. ověří Desktop `.lnk`;
+6. přes Windows `WScript.Shell` přečte jeho target a arguments;
+7. ověří, že shortcut míří na Squirrel `Update.exe` / `EthicalWorld.exe`.
+
+Pro úplný smoke test včetně spuštění aplikace přes novou ikonu:
+
+```powershell
+npm run desktop:test-install:launch
+```
+
+Pokud už je Ethical World na PC nainstalovaný, test umí shortcut stále ověřit. Pro definitivní důkaz chování při úplně první instalaci je nejlepší test spustit na čistém Windows účtu, Windows Sandboxu nebo VM.
+
+Pokud už installer existuje a nechceš znovu buildovat:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-desktop-install.ps1 -SkipMake -Launch
+```
+
+> Shortcut zatím používá ikonu zabudovanou v executable. Vlastní brandované `.ico` přidáme do packageru samostatně, jakmile uzamkneme finální Ethical World logo.
