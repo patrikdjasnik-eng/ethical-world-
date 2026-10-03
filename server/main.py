@@ -436,6 +436,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
             "Pokud uživatel požádá o více samostatných poznámek, vrať přesně tolik samostatných <ethical-note> envelope bloků. "
             "Například 3 poznámky znamenají 3 různé envelope bloky, 3 různé názvy a 3 samostatné Markdown dokumenty. Nikdy je neslepuj do jedné note. "
             "Každý dokument musí skutečně pokrývat jiné požadované téma, ne opakovat stejný text. "
+            "Pokud spolu nové poznámky tematicky souvisejí, vlož do nich přirozené [[wiki links]] na přesné názvy ostatních poznámek vytvářených v tom samém batchi. "
+            "Tyto batch odkazy jsou povolené i před tím, než cílové notes fyzicky existují ve vaultu. "
             "NAVAZUJÍCÍ EDITACE: Pokud uživatel říká doplň/vlož/zakresli/zapracuj/uprav něco do existujících poznámek, nevytvářej nový chatový výpis. "
             "Najdi přesné cílové poznámky podle poslední konverzace, VAULT INDEXU a VAULT KONTEXTU a vrať pro každou cílovou note samostatný envelope s action=update a přesným noteId. "
             "Výraz jako 'všechny tři' nebo 'do těch tří' odkazuje na nedávno vytvořené či řešené poznámky z konverzace; jejich IDs vezmi pouze z VAULT INDEXU. "

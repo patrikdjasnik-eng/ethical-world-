@@ -174,3 +174,38 @@ describe("Máša legacy action compatibility", () => {
     ]);
   });
 });
+
+
+describe("Máša batch wiki links", () => {
+  it("keeps wiki links between notes created in the same batch", () => {
+    const raw = [
+      "<ethical-note>",
+      '{"action":"create","title":"Malware Script - Ransomware","folder":""}',
+      "<content>",
+      "# Ransomware",
+      "",
+      "Související: [[Malware Script - Trojan]]",
+      "</content>",
+      "</ethical-note>",
+      "<ethical-note>",
+      '{"action":"create","title":"Malware Script - Trojan","folder":""}',
+      "<content>",
+      "# Trojan",
+      "",
+      "Související: [[Malware Script - Ransomware]]",
+      "</content>",
+      "</ethical-note>"
+    ].join("\n");
+
+    const result = parseAgentResponse(raw);
+
+    expect(result.actions).toHaveLength(2);
+
+    const contents = result.actions
+      .filter((action) => action.type === "create_note")
+      .map((action) => action.type === "create_note" ? action.content : "");
+
+    expect(contents[0]).toContain("[[Malware Script - Trojan]]");
+    expect(contents[1]).toContain("[[Malware Script - Ransomware]]");
+  });
+});

@@ -93,8 +93,15 @@ function normalizeLegacyAction(value: unknown): unknown[] {
   return [value];
 }
 
-function sanitizeWikiLinks(markdown: string, notes: Note[]): string {
-  const knownTitles = new Set(notes.map((note) => normalizeTitle(note.title)));
+function sanitizeWikiLinks(
+  markdown: string,
+  notes: Note[],
+  extraTitles: string[] = []
+): string {
+  const knownTitles = new Set([
+    ...notes.map((note) => normalizeTitle(note.title)),
+    ...extraTitles.map((title) => normalizeTitle(title))
+  ]);
 
   return markdown.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, rawTarget: string, rawAlias?: string) => {
     const target = rawTarget.trim();
@@ -108,14 +115,19 @@ function sanitizeWikiLinks(markdown: string, notes: Note[]): string {
   });
 }
 
-export function finalizeKnowledgeMarkdown(markdown: string, title: string, notes: Note[]): string {
+export function finalizeKnowledgeMarkdown(
+  markdown: string,
+  title: string,
+  notes: Note[],
+  extraTitles: string[] = []
+): string {
   let body = markdown.replace(/^\uFEFF/, "").trim();
 
   if (!/^#\s+/m.test(body)) {
     body = `# ${title}\n\n${body}`;
   }
 
-  body = sanitizeWikiLinks(body, notes);
+  body = sanitizeWikiLinks(body, notes, extraTitles);
 
   if (!/img\.shields\.io\/badge\/Ethical_World-/i.test(body)) {
     body = `${knowledgeBadges}\n\n${body}`;
@@ -181,7 +193,12 @@ export function validateAgentAction(value: unknown): AgentAction | null {
   return null;
 }
 
-function parseKnowledgeEnvelope(metadataRaw: string, markdownRaw: string, notes: Note[]): AgentAction | null {
+function parseKnowledgeEnvelope(
+  metadataRaw: string,
+  markdownRaw: string,
+  notes: Note[],
+  batchTitles: string[] = []
+): AgentAction | null {
   let metadata: Record<string, unknown>;
   try {
     const parsed = JSON.parse(metadataRaw) as unknown;
@@ -195,7 +212,12 @@ function parseKnowledgeEnvelope(metadataRaw: string, markdownRaw: string, notes:
   const title = nonEmptyString(metadata.title, 300);
   const folder = optionalString(metadata.folder, 500);
   if (!title || folder === null) return null;
-  const content = finalizeKnowledgeMarkdown(markdownRaw.slice(0, 60000), title, notes);
+  const content = finalizeKnowledgeMarkdown(
+    markdownRaw.slice(0, 60000),
+    title,
+    notes,
+    batchTitles
+  );
 
   if (action === "update") {
     const noteId = nonEmptyString(metadata.noteId, 200);
@@ -217,10 +239,23 @@ function parseKnowledgeEnvelope(metadataRaw: string, markdownRaw: string, notes:
 export function parseAgentResponse(raw: string, notes: Note[] = []): ParsedAgentResponse {
   const actions: AgentAction[] = [];
   let matchedMachineBlock = false;
+  const batchTitles: string[] = [];
+
+  const scanPattern = new RegExp(knowledgeNotePattern.source, "gi");
+  for (const match of raw.matchAll(scanPattern)) {
+    try {
+      const metadata = JSON.parse(match[1]) as Record<string, unknown>;
+      if (typeof metadata.title === "string" && metadata.title.trim()) {
+        batchTitles.push(metadata.title.trim());
+      }
+    } catch {
+      // Invalid metadata is ignored by the actual parser below.
+    }
+  }
 
   let content = raw.replace(knowledgeNotePattern, (_match, metadataRaw: string, markdownRaw: string) => {
     matchedMachineBlock = true;
-    const action = parseKnowledgeEnvelope(metadataRaw, markdownRaw, notes);
+    const action = parseKnowledgeEnvelope(metadataRaw, markdownRaw, notes, batchTitles);
     if (action) actions.push(action);
     return "";
   });
