@@ -1,7 +1,9 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain, safeStorage, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs/promises");
+const fsSync = require("node:fs");
 const crypto = require("node:crypto");
+const { spawn } = require("node:child_process");
 
 const squirrelStartup = require("electron-squirrel-startup");
 const { updateElectronApp, UpdateSourceType } = require("update-electron-app");
@@ -10,8 +12,110 @@ let mainWindow = null;
 const markdownRoots = new Map();
 const ignoredMarkdownDirs = new Set([".git", "node_modules", ".venv", "venv", "dist", "out", "build"]);
 const githubDeviceSessions = new Map();
-const githubClientId = String(process.env.ETHICAL_GITHUB_CLIENT_ID ?? "").trim();
+const githubClientId = String(\n  process.env.ETHICAL_GITHUB_CLIENT_ID ?? "Ov23liJffFw6fPudRTQ1"\n).trim();
 const githubApiVersion = "2026-03-10";
+const backendHealthUrl = "http://127.0.0.1:8787/health";
+let backendProcess = null;
+let backendRuntimeSource = "external";
+
+async function backendHealthy() {
+  try {
+    const response = await fetch(backendHealthUrl, { signal: AbortSignal.timeout(900) });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+function backendCandidates() {
+  const candidates = [];
+
+  if (app.isPackaged) {
+    const bundledExe = path.join(process.resourcesPath, "backend", "EthicalWorldBackend.exe");
+    if (fsSync.existsSync(bundledExe)) {
+      candidates.push({ source: "bundled", command: bundledExe, args: [], cwd: path.dirname(bundledExe) });
+    }
+    candidates.push({
+      source: "python", command: "python",
+      args: ["-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", "8787"],
+      cwd: process.resourcesPath
+    });
+    candidates.push({
+      source: "py", command: "py",
+      args: ["-3", "-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", "8787"],
+      cwd: process.resourcesPath
+    });
+    return candidates;
+  }
+
+  const projectRoot = path.resolve(__dirname, "..");
+  const venvPython = path.join(projectRoot, ".venv", "Scripts", "python.exe");
+  if (fsSync.existsSync(venvPython)) {
+    candidates.push({
+      source: "venv", command: venvPython,
+      args: ["-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", "8787"],
+      cwd: projectRoot
+    });
+  }
+  candidates.push({
+    source: "python", command: "python",
+    args: ["-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", "8787"],
+    cwd: projectRoot
+  });
+  return candidates;
+}
+
+async function waitForBackend(timeoutMs = 9000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await backendHealthy()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return false;
+}
+
+async function startBackendCandidate(candidate) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const child = spawn(candidate.command, candidate.args, {
+      cwd: candidate.cwd,
+      windowsHide: true,
+      stdio: app.isPackaged ? "ignore" : "inherit",
+      env: { ...process.env, PYTHONUNBUFFERED: "1" }
+    });
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    child.once("error", () => finish(null));
+    child.once("spawn", () => finish(child));
+  });
+}
+
+async function ensureBackendRuntime() {
+  if (await backendHealthy()) {
+    backendRuntimeSource = "external";
+    return true;
+  }
+  for (const candidate of backendCandidates()) {
+    const child = await startBackendCandidate(candidate);
+    if (!child) continue;
+    backendProcess = child;
+    backendRuntimeSource = candidate.source;
+    if (await waitForBackend()) return true;
+    try { child.kill(); } catch { }
+    backendProcess = null;
+  }
+  backendRuntimeSource = "offline";
+  return false;
+}
+
+function stopOwnedBackend() {
+  if (!backendProcess) return;
+  try { backendProcess.kill(); } catch { }
+  backendProcess = null;
+}
 
 function secretFilePath() {
   return path.join(app.getPath("userData"), "secrets.json");
@@ -547,7 +651,14 @@ if (!squirrelStartup) {
     return true;
   });
 
-  app.whenReady().then(() => {
+  ipcMain.handle("desktop:runtime-status", async () => ({
+    backendOnline: await backendHealthy(),
+    backendSource: backendRuntimeSource,
+    githubClientConfigured: Boolean(githubClientId)
+  }));
+
+  app.whenReady().then(async () => {
+    await ensureBackendRuntime();
     createWindow();
 
     app.on("activate", () => {
@@ -555,6 +666,10 @@ if (!squirrelStartup) {
         createWindow();
       }
     });
+  });
+
+  app.on("before-quit", () => {
+    stopOwnedBackend();
   });
 
   app.on("window-all-closed", () => {
