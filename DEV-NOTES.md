@@ -87,3 +87,25 @@ Máša ONLINE pouze pokud byl nalezen skutečný model
 ### CI stav
 
 GitHub Actions workflow zůstává nakonfigurovaný, ale dostupné runy dříve končily před spuštěním workflow kroků. Lokální `npm test` a `npm run build` je proto stále potřeba ověřit na checkoutu.
+
+
+### Editor UX v4 – one-click Markdown
+
+- přidaný nový `InsertMenu` přímo nad editorem;
+- jedním kliknutím lze vložit wiki link na existující poznámku;
+- link picker má fulltext nad názvem i folder path;
+- code block picker podporuje Bash, PowerShell, Python, TypeScript, JavaScript, JSON, SQL, YAML, C++ a Dockerfile;
+- přidané one-click tasky, callouty, heading, tabulka, quote, inline code a divider;
+- vložení respektuje aktuální caret/selection;
+- vybraný text lze rovnou obalit code blockem, tasky, quote nebo calloutem;
+- editor po insertu vrátí focus na správnou pozici;
+- přidané unit testy pro deterministické Markdown inserty.
+
+### Pure dark v4
+
+- tmavší neutrální palette bez šedých „mrtvých“ ploch;
+- jemné depth vrstvy místo silných gradientů;
+- modernější typografie nadpisu poznámky;
+- nový floating popover pro insert menu;
+- mírné accent glow pouze u interaktivních prvků;
+- UI zůstává čitelné i bez aktivního AI panelu.

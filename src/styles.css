@@ -1311,3 +1311,374 @@ button { color: inherit; }
   .graph-legend { display: none; }
   .relations-panel { grid-template-columns: 1fr; }
 }
+
+
+/* Pure dark v4 + one-click Markdown composer */
+:root {
+  --chrome: #09090b;
+  --rail: #0b0b0e;
+  --sidebar: #0f0f13;
+  --surface: #111116;
+  --surface-2: #15151b;
+  --surface-3: #1a1a22;
+  --hover: #181820;
+  --active: #1d1b25;
+  --border: #23232b;
+  --border-soft: #1b1b22;
+  --text: #e5e5ea;
+  --muted: #8a8a96;
+  --faint: #575762;
+  --accent: #8b7cf6;
+  --accent-2: #b7abff;
+  --accent-soft: rgba(139, 124, 246, 0.12);
+}
+
+body,
+.workbench {
+  background: #09090b;
+}
+
+.app-topbar {
+  background: rgba(11, 11, 14, 0.94);
+  backdrop-filter: blur(18px);
+  border-bottom-color: #202027;
+}
+
+.activity-rail {
+  background: #0a0a0d;
+}
+
+.vault-sidebar,
+.ai-panel {
+  background: #0f0f13;
+}
+
+.editor-pane,
+.graph-pane,
+.document-scroll {
+  background: #111116;
+}
+
+.document-scroll {
+  background-image:
+    radial-gradient(circle at 50% -12%, rgba(139, 124, 246, 0.055), transparent 32%),
+    linear-gradient(180deg, rgba(255,255,255,0.008), transparent 140px);
+}
+
+.document-page {
+  width: min(860px, calc(100% - 96px));
+}
+
+.title-input {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-weight: 720;
+  letter-spacing: -0.045em;
+}
+
+.note-editor {
+  color: #d5d5db;
+  caret-color: var(--accent-2);
+}
+
+.document-insertbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 22px;
+}
+
+.document-insertbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #24242c;
+  border-radius: 8px;
+  background: #121218;
+  color: #8f8f9b;
+  cursor: pointer;
+  font-size: 10px;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    transform 120ms ease;
+}
+
+.document-insertbar button span {
+  color: #746bc0;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.document-insertbar button:hover,
+.document-insertbar button.active {
+  border-color: #3a344f;
+  background: #181720;
+  color: #d2cfdf;
+}
+
+.document-insertbar button:hover {
+  transform: translateY(-1px);
+}
+
+.insert-menu-shell {
+  position: relative;
+  z-index: 8;
+}
+
+.insert-popover {
+  position: absolute;
+  top: 42px;
+  left: 0;
+  z-index: 30;
+  width: min(520px, calc(100vw - 110px));
+  max-height: 500px;
+  overflow: hidden;
+  border: 1px solid #2a2932;
+  border-radius: 12px;
+  background: rgba(14, 14, 19, 0.985);
+  box-shadow:
+    0 20px 60px rgba(0,0,0,0.42),
+    0 0 0 1px rgba(255,255,255,0.012) inset;
+  backdrop-filter: blur(20px);
+}
+
+.insert-popover-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 14px 11px;
+  border-bottom: 1px solid #202028;
+}
+
+.insert-popover-heading > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.insert-popover-heading span {
+  color: #5d5d68;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .13em;
+}
+
+.insert-popover-heading strong {
+  color: #d9d9df;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.insert-popover-heading small {
+  color: #5c5c67;
+  font-size: 9px;
+}
+
+.insert-action-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 8px;
+}
+
+.insert-action-grid > button {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  align-items: center;
+  gap: 9px;
+  min-height: 56px;
+  padding: 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.insert-action-grid > button:hover {
+  border-color: #2d2a39;
+  background: #17161e;
+}
+
+.insert-action-grid > button > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.insert-action-grid strong {
+  color: #cfcfd5;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.insert-action-grid small {
+  color: #5d5d67;
+  font-size: 9px;
+}
+
+.insert-action-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #33303d;
+  border-radius: 7px;
+  background: #1a1821;
+  color: #9d8cf6;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.insert-search {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  align-items: center;
+  margin: 8px;
+  padding: 0 8px;
+  border: 1px solid #282831;
+  border-radius: 7px;
+  background: #0b0b0f;
+  color: #575760;
+}
+
+.insert-search input {
+  min-width: 0;
+  padding: 8px 2px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #d2d2d8;
+  font-size: 10px;
+}
+
+.insert-note-list {
+  max-height: 330px;
+  padding: 0 8px 8px;
+  overflow-y: auto;
+}
+
+.insert-note-list > button {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 24px 1fr 22px;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 7px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.insert-note-list > button:hover {
+  background: #17171d;
+}
+
+.insert-note-icon {
+  color: #7568bc;
+  font-size: 10px;
+}
+
+.insert-note-list > button > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.insert-note-list strong {
+  overflow: hidden;
+  color: #cfcfd5;
+  font-size: 10px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.insert-note-list small {
+  overflow: hidden;
+  color: #5d5d67;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.insert-note-arrow {
+  color: #4f4f59;
+  font-size: 9px;
+}
+
+.insert-language-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 8px;
+}
+
+.insert-language-grid button {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: #a7a7b0;
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.insert-language-grid button:hover {
+  border-color: #2d2a39;
+  background: #17161e;
+  color: #d5d5db;
+}
+
+.insert-language-grid button span {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border: 1px solid #302d39;
+  border-radius: 6px;
+  background: #19171f;
+  color: #9484e3;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.insert-empty {
+  padding: 18px 10px;
+  color: #5d5d67;
+  font-size: 10px;
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .document-insertbar {
+    gap: 5px;
+  }
+
+  .document-insertbar button {
+    padding: 0 8px;
+  }
+
+  .insert-popover {
+    width: min(440px, calc(100vw - 64px));
+  }
+
+  .insert-action-grid,
+  .insert-language-grid {
+    grid-template-columns: 1fr;
+  }
+}
