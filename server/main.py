@@ -3,10 +3,18 @@ from __future__ import annotations
 import os
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from .auth_store import (
+    AuthStoreError,
+    bootstrap_admin_from_env,
+    init_auth_store,
+    login_user,
+    register_user,
+    user_from_session,
+)
 from .providers import (
     ProviderError,
     chat_ollama,
@@ -64,7 +72,34 @@ class ProviderStatusResponse(BaseModel):
     model: str | None = None
 
 
-app = FastAPI(title="Ethical World AI Gateway", version="0.1.1")
+class RegisterRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=12, max_length=1024)
+    displayName: str = Field(min_length=1, max_length=120)
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=1, max_length=1024)
+
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    displayName: str
+    createdAt: str
+
+
+class AuthResponse(BaseModel):
+    user: UserResponse
+    sessionToken: str
+    expiresAt: str
+
+
+app = FastAPI(title="Ethical World AI Gateway", version="0.1.2")
+
+init_auth_store()
+bootstrap_admin_from_env()
 
 allowed_origins = os.getenv(
     "ETHICAL_WORLD_ALLOWED_ORIGINS",
@@ -83,6 +118,44 @@ app.add_middleware(
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/api/auth/register", response_model=UserResponse)
+async def register(request: RegisterRequest) -> UserResponse:
+    try:
+        user = register_user(request.email, request.password, request.displayName)
+    except AuthStoreError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+    return UserResponse(**user)
+
+
+@app.post("/api/auth/login", response_model=AuthResponse)
+async def login(request: LoginRequest) -> AuthResponse:
+    try:
+        user, token, expires_at = login_user(request.email, request.password)
+    except AuthStoreError as error:
+        raise HTTPException(status_code=401, detail=str(error)) from error
+
+    return AuthResponse(
+        user=UserResponse(**user),
+        sessionToken=token,
+        expiresAt=expires_at,
+    )
+
+
+@app.get("/api/auth/me", response_model=UserResponse)
+async def me(authorization: str | None = Header(default=None)) -> UserResponse:
+    prefix = "Bearer "
+
+    if not authorization or not authorization.startswith(prefix):
+        raise HTTPException(status_code=401, detail="Chybí session token.")
+
+    user = user_from_session(authorization[len(prefix):].strip())
+    if not user:
+        raise HTTPException(status_code=401, detail="Session není platná nebo vypršela.")
+
+    return UserResponse(**user)
 
 
 @app.post("/api/providers/detect")

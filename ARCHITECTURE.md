@@ -103,3 +103,18 @@ Máša bude používat stejné doménové operace jako UI:
 `searchNotes`, `readNote`, `createNote`, `updateNote`, `linkNotes`, `moveNote`, `createFolder`, `createTask` a další.
 
 Zápisové operace budou používat permission gate a proposal/diff flow.
+
+
+## Identity database foundation
+
+FastAPI vrstva má lokální SQLite identity store:
+
+```text
+~/.ethical-world/ethical-world.db
+├─ users
+├─ sessions
+├─ devices
+└─ message_envelopes
+```
+
+`users` drží pouze password verifier (scrypt + salt), `sessions` pouze hash session tokenu. `devices` a `message_envelopes` jsou připravené pro budoucí per-device E2E komunikaci, ale samotný ratchet/protokol zatím implementovaný není.

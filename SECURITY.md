@@ -29,3 +29,18 @@ Vývojový backend povoluje pouze lokální frontend originy. Při deploymentu j
 ## Hlášení problému
 
 Citlivé bezpečnostní nálezy nepatří do veřejného issue včetně plných secretů. Ve veřejném reportu používej pouze redigované důkazy.
+
+## Accounts a identity
+
+Lokální backend používá SQLite databázi v uživatelském data adresáři (výchozí `~/.ethical-world/ethical-world.db`), nikoli v repozitáři.
+
+- hesla se nešifrují reverzibilně; ukládají se jako `scrypt` hash s unikátním random saltem;
+- session token je uživateli vydán pouze při loginu a v databázi se ukládá jen jeho SHA-256 hash;
+- bootstrap admin účet se načítá pouze z `ETHICAL_WORLD_ADMIN_EMAIL`, `ETHICAL_WORLD_ADMIN_PASSWORD` a volitelného `ETHICAL_WORLD_ADMIN_NAME`;
+- žádné bootstrap heslo ani session token nesmí být commitnuté.
+
+## Budoucí E2E zprávy
+
+Schema `message_envelopes` je záměrně ciphertext-only. Serverová databáze má v budoucnu ukládat šifrovanou zprávu, nonce a metadata nutná k doručení, nikoli plaintext.
+
+Kryptografický protokol pro týmový chat nebude vlastní návrh. Produkční verze má použít auditovanou implementaci typu Signal protocol / Double Ratchet s per-device identity keys a prekeys. Dokud tato vrstva není implementovaná a auditovaná, dokumentace nesmí tvrdit, že chat má Signal/Telegram-equivalentní E2E bezpečnost.

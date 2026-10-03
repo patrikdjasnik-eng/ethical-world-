@@ -205,3 +205,14 @@ GitHub Actions workflow zůstává nakonfigurovaný, ale dostupné runy dříve 
 - model pracuje s přesnými note IDs a seznamem existujících folder paths;
 - `masa-cyber` je preferovaný lokální Ollama model, pokud je dostupný;
 - mazání a jiné destruktivní tools nejsou v první verzi agentovi zpřístupněné.
+
+
+### Identity DB foundation v0.1
+
+- přidaná lokální SQLite databáze mimo Git repozitář;
+- registrace a login endpointy;
+- hesla používají scrypt + unikátní salt;
+- session tokeny jsou v DB uložené pouze jako SHA-256 hash;
+- admin účet lze bootstrapnout výhradně přes environment variables;
+- přidané tabulky devices a ciphertext-only message_envelopes jako základ budoucího E2E chatu;
+- dokumentace výslovně zakazuje vlastní neauditovanou kryptografii pro budoucí team messaging.
