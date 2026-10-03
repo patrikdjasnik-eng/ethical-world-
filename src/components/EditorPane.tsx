@@ -1,0 +1,106 @@
+import { memo, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { extractWikiLinks, getBacklinks, normalizeTitle } from "../lib/notes";
+import type { Note } from "../types";
+
+interface EditorPaneProps {
+  note: Note | null;
+  notes: Note[];
+  onChange: (nextNote: Note) => void;
+  onOpenNote: (noteId: string) => void;
+}
+
+export const EditorPane = memo(function EditorPane({ note, notes, onChange, onOpenNote }: EditorPaneProps) {
+  const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const backlinks = useMemo(() => note ? getBacklinks(notes, note.title) : [], [note, notes]);
+  const outgoingLinks = useMemo(() => note ? extractWikiLinks(note.content) : [], [note]);
+
+  if (!note) {
+    return (
+      <main className="editor-pane empty-state">
+        <div>
+          <h2>Vault je prázdný</h2>
+          <p>Vytvoř první poznámku a začni stavět svůj knowledge graph.</p>
+        </div>
+      </main>
+    );
+  }
+
+  const updateField = (field: "title" | "content", value: string) => {
+    onChange({
+      ...note,
+      [field]: value,
+      updatedAt: new Date().toISOString()
+    });
+  };
+
+  const openWikiLink = (title: string) => {
+    const linkedNote = notes.find((candidate) => normalizeTitle(candidate.title) === normalizeTitle(title));
+
+    if (linkedNote) {
+      onOpenNote(linkedNote.id);
+    }
+  };
+
+  return (
+    <main className="editor-pane">
+      <div className="editor-toolbar">
+        <div className="mode-switch">
+          <button className={mode === "edit" ? "selected" : ""} type="button" onClick={() => setMode("edit")}>
+            Edit
+          </button>
+          <button className={mode === "preview" ? "selected" : ""} type="button" onClick={() => setMode("preview")}>
+            Preview
+          </button>
+        </div>
+        <span className="save-state">autosave</span>
+      </div>
+
+      <input
+        className="title-input"
+        value={note.title}
+        onChange={(event) => updateField("title", event.target.value)}
+        placeholder="Název poznámky"
+      />
+
+      {mode === "edit" ? (
+        <textarea
+          className="note-editor"
+          value={note.content}
+          onChange={(event) => updateField("content", event.target.value)}
+          spellCheck
+        />
+      ) : (
+        <article className="markdown-preview">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{note.content}</ReactMarkdown>
+        </article>
+      )}
+
+      <section className="relations-panel">
+        <div>
+          <h3>Links</h3>
+          <div className="chips">
+            {outgoingLinks.length === 0 && <span className="muted">Žádné wiki odkazy</span>}
+            {outgoingLinks.map((link) => (
+              <button type="button" className="chip" key={link} onClick={() => openWikiLink(link)}>
+                [[{link}]]
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <h3>Backlinks</h3>
+          <div className="chips">
+            {backlinks.length === 0 && <span className="muted">Zatím bez backlinků</span>}
+            {backlinks.map((backlink) => (
+              <button type="button" className="chip" key={backlink.id} onClick={() => onOpenNote(backlink.id)}>
+                {backlink.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+});
