@@ -162,6 +162,63 @@ async function deleteSecret(name) {
   await fs.writeFile(secretFilePath(), JSON.stringify(data), "utf8");
 }
 
+async function loadOrCreateCarrotIdentity() {
+  let privateKey = await loadSecret("carrot.ed25519.private");
+  let publicKey = await loadSecret("carrot.ed25519.public");
+
+  if (!privateKey || !publicKey) {
+    const pair = crypto.generateKeyPairSync("ed25519");
+    privateKey = pair.privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+    publicKey = pair.publicKey.export({ type: "spki", format: "pem" }).toString();
+
+    await saveSecret("carrot.ed25519.private", privateKey);
+    await saveSecret("carrot.ed25519.public", publicKey);
+  }
+
+  const keyId = crypto.createHash("sha256").update(publicKey).digest("hex").slice(0, 16);
+  return { privateKey, publicKey, keyId };
+}
+
+async function carrotSignPayload(rawPayload) {
+  const payload = String(rawPayload ?? "");
+  if (!payload || Buffer.byteLength(payload, "utf8") > 128 * 1024) {
+    throw new Error("Invalid Carrot signing payload.");
+  }
+
+  const identity = await loadOrCreateCarrotIdentity();
+  const signature = crypto.sign(
+    null,
+    Buffer.from(payload, "utf8"),
+    identity.privateKey
+  ).toString("base64");
+
+  return {
+    signature,
+    publicKey: identity.publicKey,
+    keyId: identity.keyId
+  };
+}
+
+function carrotVerifyPayload(rawPayload, rawSignature, rawPublicKey) {
+  const payload = String(rawPayload ?? "");
+  const signature = String(rawSignature ?? "");
+  const publicKey = String(rawPublicKey ?? "");
+
+  if (!payload || !signature || !publicKey) return false;
+  if (Buffer.byteLength(payload, "utf8") > 128 * 1024) return false;
+
+  try {
+    return crypto.verify(
+      null,
+      Buffer.from(payload, "utf8"),
+      publicKey,
+      Buffer.from(signature, "base64")
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function githubRequest(apiPath, options = {}) {
   const token = await loadSecret("github.oauth");
   if (!token) throw new Error("GitHub není připojený.");
@@ -651,6 +708,14 @@ if (!squirrelStartup) {
   ipcMain.handle("desktop:auth-clear-session-token", async () => {
     await deleteSecret("ethical-world.session");
     return true;
+  });
+
+  ipcMain.handle("desktop:carrot-sign", async (_event, payload) => {
+    return carrotSignPayload(payload);
+  });
+
+  ipcMain.handle("desktop:carrot-verify", async (_event, payload, signature, publicKey) => {
+    return carrotVerifyPayload(payload, signature, publicKey);
   });
 
   ipcMain.handle("desktop:runtime-status", async () => ({

@@ -19,5 +19,8 @@ contextBridge.exposeInMainWorld("ethicalDesktop", {
   authLoadSessionToken: () => ipcRenderer.invoke("desktop:auth-load-session-token"),
   authStoreSessionToken: (token) => ipcRenderer.invoke("desktop:auth-store-session-token", token),
   authClearSessionToken: () => ipcRenderer.invoke("desktop:auth-clear-session-token"),
+  carrotSign: (payload) => ipcRenderer.invoke("desktop:carrot-sign", payload),
+  carrotVerify: (payload, signature, publicKey) =>
+    ipcRenderer.invoke("desktop:carrot-verify", payload, signature, publicKey),
   runtimeStatus: () => ipcRenderer.invoke("desktop:runtime-status")
 });

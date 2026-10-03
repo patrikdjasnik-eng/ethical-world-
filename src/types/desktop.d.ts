@@ -74,6 +74,12 @@ export interface EthicalDesktopApi {
   authLoadSessionToken: () => Promise<string | null>;
   authStoreSessionToken: (token: string) => Promise<boolean>;
   authClearSessionToken: () => Promise<boolean>;
+  carrotSign: (payload: string) => Promise<{
+    signature: string;
+    publicKey: string;
+    keyId: string;
+  }>;
+  carrotVerify: (payload: string, signature: string, publicKey: string) => Promise<boolean>;
   runtimeStatus: () => Promise<{
     backendOnline: boolean;
     backendSource: "external" | "bundled" | "venv" | "python" | "py" | "offline";
