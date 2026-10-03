@@ -73,7 +73,12 @@ export interface EthicalDesktopApi {
   ) => Promise<{ written: number; branch: string; commitSha: string }>;
   authLoadSessionToken: () => Promise<string | null>;
   authStoreSessionToken: (token: string) => Promise<boolean>;
-  authClearSessionToken: () => Promise<boolean>;\n  runtimeStatus: () => Promise<{\n    backendOnline: boolean;\n    backendSource: "external" | "bundled" | "venv" | "python" | "py" | "offline";\n    githubClientConfigured: boolean;\n  }>;
+  authClearSessionToken: () => Promise<boolean>;
+  runtimeStatus: () => Promise<{
+    backendOnline: boolean;
+    backendSource: "external" | "bundled" | "venv" | "python" | "py" | "offline";
+    githubClientConfigured: boolean;
+  }>;
 }
 
 declare global {
