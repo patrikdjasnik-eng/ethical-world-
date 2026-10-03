@@ -31,6 +31,68 @@ function normalizeTitle(value: string): string {
   return value.trim().toLocaleLowerCase("cs-CZ");
 }
 
+function normalizeLegacyAction(value: unknown): unknown[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [value];
+
+  const candidate = value as Record<string, unknown>;
+  const action = typeof candidate.action === "string" ? candidate.action : null;
+
+  if (action === "create_notes" && Array.isArray(candidate.notes)) {
+    return candidate.notes.slice(0, 8).map((note) => {
+      if (!note || typeof note !== "object" || Array.isArray(note)) return note;
+      return {
+        type: "create_note",
+        ...(note as Record<string, unknown>)
+      };
+    });
+  }
+
+  if (!action || candidate.type !== undefined) return [value];
+
+  const nestedNote =
+    candidate.note && typeof candidate.note === "object" && !Array.isArray(candidate.note)
+      ? candidate.note as Record<string, unknown>
+      : {};
+
+  if (action === "create_note") {
+    return [{
+      type: "create_note",
+      ...nestedNote,
+      ...(candidate.title !== undefined ? { title: candidate.title } : {}),
+      ...(candidate.content !== undefined ? { content: candidate.content } : {}),
+      ...(candidate.folder !== undefined ? { folder: candidate.folder } : {})
+    }];
+  }
+
+  if (action === "update_note") {
+    return [{
+      type: "update_note",
+      ...nestedNote,
+      ...(candidate.noteId !== undefined ? { noteId: candidate.noteId } : {}),
+      ...(candidate.title !== undefined ? { title: candidate.title } : {}),
+      ...(candidate.content !== undefined ? { content: candidate.content } : {}),
+      ...(candidate.folder !== undefined ? { folder: candidate.folder } : {})
+    }];
+  }
+
+  if (action === "create_folder") {
+    return [{
+      type: "create_folder",
+      ...(candidate.name !== undefined ? { name: candidate.name } : {}),
+      ...(candidate.parentPath !== undefined ? { parentPath: candidate.parentPath } : {})
+    }];
+  }
+
+  if (action === "open_note") {
+    return [{
+      type: "open_note",
+      ...(candidate.noteId !== undefined ? { noteId: candidate.noteId } : {})
+    }];
+  }
+
+  return [value];
+}
+
 function sanitizeWikiLinks(markdown: string, notes: Note[]): string {
   const knownTitles = new Set(notes.map((note) => normalizeTitle(note.title)));
 
@@ -169,8 +231,12 @@ export function parseAgentResponse(raw: string, notes: Note[] = []): ParsedAgent
       const parsed = JSON.parse(payload) as unknown;
       if (!Array.isArray(parsed)) return "";
       for (const item of parsed.slice(0, 8)) {
-        const action = validateAgentAction(item);
-        if (action) actions.push(action);
+        for (const normalized of normalizeLegacyAction(item)) {
+          const action = validateAgentAction(normalized);
+          if (action) actions.push(action);
+          if (actions.length >= 8) break;
+        }
+        if (actions.length >= 8) break;
       }
     } catch {
       // Malformed machine data is never executed.

@@ -117,3 +117,60 @@ describe("Máša knowledge note protocol", () => {
     });
   });
 });
+
+
+describe("Máša legacy action compatibility", () => {
+  it("accepts the action + note wrapper emitted by local models", () => {
+    const raw = [
+      "Připraveno.",
+      fence + "ethical-actions",
+      JSON.stringify([
+        {
+          action: "create_note",
+          note: {
+            title: "Malware Scripts",
+            content: "# Malware Scripts\n\nEducational overview."
+          }
+        }
+      ]),
+      fence
+    ].join("\n");
+
+    const result = parseAgentResponse(raw);
+
+    expect(result.content).toBe("Připraveno.");
+    expect(result.actions).toEqual([
+      {
+        type: "create_note",
+        title: "Malware Scripts",
+        content: "# Malware Scripts\n\nEducational overview."
+      }
+    ]);
+  });
+
+  it("expands create_notes into separate approval actions", () => {
+    const raw = [
+      fence + "ethical-actions",
+      JSON.stringify([
+        {
+          action: "create_notes",
+          notes: [
+            { title: "Script A", content: "# A" },
+            { title: "Script B", content: "# B" },
+            { title: "Script C", content: "# C" }
+          ]
+        }
+      ]),
+      fence
+    ].join("\n");
+
+    const result = parseAgentResponse(raw);
+
+    expect(result.actions).toHaveLength(3);
+    expect(result.actions.map((action) => action.type)).toEqual([
+      "create_note",
+      "create_note",
+      "create_note"
+    ]);
+  });
+});

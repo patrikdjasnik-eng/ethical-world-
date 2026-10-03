@@ -431,13 +431,19 @@ async def chat(request: ChatRequest) -> ChatResponse:
             "Odkaz vlož přirozeně do sekce, kde souvislost vzniká, a případně přidej krátkou sekci Související poznámky. Nevymýšlej neexistující wiki odkazy. "
             "Výsledek vlož na konec odpovědi do přesného envelope formátu: <ethical-note> na samostatný řádek, potom jeden JSON řádek s action=create/title/folder nebo action=update/noteId/title/folder, "
             "potom <content>, raw Markdown bez JSON escapování, </content> a </ethical-note>. Uvnitř content mohou být normálně trojité backticky, Mermaid i Prisma. "
+            "Pokud uživatel požádá o více samostatných poznámek, vrať přesně tolik samostatných <ethical-note> envelope bloků. "
+            "Například 3 poznámky znamenají 3 různé envelope bloky, 3 různé názvy a 3 samostatné Markdown dokumenty. Nikdy je neslepuj do jedné note. "
+            "Každý dokument musí skutečně pokrývat jiné požadované téma, ne opakovat stejný text. "
             "Folder smí být jen existující cesta nebo prázdný string. Před envelope napiš jen krátkou větu, co jsi připravila; celý dokument neopakuj v chatu."
         )
     elif request.permissionMode == "assist":
         tool_instructions = (
             "REZIM ASSIST: Když uživatel výslovně požádá o běžnou změnu nebo otevření položky v Ethical World, "
             f"můžeš na KONCI odpovědi přidat právě jeden strojový blok {fence}ethical-actions. "
-            "Uvnitř musí být pouze JSON pole bez komentářů. Dostupné akce jsou create_note, update_note, create_folder a open_note. "
+            "Uvnitř musí být pouze JSON pole bez komentářů. Každá položka MUSÍ používat klíč type, například "
+            '{"type":"create_note","title":"Název","content":"# Markdown","folder":""}. '
+            "Nikdy nepoužívej wrapper ve tvaru action + note. Dostupné akce jsou create_note, update_note, create_folder a open_note. "
+            "Pokud uživatel chce více poznámek, vrať více samostatných create_note položek v poli, ne jednu poznámku s opakovanými sekcemi. "
             "Nevymýšlej noteId ani folder cestu. Akce se nikdy neprovedou automaticky; uživatel je musí potvrdit v UI."
         )
     else:
