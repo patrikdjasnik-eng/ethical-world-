@@ -189,7 +189,7 @@ export const VaultSidebar = memo(function VaultSidebar({
 
     setNewFolderParent(selectedFolderPath);
     setNewFolderName("");
-  }, [folderCreateNonce, selectedFolderPath]);
+  }, [folderCreateNonce]);
 
   const openNote = (noteId: string) => {
     onSelectNote(noteId);
