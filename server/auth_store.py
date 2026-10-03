@@ -45,6 +45,7 @@ def _password_digest(password: str, salt: bytes) -> bytes:
         n=2**15,
         r=8,
         p=1,
+        maxmem=64 * 1024 * 1024,
         dklen=32,
     )
 
