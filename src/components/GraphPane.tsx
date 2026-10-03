@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import {
   buildKnowledgeGraph,
@@ -60,6 +60,31 @@ export const GraphPane = memo(function GraphPane({
   const [scope, setScope] = useState<GraphScope>("global");
   const [query, setQuery] = useState("");
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [stageSize, setStageSize] = useState({ width: 900, height: 620 });
+
+  useEffect(() => {
+    const element = containerRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    const updateSize = () => {
+      const bounds = element.getBoundingClientRect();
+
+      setStageSize({
+        width: Math.max(320, Math.floor(bounds.width)),
+        height: Math.max(320, Math.floor(bounds.height))
+      });
+    };
+
+    updateSize();
+
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, []);
 
   const globalGraph = useMemo(() => buildKnowledgeGraph(notes), [notes]);
   const scopedGraph = useMemo(
@@ -132,6 +157,8 @@ export const GraphPane = memo(function GraphPane({
 
       <div className="graph-stage" ref={containerRef}>
         <ForceGraph2D
+          width={stageSize.width}
+          height={stageSize.height}
           graphData={graphData}
           backgroundColor="#1e1e1e"
           nodeVal={(rawNode) => 3 + Math.min((rawNode as RenderNode).degree, 8) * 0.75}
