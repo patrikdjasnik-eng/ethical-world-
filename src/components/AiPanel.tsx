@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   autoDetectLocalProvider,
   checkGatewayHealth,
@@ -37,8 +37,12 @@ interface PendingAction {
 const initialMessage: AiMessage = {
   id: "welcome",
   role: "assistant",
-  content: "Jsem Máša. V režimu ASSIST můžu nejen odpovídat nad vaultem, ale také navrhovat konkrétní akce v Ethical World."
+  content: "Jsem Máša. Můžu odpovídat i na obecné technické a cybersecurity dotazy. V režimu ASSIST umím navíc připravovat změny v Ethical World, které před provedením vždy potvrdíš."
 };
+
+function looksLikeActionRequest(value: string): boolean {
+  return /\\b(vytvoř|vytvor|uprav|přidej|pridej|přepiš|prepis|otevři|otevri|složk|slozk|poznámk|poznamk|create|update|edit|open|folder|note)\\b/i.test(value);
+}
 
 export const AiPanel = memo(function AiPanel({
   activeNote,
@@ -54,6 +58,10 @@ export const AiPanel = memo(function AiPanel({
   const [permissionMode, setPermissionMode] = useState<AiPermissionMode>("assist");
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
   const [applyingActionId, setApplyingActionId] = useState<string | null>(null);
+  const [sendingMode, setSendingMode] = useState<"answer" | "proposal">("answer");
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const messageListRef = useRef<HTMLDivElement | null>(null);
+  const messageEndRef = useRef<HTMLDivElement | null>(null);
   const [connection, setConnection] = useState<ConnectionState>({
     backendOnline: false,
     modelOnline: false,
@@ -133,6 +141,20 @@ export const AiPanel = memo(function AiPanel({
 
   const canSend = connection.backendOnline && connection.modelOnline && !isSending;
 
+  useEffect(() => {
+    messageEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, isSending, pendingActions.length]);
+
+  const copyMessage = useCallback(async (message: AiMessage) => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopiedMessageId(message.id);
+      window.setTimeout(() => setCopiedMessageId((current) => current === message.id ? null : current), 1400);
+    } catch {
+      setError("Odpověď se nepodařilo zkopírovat do schránky.");
+    }
+  }, []);
+
   const submit = useCallback(async () => {
     const trimmedInput = input.trim();
     if (!trimmedInput || !canSend) return;
@@ -146,6 +168,7 @@ export const AiPanel = memo(function AiPanel({
 
     setMessages(nextMessages);
     setInput("");
+    setSendingMode(looksLikeActionRequest(trimmedInput) && permissionMode === "assist" ? "proposal" : "answer");
     setIsSending(true);
     setError(null);
 
@@ -342,7 +365,7 @@ export const AiPanel = memo(function AiPanel({
           value={input}
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault();
               void submit();
             }

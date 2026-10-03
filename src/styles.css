@@ -2170,3 +2170,39 @@ body,
   opacity: .45;
   cursor: default;
 }
+
+
+/* Máša chat UX v0.2 */
+.message-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.message-copy {
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #54545e;
+  cursor: pointer;
+  font-size: 8px;
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.message.assistant:hover .message-copy,
+.message-copy:focus-visible {
+  opacity: 1;
+}
+
+.message-copy:hover {
+  background: #1f1f26;
+  color: #a9a9b3;
+}
+
+.message-working p {
+  color: #77717f;
+  font-style: italic;
+}
