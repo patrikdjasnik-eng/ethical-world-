@@ -71,6 +71,9 @@ export interface EthicalDesktopApi {
     branch: string,
     files: DesktopMarkdownFile[]
   ) => Promise<{ written: number; branch: string; commitSha: string }>;
+  authLoadSessionToken: () => Promise<string | null>;
+  authStoreSessionToken: (token: string) => Promise<boolean>;
+  authClearSessionToken: () => Promise<boolean>;
 }
 
 declare global {

@@ -49,3 +49,17 @@ export type AgentAction =
   | { type: "update_note"; noteId: string; title?: string; content?: string; folder?: string }
   | { type: "create_folder"; name: string; parentPath?: string | null }
   | { type: "open_note"; noteId: string };
+
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  displayName: string;
+  createdAt: string;
+}
+
+export interface AuthSession {
+  user: UserProfile;
+  sessionToken: string;
+  expiresAt: string;
+}

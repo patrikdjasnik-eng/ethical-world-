@@ -531,6 +531,22 @@ if (!squirrelStartup) {
     return githubWriteMarkdown(repoFullName, branch, files);
   });
 
+  ipcMain.handle("desktop:auth-load-session-token", async () => {
+    return loadSecret("ethical-world.session");
+  });
+
+  ipcMain.handle("desktop:auth-store-session-token", async (_event, token) => {
+    const value = String(token ?? "");
+    if (!value || value.length > 2048) throw new Error("Invalid session token.");
+    await saveSecret("ethical-world.session", value);
+    return true;
+  });
+
+  ipcMain.handle("desktop:auth-clear-session-token", async () => {
+    await deleteSecret("ethical-world.session");
+    return true;
+  });
+
   app.whenReady().then(() => {
     createWindow();
 

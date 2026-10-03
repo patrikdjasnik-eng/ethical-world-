@@ -2399,3 +2399,186 @@ body,
   text-transform: none;
   letter-spacing: 0;
 }
+
+
+/* Account / identity v0.1 */
+.account-pane {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 42px clamp(24px, 6vw, 80px);
+  background: #111116;
+}
+
+.account-shell {
+  width: min(620px, 100%);
+  margin: 0 auto;
+}
+
+.account-heading {
+  margin-bottom: 20px;
+}
+
+.account-heading span {
+  color: #6f63a8;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .14em;
+}
+
+.account-heading h1 {
+  margin: 5px 0 7px;
+  color: #e2e2e7;
+  font-size: 26px;
+  letter-spacing: -.04em;
+}
+
+.account-heading p,
+.account-status {
+  margin: 0;
+  color: #686873;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.account-form,
+.account-profile,
+.account-security {
+  padding: 16px;
+  border: 1px solid #292932;
+  border-radius: 11px;
+  background: #15151a;
+}
+
+.account-form {
+  display: grid;
+  gap: 11px;
+}
+
+.account-tabs {
+  display: flex;
+  gap: 5px;
+  padding-bottom: 4px;
+}
+
+.account-tabs button {
+  padding: 6px 9px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #72727d;
+  cursor: pointer;
+  font-size: 9px;
+}
+
+.account-tabs button.active {
+  border-color: #3a344e;
+  background: #1d1a24;
+  color: #b4a8e8;
+}
+
+.account-form label {
+  display: grid;
+  gap: 5px;
+  color: #666671;
+  font-size: 8px;
+  font-weight: 650;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.account-form input {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #2d2d35;
+  border-radius: 7px;
+  outline: 0;
+  background: #0f0f13;
+  color: #d0d0d7;
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.account-form input:focus {
+  border-color: #4b4266;
+}
+
+.account-submit,
+.account-profile button {
+  width: fit-content;
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid #48405f;
+  border-radius: 6px;
+  background: #211d2a;
+  color: #b9abea;
+  cursor: pointer;
+  font-size: 9px;
+}
+
+.account-submit:disabled {
+  opacity: .4;
+  cursor: default;
+}
+
+.account-profile {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.account-avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #4a4162;
+  border-radius: 50%;
+  background: #211c2a;
+  color: #c3b4f3;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.account-profile > div:not(.account-avatar) {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.account-profile strong {
+  color: #d5d5dc;
+  font-size: 11px;
+}
+
+.account-profile span,
+.account-profile small {
+  overflow: hidden;
+  color: #696974;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-security {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.account-security strong {
+  color: #9f94c8;
+  font-size: 9px;
+}
+
+.account-security span {
+  color: #6c6c77;
+  font-size: 8px;
+}
+
+.account-status {
+  margin-top: 10px;
+}

@@ -26,6 +26,7 @@ import type { AgentAction, Note, VaultFolder } from "./types";
 const AiPanel = lazy(() => import("./components/AiPanel"));
 const GraphPane = lazy(() => import("./components/GraphPane"));
 const ConnectorPanel = lazy(() => import("./components/ConnectorPanel"));
+const AccountPanel = lazy(() => import("./components/AccountPanel"));
 const now = new Date().toISOString();
 
 const welcomeNote: Note = {
@@ -387,12 +388,16 @@ export default function App() {
     ? "Knowledge graph"
     : view === "connectors"
       ? "Connectors"
-      : activeNote?.title || "Žádná poznámka";
+      : view === "account"
+        ? "Account"
+        : activeNote?.title || "Žádná poznámka";
   const workspacePath = view === "graph"
     ? "Global view"
     : view === "connectors"
       ? "Integrations"
-      : activeNote?.folder || "Vault root";
+      : view === "account"
+        ? "Identity"
+        : activeNote?.folder || "Vault root";
 
   return (
     <div className={`workbench ${sidebarOpen ? "sidebar-open" : ""} ${aiOpen ? "ai-open" : ""}`}>
@@ -456,6 +461,10 @@ export default function App() {
         ) : view === "connectors" ? (
           <Suspense fallback={<main className="connector-pane loading-screen">Načítám konektory…</main>}>
             <ConnectorPanel notes={notes} onImportNotes={handleImportConnectorNotes} />
+          </Suspense>
+        ) : view === "account" ? (
+          <Suspense fallback={<main className="account-pane loading-screen">Načítám účet…</main>}>
+            <AccountPanel />
           </Suspense>
         ) : (
           <EditorPane

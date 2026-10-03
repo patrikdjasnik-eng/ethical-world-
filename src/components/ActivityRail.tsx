@@ -77,7 +77,13 @@ export const ActivityRail = memo(function ActivityRail({
           <span className="rail-glyph rail-ai">M</span>
         </button>
 
-        <button type="button" title="Nastavení" aria-label="Nastavení">
+        <button
+          type="button"
+          className={view === "account" ? "active" : ""}
+          onClick={() => onViewChange("account")}
+          title="Účet a nastavení"
+          aria-label="Účet a nastavení"
+        >
           <span className="rail-glyph">⚙</span>
         </button>
       </div>
