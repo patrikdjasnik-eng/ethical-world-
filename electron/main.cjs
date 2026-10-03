@@ -12,7 +12,9 @@ let mainWindow = null;
 const markdownRoots = new Map();
 const ignoredMarkdownDirs = new Set([".git", "node_modules", ".venv", "venv", "dist", "out", "build"]);
 const githubDeviceSessions = new Map();
-const githubClientId = String(\n  process.env.ETHICAL_GITHUB_CLIENT_ID ?? "Ov23liJffFw6fPudRTQ1"\n).trim();
+const githubClientId = String(
+  process.env.ETHICAL_GITHUB_CLIENT_ID ?? "Ov23liJffFw6fPudRTQ1"
+).trim();
 const githubApiVersion = "2026-03-10";
 const backendHealthUrl = "http://127.0.0.1:8787/health";
 let backendProcess = null;
