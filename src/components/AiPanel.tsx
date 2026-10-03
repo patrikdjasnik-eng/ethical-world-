@@ -55,20 +55,10 @@ export const AiPanel = memo(function AiPanel({ activeNote, notes }: AiPanelProps
     setError(null);
 
     try {
-      const response = await sendAiMessage({
-        settings,
-        messages: nextMessages,
-        notes,
-        activeNote
-      });
-
+      const response = await sendAiMessage({ settings, messages: nextMessages, notes, activeNote });
       setMessages((current) => [
         ...current,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: response.content
-        }
+        { id: crypto.randomUUID(), role: "assistant", content: response.content }
       ]);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "AI request failed");
@@ -80,54 +70,30 @@ export const AiPanel = memo(function AiPanel({ activeNote, notes }: AiPanelProps
   return (
     <aside className="ai-panel">
       <div className="ai-header">
-        <div>
-          <span className="ai-status-dot" />
-          <strong>Máša</strong>
-          <small>{settings.model}</small>
-        </div>
-        <button className="icon-button" type="button" onClick={() => setShowSettings((value) => !value)} title="AI nastavení">
-          ⚙
-        </button>
+        <div><span className="ai-status-dot" /><strong>Máša</strong><small>{settings.model}</small></div>
+        <button className="icon-button" type="button" onClick={() => setShowSettings((value) => !value)} title="AI nastavení">⚙</button>
       </div>
 
       {showSettings && (
         <div className="ai-settings">
-          <label>
-            Provider
+          <label>Provider
             <select value={settings.provider} onChange={(event) => updateProvider(event.target.value as AiProvider)}>
               <option value="ollama">Ollama</option>
               <option value="openai-compatible">OpenAI-compatible</option>
             </select>
           </label>
-          <label>
-            Model
-            <input value={settings.model} onChange={(event) => setSettings((current) => ({ ...current, model: event.target.value }))} />
-          </label>
-          <label>
-            Base URL
-            <input value={settings.baseUrl} onChange={(event) => setSettings((current) => ({ ...current, baseUrl: event.target.value }))} />
-          </label>
+          <label>Model<input value={settings.model} onChange={(event) => setSettings((current) => ({ ...current, model: event.target.value }))} /></label>
+          <label>Base URL<input value={settings.baseUrl} onChange={(event) => setSettings((current) => ({ ...current, baseUrl: event.target.value }))} /></label>
           {settings.provider === "openai-compatible" && (
-            <label>
-              API key
-              <input
-                type="password"
-                value={settings.apiKey}
-                onChange={(event) => setSettings((current) => ({ ...current, apiKey: event.target.value }))}
-                placeholder="volitelné pro lokální server"
-                autoComplete="off"
-              />
+            <label>API key
+              <input type="password" value={settings.apiKey} onChange={(event) => setSettings((current) => ({ ...current, apiKey: event.target.value }))} placeholder="volitelné pro lokální server" autoComplete="off" />
             </label>
           )}
           <p>API key se v této verzi neukládá do persistentního storage.</p>
         </div>
       )}
 
-      <div className="ai-context">
-        <span>Context</span>
-        <strong>{activeNote?.title ?? "žádná poznámka"}</strong>
-        <small>{notes.length} notes available</small>
-      </div>
+      <div className="ai-context"><span>Context</span><strong>{activeNote?.title ?? "žádná poznámka"}</strong><small>{notes.length} notes available</small></div>
 
       <div className="message-list">
         {messages.map((message) => (
@@ -145,19 +111,14 @@ export const AiPanel = memo(function AiPanel({ activeNote, notes }: AiPanelProps
         <textarea
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              void submit();
-            }
-          }}
+          onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submit(); } }}
           placeholder="Zeptej se nad vaultem…"
           rows={3}
         />
-        <button className="primary-button" type="button" onClick={() => void submit()} disabled={isSending}>
-          {isSending ? "…" : "Send"}
-        </button>
+        <button className="primary-button" type="button" onClick={() => void submit()} disabled={isSending}>{isSending ? "…" : "Send"}</button>
       </div>
     </aside>
   );
 });
+
+export default AiPanel;
