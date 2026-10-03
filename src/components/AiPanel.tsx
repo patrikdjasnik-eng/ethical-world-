@@ -41,7 +41,12 @@ const initialMessage: AiMessage = {
 };
 
 function looksLikeActionRequest(value: string): boolean {
-  return /\\b(vytvoř|vytvor|uprav|přidej|pridej|přepiš|prepis|otevři|otevri|složk|slozk|poznámk|poznamk|create|update|edit|open|folder|note)\\b/i.test(value);
+  return /\\b(vytvoř|vytvor|udělej|udelej|uprav|přidej|pridej|přepiš|prepis|zapiš|zapis|ulož|uloz|otevři|otevri|create|update|edit|open|folder|note|složk\\w*|slozk\\w*|poznámk\\w*|poznamk\\w*)\\b/i.test(value);
+}
+
+function looksLikeKnowledgeNoteRequest(value: string): boolean {
+  return /(poznám|poznam|markdown|\\bmd\\b|\\bnote\\b|dokument)/i.test(value) &&
+    /(vytvoř|vytvor|udělej|udelej|napiš|napis|zpracuj|připrav|priprav|přepracuj|prepracuj|create|write|update)/i.test(value);
 }
 
 export const AiPanel = memo(function AiPanel({
@@ -58,7 +63,7 @@ export const AiPanel = memo(function AiPanel({
   const [permissionMode, setPermissionMode] = useState<AiPermissionMode>("assist");
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
   const [applyingActionId, setApplyingActionId] = useState<string | null>(null);
-  const [sendingMode, setSendingMode] = useState<"answer" | "proposal">("answer");
+  const [sendingMode, setSendingMode] = useState<"answer" | "proposal" | "knowledge">("answer");
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
@@ -168,7 +173,13 @@ export const AiPanel = memo(function AiPanel({
 
     setMessages(nextMessages);
     setInput("");
-    setSendingMode(looksLikeActionRequest(trimmedInput) && permissionMode === "assist" ? "proposal" : "answer");
+    setSendingMode(
+      permissionMode === "assist" && looksLikeKnowledgeNoteRequest(trimmedInput)
+        ? "knowledge"
+        : looksLikeActionRequest(trimmedInput) && permissionMode === "assist"
+          ? "proposal"
+          : "answer"
+    );
     setIsSending(true);
     setError(null);
 
@@ -181,7 +192,7 @@ export const AiPanel = memo(function AiPanel({
         activeNote,
         permissionMode
       });
-      const parsed = parseAgentResponse(response.content);
+      const parsed = parseAgentResponse(response.content, notes);
 
       setMessages((current) => [
         ...current,
@@ -315,14 +326,38 @@ export const AiPanel = memo(function AiPanel({
         </small>
       </div>
 
-      <div className="message-list">
+      <div className="message-list" ref={messageListRef}>
         {messages.map((message) => (
           <div className={"message " + message.role} key={message.id}>
-            <span>{message.role === "assistant" ? "Máša" : "Ty"}</span>
+            <div className="message-meta">
+              <span>{message.role === "assistant" ? "Máša" : "Ty"}</span>
+              {message.role === "assistant" && (
+                <button
+                  type="button"
+                  className="message-copy"
+                  onClick={() => void copyMessage(message)}
+                  title="Kopírovat odpověď"
+                >
+                  {copiedMessageId === message.id ? "Zkopírováno" : "Kopírovat"}
+                </button>
+              )}
+            </div>
             <p>{message.content}</p>
           </div>
         ))}
-        {isSending && <div className="message assistant"><span>Máša</span><p>Pracuju s vaultem…</p></div>}
+        {isSending && (
+          <div className="message assistant message-working">
+            <span>Máša</span>
+            <p>
+              {sendingMode === "knowledge"
+                ? "Skládám kompletní Markdown poznámku, schémata a vazby…"
+                : sendingMode === "proposal"
+                  ? "Připravuju změnu v Ethical World…"
+                  : "Přemýšlím nad odpovědí…"}
+            </p>
+          </div>
+        )}
+        <div ref={messageEndRef} />
       </div>
 
       {pendingActions.length > 0 && (
