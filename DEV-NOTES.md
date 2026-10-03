@@ -96,3 +96,20 @@ Lokálně ověřit `npm test`, `npm run build` a `python -m compileall server`. 
 - vyhledávání v grafu tlumí uzly mimo dotaz;
 - statusbar zobrazuje počet uzlů, vazeb a skupin;
 - přidané unit testy pro stavbu graph dat, deduplikaci vazeb a local graph.
+
+
+### Vault explorer v2 – Obsidian-like folders
+
+- IndexedDB schema povýšeno na v2 a přidaný samostatný `folders` store;
+- existující poznámky se při migraci automaticky převedou do stromu složek podle hodnoty `folder`;
+- podporované root složky i libovolně vnořené podsložky;
+- nový file toolbar pro vytvoření poznámky a složky;
+- vybraná složka určuje výchozí umístění nové poznámky;
+- folder tree podporuje expand/collapse;
+- přidané inline vytváření a přejmenování složek;
+- přejmenování parent složky aktualizuje descendants i všechny poznámky uvnitř;
+- prázdnou složku lze smazat, neprázdná je chráněná před náhodným smazáním;
+- poznámku lze přesunout mezi složkami přímo z toolbaru editoru;
+- breadcrumb podporuje nested folder path;
+- graph i Máša dál pracují nad stejnými poznámkami bez změny datového kontraktu;
+- přidané unit testy pro folder path, migraci legacy notes a sestavení folder tree.

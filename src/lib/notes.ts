@@ -31,14 +31,14 @@ export function searchNotes(notes: Note[], query: string): Note[] {
   );
 }
 
-export function createEmptyNote(title = "Nová poznámka"): Note {
+export function createEmptyNote(title = "Nová poznámka", folder = ""): Note {
   const timestamp = new Date().toISOString();
 
   return {
     id: crypto.randomUUID(),
     title,
     content: "# Nová poznámka\n\nZačni psát…",
-    folder: "Notes",
+    folder,
     createdAt: timestamp,
     updatedAt: timestamp
   };

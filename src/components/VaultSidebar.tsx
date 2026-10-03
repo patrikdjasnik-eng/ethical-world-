@@ -1,37 +1,222 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
+import {
+  buildFolderTree,
+  isPathInsideFolder,
+  type FolderTreeNode
+} from "../lib/folders";
 import { searchNotes } from "../lib/notes";
-import type { Note } from "../types";
+import type { Note, VaultFolder } from "../types";
 
 export type WorkspaceView = "note" | "graph";
 
 interface VaultSidebarProps {
   notes: Note[];
+  folders: VaultFolder[];
   activeNoteId: string | null;
+  selectedFolderPath: string | null;
   query: string;
   view: WorkspaceView;
   onViewChange: (view: WorkspaceView) => void;
   onQueryChange: (value: string) => void;
   onSelectNote: (noteId: string) => void;
-  onCreateNote: () => void;
+  onSelectFolder: (folderPath: string | null) => void;
+  onCreateNote: (folderPath?: string | null) => void;
+  onCreateFolder: (parentPath: string | null, name: string) => void;
+  onRenameFolder: (folderId: string, nextName: string) => void;
+  onDeleteFolder: (folderId: string) => void;
   onDeleteNote: (noteId: string) => void;
+}
+
+interface FolderRowProps {
+  node: FolderTreeNode;
+  depth: number;
+  activeNoteId: string | null;
+  selectedFolderPath: string | null;
+  expandedFolders: Set<string>;
+  onToggleFolder: (folderPath: string) => void;
+  onSelectFolder: (folderPath: string) => void;
+  onOpenNote: (noteId: string) => void;
+  onCreateNote: (folderPath: string) => void;
+  onStartRename: (folder: VaultFolder) => void;
+  onDeleteFolder: (folderId: string) => void;
+  onDeleteNote: (noteId: string) => void;
+}
+
+function FolderRow({
+  node,
+  depth,
+  activeNoteId,
+  selectedFolderPath,
+  expandedFolders,
+  onToggleFolder,
+  onSelectFolder,
+  onOpenNote,
+  onCreateNote,
+  onStartRename,
+  onDeleteFolder,
+  onDeleteNote
+}: FolderRowProps) {
+  const isExpanded = expandedFolders.has(node.folder.path);
+  const isSelected = selectedFolderPath === node.folder.path;
+
+  return (
+    <div className="tree-branch">
+      <div
+        className={`folder-row ${isSelected ? "selected" : ""}`}
+        style={{ paddingLeft: 6 + depth * 14 }}
+      >
+        <button
+          className="tree-chevron"
+          type="button"
+          onClick={() => onToggleFolder(node.folder.path)}
+          aria-label={isExpanded ? "Sbalit složku" : "Rozbalit složku"}
+        >
+          {isExpanded ? "⌄" : "›"}
+        </button>
+
+        <button
+          className="folder-open"
+          type="button"
+          onClick={() => onSelectFolder(node.folder.path)}
+          onDoubleClick={() => onToggleFolder(node.folder.path)}
+        >
+          <span className="folder-icon">{isExpanded ? "▾" : "▸"}</span>
+          <span>{node.folder.name}</span>
+        </button>
+
+        <div className="tree-actions">
+          <button type="button" onClick={() => onCreateNote(node.folder.path)} title="Nová poznámka ve složce">＋</button>
+          <button type="button" onClick={() => onStartRename(node.folder)} title="Přejmenovat složku">✎</button>
+          <button type="button" onClick={() => onDeleteFolder(node.folder.id)} title="Smazat složku">×</button>
+        </div>
+      </div>
+
+      {isExpanded && (
+        <div>
+          {node.children.map((child) => (
+            <FolderRow
+              key={child.folder.id}
+              node={child}
+              depth={depth + 1}
+              activeNoteId={activeNoteId}
+              selectedFolderPath={selectedFolderPath}
+              expandedFolders={expandedFolders}
+              onToggleFolder={onToggleFolder}
+              onSelectFolder={onSelectFolder}
+              onOpenNote={onOpenNote}
+              onCreateNote={onCreateNote}
+              onStartRename={onStartRename}
+              onDeleteFolder={onDeleteFolder}
+              onDeleteNote={onDeleteNote}
+            />
+          ))}
+
+          {node.notes.map((note) => (
+            <div
+              className={`tree-note-row ${note.id === activeNoteId ? "active" : ""}`}
+              style={{ paddingLeft: 28 + depth * 14 }}
+              key={note.id}
+            >
+              <button type="button" className="tree-note-open" onClick={() => onOpenNote(note.id)}>
+                <span>▱</span>
+                <strong>{note.title || "Bez názvu"}</strong>
+              </button>
+              <button
+                className="tree-note-delete"
+                type="button"
+                onClick={() => onDeleteNote(note.id)}
+                title="Smazat poznámku"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export const VaultSidebar = memo(function VaultSidebar({
   notes,
+  folders,
   activeNoteId,
+  selectedFolderPath,
   query,
   view,
   onViewChange,
   onQueryChange,
   onSelectNote,
+  onSelectFolder,
   onCreateNote,
+  onCreateFolder,
+  onRenameFolder,
+  onDeleteFolder,
   onDeleteNote
 }: VaultSidebarProps) {
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
+    () => new Set(folders.map((folder) => folder.path))
+  );
+  const [newFolderParent, setNewFolderParent] = useState<string | null | undefined>(undefined);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [renamingFolder, setRenamingFolder] = useState<VaultFolder | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
   const filteredNotes = useMemo(() => searchNotes(notes, query), [notes, query]);
+  const tree = useMemo(
+    () => buildFolderTree(folders, query ? filteredNotes : notes),
+    [filteredNotes, folders, notes, query]
+  );
 
   const openNote = (noteId: string) => {
     onSelectNote(noteId);
     onViewChange("note");
+  };
+
+  const toggleFolder = (folderPath: string) => {
+    setExpandedFolders((current) => {
+      const next = new Set(current);
+
+      if (next.has(folderPath)) {
+        next.delete(folderPath);
+      } else {
+        next.add(folderPath);
+      }
+
+      return next;
+    });
+  };
+
+  const beginCreateFolder = () => {
+    setNewFolderParent(selectedFolderPath);
+    setNewFolderName("");
+  };
+
+  const submitCreateFolder = () => {
+    const name = newFolderName.trim();
+
+    if (!name) {
+      return;
+    }
+
+    onCreateFolder(newFolderParent ?? null, name);
+    setNewFolderParent(undefined);
+    setNewFolderName("");
+  };
+
+  const startRenameFolder = (folder: VaultFolder) => {
+    setRenamingFolder(folder);
+    setRenameValue(folder.name);
+  };
+
+  const submitRenameFolder = () => {
+    if (!renamingFolder || !renameValue.trim()) {
+      return;
+    }
+
+    onRenameFolder(renamingFolder.id, renameValue.trim());
+    setRenamingFolder(null);
+    setRenameValue("");
   };
 
   return (
@@ -48,29 +233,22 @@ export const VaultSidebar = memo(function VaultSidebar({
       </div>
 
       <div className="workspace-nav">
-        <button
-          type="button"
-          className={view === "note" ? "active" : ""}
-          onClick={() => onViewChange("note")}
-        >
+        <button type="button" className={view === "note" ? "active" : ""} onClick={() => onViewChange("note")}>
           <span>▱</span>
           Notes
         </button>
-        <button
-          type="button"
-          className={view === "graph" ? "active" : ""}
-          onClick={() => onViewChange("graph")}
-        >
+        <button type="button" className={view === "graph" ? "active" : ""} onClick={() => onViewChange("graph")}>
           <span>⌘</span>
           Graph
         </button>
       </div>
 
-      <div className="sidebar-actions">
-        <button className="new-note-button" type="button" onClick={onCreateNote}>
-          <span>＋</span>
-          Nová poznámka
-        </button>
+      <div className="file-toolbar">
+        <span>FILES</span>
+        <div>
+          <button type="button" onClick={() => onCreateNote(selectedFolderPath)} title="Nová poznámka">＋▱</button>
+          <button type="button" onClick={beginCreateFolder} title="Nová složka">＋□</button>
+        </div>
       </div>
 
       <div className="search-shell">
@@ -79,47 +257,96 @@ export const VaultSidebar = memo(function VaultSidebar({
           className="search-input"
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Hledat"
+          placeholder="Hledat ve vaultu"
           aria-label="Hledat poznámky"
         />
       </div>
 
-      <div className="section-label">
-        <span>POZNÁMKY</span>
-        <span>{filteredNotes.length}</span>
-      </div>
+      {newFolderParent !== undefined && (
+        <div className="inline-tree-editor">
+          <span>□</span>
+          <input
+            autoFocus
+            value={newFolderName}
+            onChange={(event) => setNewFolderName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") submitCreateFolder();
+              if (event.key === "Escape") setNewFolderParent(undefined);
+            }}
+            onBlur={() => {
+              if (newFolderName.trim()) submitCreateFolder();
+              else setNewFolderParent(undefined);
+            }}
+            placeholder={newFolderParent ? "Nová podsložka" : "Nová složka"}
+          />
+        </div>
+      )}
 
-      <div className="note-list" role="list">
-        {filteredNotes.map((note) => (
-          <div
-            className={`note-row ${note.id === activeNoteId && view === "note" ? "active" : ""}`}
-            key={note.id}
-            role="listitem"
-          >
-            <button type="button" className="note-open" onClick={() => openNote(note.id)}>
-              <span className="file-icon">▱</span>
-              <span className="note-copy">
-                <strong>{note.title || "Bez názvu"}</strong>
-                <small>{note.folder}</small>
-              </span>
-            </button>
+      {renamingFolder && (
+        <div className="inline-tree-editor">
+          <span>□</span>
+          <input
+            autoFocus
+            value={renameValue}
+            onChange={(event) => setRenameValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") submitRenameFolder();
+              if (event.key === "Escape") setRenamingFolder(null);
+            }}
+            onBlur={submitRenameFolder}
+          />
+        </div>
+      )}
 
-            <button
-              className="icon-button danger note-delete"
-              type="button"
-              onClick={() => onDeleteNote(note.id)}
-              aria-label={`Smazat ${note.title}`}
-              title="Smazat poznámku"
-            >
-              ×
+      <div className="vault-tree" role="tree">
+        <button
+          type="button"
+          className={`root-folder-row ${selectedFolderPath === null ? "selected" : ""}`}
+          onClick={() => onSelectFolder(null)}
+        >
+          <span>⌂</span>
+          Vault root
+        </button>
+
+        {tree.rootNotes.map((note) => (
+          <div className={`tree-note-row root-note ${note.id === activeNoteId ? "active" : ""}`} key={note.id}>
+            <button type="button" className="tree-note-open" onClick={() => openNote(note.id)}>
+              <span>▱</span>
+              <strong>{note.title || "Bez názvu"}</strong>
             </button>
+            <button className="tree-note-delete" type="button" onClick={() => onDeleteNote(note.id)} title="Smazat poznámku">×</button>
           </div>
         ))}
+
+        {tree.roots.map((node) => (
+          <FolderRow
+            key={node.folder.id}
+            node={node}
+            depth={0}
+            activeNoteId={activeNoteId}
+            selectedFolderPath={selectedFolderPath}
+            expandedFolders={expandedFolders}
+            onToggleFolder={toggleFolder}
+            onSelectFolder={(folderPath) => {
+              onSelectFolder(folderPath);
+              setExpandedFolders((current) => new Set(current).add(folderPath));
+            }}
+            onOpenNote={openNote}
+            onCreateNote={onCreateNote}
+            onStartRename={startRenameFolder}
+            onDeleteFolder={onDeleteFolder}
+            onDeleteNote={onDeleteNote}
+          />
+        ))}
+
+        {query && filteredNotes.length === 0 && (
+          <div className="tree-empty">Nic nenalezeno</div>
+        )}
       </div>
 
       <div className="sidebar-footer">
         <span><i className="footer-dot" /> Local</span>
-        <span>{notes.length} souborů</span>
+        <span>{folders.length} složek · {notes.length} poznámek</span>
       </div>
     </aside>
   );

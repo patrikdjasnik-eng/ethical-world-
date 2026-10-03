@@ -2,16 +2,23 @@ import { memo, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { extractWikiLinks, getBacklinks, normalizeTitle } from "../lib/notes";
-import type { Note } from "../types";
+import type { Note, VaultFolder } from "../types";
 
 interface EditorPaneProps {
   note: Note | null;
   notes: Note[];
+  folders: VaultFolder[];
   onChange: (nextNote: Note) => void;
   onOpenNote: (noteId: string) => void;
 }
 
-export const EditorPane = memo(function EditorPane({ note, notes, onChange, onOpenNote }: EditorPaneProps) {
+export const EditorPane = memo(function EditorPane({
+  note,
+  notes,
+  folders,
+  onChange,
+  onOpenNote
+}: EditorPaneProps) {
   const [mode, setMode] = useState<"edit" | "preview">("edit");
   const backlinks = useMemo(() => note ? getBacklinks(notes, note.title) : [], [note, notes]);
   const outgoingLinks = useMemo(() => note ? extractWikiLinks(note.content) : [], [note]);
@@ -22,13 +29,13 @@ export const EditorPane = memo(function EditorPane({ note, notes, onChange, onOp
         <div className="empty-note">
           <span>◇</span>
           <h2>Vault je prázdný</h2>
-          <p>Vytvoř první poznámku a začni stavět svůj knowledge graph.</p>
+          <p>Vytvoř první poznámku nebo složku v levém panelu.</p>
         </div>
       </main>
     );
   }
 
-  const updateField = (field: "title" | "content", value: string) => {
+  const updateField = (field: "title" | "content" | "folder", value: string) => {
     onChange({
       ...note,
       [field]: value,
@@ -44,6 +51,8 @@ export const EditorPane = memo(function EditorPane({ note, notes, onChange, onOp
     }
   };
 
+  const breadcrumbParts = note.folder ? note.folder.split("/") : [];
+
   return (
     <main className="editor-pane">
       <div className="document-tabbar">
@@ -58,14 +67,32 @@ export const EditorPane = memo(function EditorPane({ note, notes, onChange, onOp
       <div className="editor-toolbar">
         <div className="breadcrumb">
           <span>Ethical World</span>
-          <b>›</b>
-          <span>{note.folder}</span>
+          {breadcrumbParts.map((part, index) => (
+            <span className="breadcrumb-segment" key={`${part}-${index}`}>
+              <b>›</b>
+              <span>{part}</span>
+            </span>
+          ))}
           <b>›</b>
           <strong>{note.title || "Bez názvu"}</strong>
         </div>
 
         <div className="editor-toolbar-actions">
+          <select
+            className="folder-select"
+            value={note.folder}
+            onChange={(event) => updateField("folder", event.target.value)}
+            aria-label="Přesunout poznámku do složky"
+            title="Přesunout poznámku do složky"
+          >
+            <option value="">Vault root</option>
+            {folders.map((folder) => (
+              <option value={folder.path} key={folder.id}>{folder.path}</option>
+            ))}
+          </select>
+
           <span className="save-state">uloženo</span>
+
           <div className="mode-switch">
             <button className={mode === "edit" ? "selected" : ""} type="button" onClick={() => setMode("edit")}>
               Edit
@@ -87,7 +114,7 @@ export const EditorPane = memo(function EditorPane({ note, notes, onChange, onOp
           />
 
           <div className="document-meta">
-            <span>#{note.folder.toLocaleLowerCase("cs-CZ").replaceAll(" ", "-")}</span>
+            <span>{note.folder ? `#${note.folder.toLocaleLowerCase("cs-CZ").replaceAll(" ", "-").replaceAll("/", "/")}` : "#root"}</span>
             <span>•</span>
             <span>{new Date(note.updatedAt).toLocaleDateString("cs-CZ")}</span>
           </div>

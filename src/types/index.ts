@@ -7,6 +7,15 @@ export interface Note {
   updatedAt: string;
 }
 
+export interface VaultFolder {
+  id: string;
+  name: string;
+  path: string;
+  parentPath: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type AiRole = "user" | "assistant";
 
 export interface AiMessage {
