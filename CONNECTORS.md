@@ -2,7 +2,7 @@
 
 ![Local](https://img.shields.io/badge/local--markdown-ready-16a34a)
 ![GitHub](https://img.shields.io/badge/github-device--oauth-ready-6f42c1)
-![Notion](https://img.shields.io/badge/notion-server--oauth-next-f59e0b)
+![Notion](https://img.shields.io/badge/notion-markdown--oauth-ready-16a34a)
 
 ## Princip
 
@@ -21,20 +21,12 @@ Ethical World synchronizuje znalostní obsah, ne celý zdrojový projekt. Connec
 
 Repozitář se neklonuje. Connector používá GitHub Device OAuth a Git/REST API pouze pro Markdown.
 
-### Testovací konfigurace
+### Konfigurace
 
-1. V GitHub Developer Settings vytvoř OAuth App.
-2. Zapni **Enable Device Flow**.
-3. Pro desktop test potřebuješ pouze Client ID.
-4. Před spuštěním desktop dev nastav:
+Ethical World má veřejný GitHub OAuth Client ID zabudovaný jako výchozí hodnotu. Client secret se do desktop aplikace nepoužívá. Volitelně lze Client ID přepsat přes `ETHICAL_GITHUB_CLIENT_ID`.
 
-```powershell
-$env:ETHICAL_GITHUB_CLIENT_ID="TVUJ_CLIENT_ID"
-npm run desktop:dev
-```
-
-5. V Ethical World otevři **Connectors → GitHub → Připojit GitHub**.
-6. Prohlížeč otevře device authorization a UI ukáže jednorázový kód.
+1. V Ethical World otevři **Connectors → GitHub → Připojit GitHub**.
+2. Prohlížeč otevře device authorization a UI ukáže jednorázový kód.
 
 Token se neukládá do IndexedDB ani localStorage. Electron ho ukládá pomocí OS `safeStorage`.
 
@@ -44,9 +36,17 @@ Aktuální MVP používá OAuth scope `repo read:user`, aby uměl i private repo
 
 ## Notion
 
-Notion public connection vyžaduje server-side OAuth code exchange. Client secret proto nesmí být součástí Electron balíčku.
+Notion connection používá server-side OAuth code exchange. Client secret není součástí Electron balíčku.
 
-Plánovaný flow:
+Backend konfigurace:
+
+```text
+ETHICAL_NOTION_CLIENT_ID=...
+ETHICAL_NOTION_CLIENT_SECRET=...
+ETHICAL_NOTION_REDIRECT_URI=http://127.0.0.1:8787/api/connectors/notion/callback
+```
+
+Aktuální flow:
 
 ```text
 Ethical World account
@@ -64,4 +64,4 @@ Notion enhanced Markdown API
 Ethical World notes
 ```
 
-Notion 2026 API podporuje přímé čtení stránky jako Markdown a update page content jako Markdown, takže connector nemusí ručně převádět celý block tree.
+Connector umí vypsat přístupné stránky, importovat vybranou stránku jako Markdown note a zapsat obsah importované note zpět přes `replace_content`. Access token je v SQLite uložený pouze jako šifrovaný payload.

@@ -21,7 +21,7 @@ export const guideSections: Record<GuideLanguage, GuideSection[]> = {
       title: "Začínáme",
       paragraphs: [
         "Ethical World je local-first knowledge workspace. Poznámky, složky, wiki odkazy, graph, konektory a Máša žijí v jednom pracovním prostředí.",
-        "Pro lokální AI spusť Ollamu s modelem masa-cyber a FastAPI gateway na portu 8787. V desktop dev režimu aplikaci spouští npm run desktop:dev."
+        "Pro lokální AI stačí mít Ollamu s modelem masa-cyber. Desktop si FastAPI gateway na portu 8787 spouští automaticky; v dev režimu proto stačí npm run desktop:dev."
       ],
       tips: [
         "Ctrl+N vytvoří poznámku.",
@@ -59,14 +59,14 @@ export const guideSections: Record<GuideLanguage, GuideSection[]> = {
       title: "Connectors",
       paragraphs: [
         "Local / VS Code connector importuje a exportuje pouze .md a .mdx. Projektové soubory, node_modules, .git a build výstupy ignoruje.",
-        "GitHub connector používá Device OAuth a synchronizuje Markdown přes API bez klonování celého repozitáře."
+        "GitHub connector používá Device OAuth a synchronizuje Markdown přes API bez klonování celého repozitáře. Notion connector používá server-side OAuth a enhanced Markdown API pro import i zápis zpět."
       ]
     },
     {
       id: "identity-security",
       title: "Účty a bezpečnost",
       paragraphs: [
-        "Lokální identity databáze používá SQLite. Hesla se ukládají jako scrypt verifier se saltem a session tokeny jsou v databázi pouze hashované.",
+        "Lokální identity databáze používá SQLite. První start vytvoří owner účet a zamkne aplikaci, dokud owner nenastaví vlastní heslo. Hesla se ukládají jako scrypt verifier se saltem a session tokeny jsou v databázi pouze hashované.",
         "Desktop secrets používají OS secure storage. Budoucí private messaging je navržený tak, aby server ukládal pouze ciphertext a E2E vrstva používala auditovaný protokol."
       ]
     }
@@ -77,7 +77,7 @@ export const guideSections: Record<GuideLanguage, GuideSection[]> = {
       title: "Getting started",
       paragraphs: [
         "Ethical World is a local-first knowledge workspace. Notes, folders, wiki links, graph, connectors and Masha live in one workbench.",
-        "For local AI, run Ollama with the masa-cyber model and the FastAPI gateway on port 8787. In desktop development mode, start the app with npm run desktop:dev."
+        "For local AI, keep Ollama available with the masa-cyber model. The desktop app starts the FastAPI gateway on port 8787 automatically, so desktop development only needs npm run desktop:dev."
       ],
       tips: [
         "Ctrl+N creates a note.",
@@ -115,14 +115,14 @@ export const guideSections: Record<GuideLanguage, GuideSection[]> = {
       title: "Connectors",
       paragraphs: [
         "The Local / VS Code connector imports and exports only .md and .mdx files. Project sources, node_modules, .git and build outputs are ignored.",
-        "The GitHub connector uses Device OAuth and synchronizes Markdown through the API without cloning the whole repository."
+        "The GitHub connector uses Device OAuth and synchronizes Markdown through the API without cloning the whole repository. The Notion connector uses server-side OAuth and the enhanced Markdown API for import and write-back."
       ]
     },
     {
       id: "identity-security",
       title: "Accounts and security",
       paragraphs: [
-        "The local identity database uses SQLite. Passwords are stored as salted scrypt verifiers and database sessions keep only token hashes.",
+        "The local identity database uses SQLite. First start creates an owner account and locks the app until the owner chooses a personal password. Passwords are stored as salted scrypt verifiers and database sessions keep only token hashes.",
         "Desktop secrets use OS secure storage. Future private messaging is designed so the server stores ciphertext only and the E2E layer uses an audited protocol."
       ]
     }
@@ -130,6 +130,32 @@ export const guideSections: Record<GuideLanguage, GuideSection[]> = {
 };
 
 export const productUpdates: ProductUpdate[] = [
+  {
+    version: "0.1-dev.7",
+    date: "2026-10-04",
+    title: {
+      cs: "Standalone desktop, Notion a owner onboarding",
+      en: "Standalone desktop, Notion and owner onboarding"
+    },
+    items: {
+      cs: [
+        "Desktop automaticky spouští lokální backend; standalone build umí přibalit vlastní backend EXE.",
+        "GitHub Device OAuth používá zabudovaný veřejný Client ID.",
+        "Notion OAuth podporuje výběr stránky, Markdown import a zápis obsahu zpět.",
+        "První start vytvoří owner účet a vynutí nastavení vlastního hesla.",
+        "Máša je kompaktní spodní dock a už nezmenšuje editor.",
+        "Nový Ethical World SVG mark je v topbaru, Identity a faviconu."
+      ],
+      en: [
+        "Desktop starts the local backend automatically and the standalone build can bundle its own backend executable.",
+        "GitHub Device OAuth uses the embedded public Client ID.",
+        "Notion OAuth supports page selection, Markdown import and write-back.",
+        "First start creates an owner account and forces a personal password.",
+        "Masha is now a compact bottom dock and no longer shrinks the editor.",
+        "The new Ethical World SVG mark is used in the top bar, Identity and favicon."
+      ]
+    }
+  },
   {
     version: "0.1-dev.6",
     date: "2026-10-03",

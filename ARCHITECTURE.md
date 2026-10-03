@@ -94,7 +94,7 @@ Renderer nebude dostávat raw filesystem. Main process bude kontrolovat, že ka�
 
 ## AI gateway
 
-FastAPI backend zatím drží provider-specific komunikaci mimo renderer. Další desktop iterace může gateway buď spouštět jako lokální child process, nebo její provider router přesunout do Electron main procesu.
+FastAPI backend drží provider-specific komunikaci mimo renderer. Electron desktop při startu gateway automaticky kontroluje a podle prostředí ji spustí jako child process. Dev používá projektové `.venv`; standalone package preferuje přibalený `EthicalWorldBackend.exe`, vytvořený přes PyInstaller.
 
 ## Agent tools
 
@@ -126,7 +126,7 @@ FastAPI vrstva má lokální SQLite identity store:
 ConnectorPanel
    ├─ Local / VS Code → Electron IPC → approved Markdown root
    ├─ GitHub → Device OAuth → OS safeStorage → GitHub API
-   └─ Notion → server OAuth (next) → enhanced Markdown API
+   └─ Notion → server OAuth → encrypted token store → enhanced Markdown API
 ```
 
 Externí dokumenty používají společný `NoteSource` kontrakt: provider, connection ID a relativní cesta.

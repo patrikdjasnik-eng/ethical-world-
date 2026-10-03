@@ -55,3 +55,11 @@ GitHub Device OAuth MVP používá širší `repo` scope kvůli private reposito
 Notion public OAuth client secret nesmí být součástí desktop aplikace. Code exchange a refresh tokeny musí obsluhovat serverová vrstva.
 
 Browser fallback ukládá app session pouze do `sessionStorage`, nikoli persistentního localStorage.
+
+## Owner bootstrap
+
+Při první databázi backend vytvoří lokální owner identitu `owner@ethical.world.local` s náhodným interním verifierem. Neexistuje sdílené default heslo. Dokud owner nenastaví vlastní heslo, je dostupná pouze bootstrap session a UI zůstává zamčené na Identity view. Změna hesla používá nový scrypt salt a zruší `must_change_password`.
+
+## Notion secrets
+
+Notion OAuth code exchange probíhá výhradně v backendu. Access payload je před uložením do `connector_secrets` šifrovaný Fernetem. Klíč lze dodat přes `ETHICAL_WORLD_CONNECTOR_KEY`; lokální fallback generuje klíč mimo Git repozitář. Renderer Notion token nikdy nedostává.

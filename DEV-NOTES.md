@@ -266,3 +266,48 @@ GitHub Actions workflow zůstává nakonfigurovaný, ale dostupné runy dříve 
 - samostatná Updates záložka s verzovaným seznamem změn;
 - guide data jsou centralizovaná v `src/content/guide.ts`, aby se aktualizovala spolu s releasy;
 - přidaný test bilingvního guide/update obsahu.
+
+
+### Desktop runtime v0.2
+
+- Electron při startu nejdřív ověří `127.0.0.1:8787/health`;
+- pokud gateway neběží, dev build ji sám spustí z projektového `.venv`;
+- packaged build preferuje přibalený `EthicalWorldBackend.exe`;
+- standalone backend build používá PyInstaller a je dostupný přes `npm run desktop:backend:build`;
+- `npm run desktop:make:standalone` vytvoří backend EXE a následně desktop distributable;
+- system Python je pouze fallback, ne cílová produkční závislost;
+- GitHub OAuth Client ID `Ov23liJffFw6fPudRTQ1` je zabudovaný jako veřejný default.
+
+### Notion connector v0.2
+
+- server-side OAuth start + callback;
+- OAuth access payload se ukládá šifrovaně v SQLite `connector_secrets`;
+- výpis přístupných Notion pages;
+- přímý Markdown import přes Notion page Markdown endpoint;
+- zápis importované note zpět přes `replace_content`;
+- renderer nikdy nedostává Notion access token;
+- Notion Client Secret zůstává pouze v backend environment.
+
+### Owner onboarding v0.2
+
+- databázová migrace přidává role a `must_change_password`;
+- pokud neexistuje owner, vytvoří se lokální `owner@ethical.world.local`;
+- bootstrap owner nepoužívá univerzální default heslo;
+- první lokální owner session je časově omezená a aplikace se zamkne na Account view;
+- odemčení vyžaduje vlastní heslo alespoň 12 znaků;
+- po změně hesla se bootstrap login vypne.
+
+### Máša compact dock v0.3
+
+- AI panel už není samostatný pravý grid sloupec;
+- plave jako kompaktní dock vpravo dole;
+- editor při otevření Máši neztrácí šířku;
+- mobilní režim používá spodní sheet velikost;
+- chat scroll, copy, Enter a ASSIST/Knowledge Note flow zůstávají zachované.
+
+### Ethical World identity mark v0.1
+
+- přidaný vlastní SVG shield + knowledge graph mark;
+- topbar používá SVG místo textového E;
+- stejný mark je v Identity view a faviconu;
+- SVG zůstává master asset pro budoucí převod na installer ICO.
