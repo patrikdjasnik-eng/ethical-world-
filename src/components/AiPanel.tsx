@@ -5,11 +5,22 @@ import {
   checkProviderStatus,
   sendAiMessage
 } from "../lib/ai";
-import type { AiMessage, AiProvider, AiSettings, Note } from "../types";
+import { describeAgentAction, parseAgentResponse } from "../lib/agentTools";
+import type {
+  AgentAction,
+  AiMessage,
+  AiPermissionMode,
+  AiProvider,
+  AiSettings,
+  Note,
+  VaultFolder
+} from "../types";
 
 interface AiPanelProps {
   activeNote: Note | null;
   notes: Note[];
+  folders: VaultFolder[];
+  onApplyAgentAction: (action: AgentAction) => Promise<string>;
 }
 
 interface ConnectionState {
@@ -18,18 +29,31 @@ interface ConnectionState {
   checking: boolean;
 }
 
+interface PendingAction {
+  id: string;
+  action: AgentAction;
+}
+
 const initialMessage: AiMessage = {
   id: "welcome",
   role: "assistant",
-  content: "Jsem Máša. Jakmile najdu lokální model, můžu pracovat s kontextem otevřené poznámky a vaultu."
+  content: "Jsem Máša. V režimu ASSIST můžu nejen odpovídat nad vaultem, ale také navrhovat konkrétní akce v Ethical World."
 };
 
-export const AiPanel = memo(function AiPanel({ activeNote, notes }: AiPanelProps) {
+export const AiPanel = memo(function AiPanel({
+  activeNote,
+  notes,
+  folders,
+  onApplyAgentAction
+}: AiPanelProps) {
   const [messages, setMessages] = useState<AiMessage[]>([initialMessage]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [permissionMode, setPermissionMode] = useState<AiPermissionMode>("assist");
+  const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
+  const [applyingActionId, setApplyingActionId] = useState<string | null>(null);
   const [connection, setConnection] = useState<ConnectionState>({
     backendOnline: false,
     modelOnline: false,
@@ -37,7 +61,7 @@ export const AiPanel = memo(function AiPanel({ activeNote, notes }: AiPanelProps
   });
   const [settings, setSettings] = useState<AiSettings>({
     provider: "ollama",
-    model: "qwen2.5:7b",
+    model: "masa-cyber",
     baseUrl: "http://localhost:11434",
     apiKey: ""
   });
@@ -56,13 +80,11 @@ export const AiPanel = memo(function AiPanel({ activeNote, notes }: AiPanelProps
       const detected = await autoDetectLocalProvider();
 
       if (detected?.online && detected.model) {
-        const detectedModel = detected.model;
-
         setSettings((current) => ({
           ...current,
           provider: detected.provider,
           baseUrl: detected.baseUrl,
-          model: detectedModel
+          model: detected.model ?? current.model
         }));
         setConnection({ backendOnline: true, modelOnline: true, checking: false });
         return;
@@ -98,23 +120,14 @@ export const AiPanel = memo(function AiPanel({ activeNote, notes }: AiPanelProps
       ...current,
       provider,
       baseUrl: provider === "ollama" ? "http://localhost:11434" : "http://localhost:8080/v1",
-      model: provider === "ollama" ? "qwen2.5:7b" : "local-model"
+      model: provider === "ollama" ? "masa-cyber" : "local-model"
     }));
   }, []);
 
   const status = useMemo(() => {
-    if (connection.checking) {
-      return { text: "Kontroluju…", className: "checking" };
-    }
-
-    if (!connection.backendOnline) {
-      return { text: "Backend offline", className: "offline" };
-    }
-
-    if (!connection.modelOnline) {
-      return { text: "LLM offline", className: "warning" };
-    }
-
+    if (connection.checking) return { text: "Kontroluju…", className: "checking" };
+    if (!connection.backendOnline) return { text: "Backend offline", className: "offline" };
+    if (!connection.modelOnline) return { text: "LLM offline", className: "warning" };
     return { text: "Online", className: "online" };
   }, [connection]);
 
@@ -122,10 +135,7 @@ export const AiPanel = memo(function AiPanel({ activeNote, notes }: AiPanelProps
 
   const submit = useCallback(async () => {
     const trimmedInput = input.trim();
-
-    if (!trimmedInput || !canSend) {
-      return;
-    }
+    if (!trimmedInput || !canSend) return;
 
     const userMessage: AiMessage = {
       id: crypto.randomUUID(),
@@ -140,29 +150,72 @@ export const AiPanel = memo(function AiPanel({ activeNote, notes }: AiPanelProps
     setError(null);
 
     try {
-      const response = await sendAiMessage({ settings, messages: nextMessages, notes, activeNote });
+      const response = await sendAiMessage({
+        settings,
+        messages: nextMessages,
+        notes,
+        folders,
+        activeNote,
+        permissionMode
+      });
+      const parsed = parseAgentResponse(response.content);
 
       setMessages((current) => [
         ...current,
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: response.content
+          content: parsed.content
         }
       ]);
+
+      if (permissionMode === "assist" && parsed.actions.length > 0) {
+        setPendingActions((current) => [
+          ...current,
+          ...parsed.actions.map((action) => ({ id: crypto.randomUUID(), action }))
+        ]);
+      }
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "AI request failed");
       void refreshConnection(false);
     } finally {
       setIsSending(false);
     }
-  }, [activeNote, canSend, input, messages, notes, refreshConnection, settings]);
+  }, [activeNote, canSend, folders, input, messages, notes, permissionMode, refreshConnection, settings]);
+
+  const applyAction = useCallback(async (pending: PendingAction) => {
+    setApplyingActionId(pending.id);
+    setError(null);
+
+    try {
+      const result = await onApplyAgentAction(pending.action);
+      setPendingActions((current) => current.filter((candidate) => candidate.id !== pending.id));
+      setMessages((current) => [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: "✓ " + result
+        }
+      ]);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Akci se nepodařilo provést");
+    } finally {
+      setApplyingActionId(null);
+    }
+  }, [onApplyAgentAction]);
 
   return (
-    <aside className="ai-panel"><div className="pane-titlebar"><span>Assistant</span><span className="pane-actions">− □</span></div>
-      <div className="ai-header"><div className="ai-avatar">M</div>
+    <aside className="ai-panel">
+      <div className="pane-titlebar">
+        <span>Assistant · {permissionMode.toUpperCase()}</span>
+        <span className="pane-actions">− □</span>
+      </div>
+
+      <div className="ai-header">
+        <div className="ai-avatar">M</div>
         <div>
-          <span className={`ai-status-dot ${status.className}`} />
+          <span className={"ai-status-dot " + status.className} />
           <strong>Máša</strong>
           <small>{status.text} · {settings.model}</small>
         </div>
@@ -173,6 +226,14 @@ export const AiPanel = memo(function AiPanel({ activeNote, notes }: AiPanelProps
 
       {showSettings && (
         <div className="ai-settings">
+          <label>
+            Agent permissions
+            <select value={permissionMode} onChange={(event) => setPermissionMode(event.target.value as AiPermissionMode)}>
+              <option value="read">READ · pouze čtení</option>
+              <option value="assist">ASSIST · změny po potvrzení</option>
+            </select>
+          </label>
+
           <label>
             Provider
             <select value={settings.provider} onChange={(event) => updateProvider(event.target.value as AiProvider)}>
@@ -207,7 +268,7 @@ export const AiPanel = memo(function AiPanel({ activeNote, notes }: AiPanelProps
           <button className="secondary-button" type="button" onClick={() => void refreshConnection(true)}>
             Znovu najít lokální AI
           </button>
-          <p>API key se v této verzi neukládá do persistentního storage.</p>
+          <p>ASSIST nikdy neprovede změnu bez kliknutí na Použít. Mazání zatím Máša vůbec nemá k dispozici.</p>
         </div>
       )}
 
@@ -224,20 +285,55 @@ export const AiPanel = memo(function AiPanel({ activeNote, notes }: AiPanelProps
       )}
 
       <div className="ai-context">
-        <span>Context</span>
+        <span>Context · {permissionMode.toUpperCase()}</span>
         <strong>{activeNote?.title ?? "žádná poznámka"}</strong>
-        <small>{notes.length} notes available</small>
+        <small>
+          {notes.length} notes · {folders.length} folders · {permissionMode === "assist" ? "actions require approval" : "read only"}
+        </small>
       </div>
 
       <div className="message-list">
         {messages.map((message) => (
-          <div className={`message ${message.role}`} key={message.id}>
+          <div className={"message " + message.role} key={message.id}>
             <span>{message.role === "assistant" ? "Máša" : "Ty"}</span>
             <p>{message.content}</p>
           </div>
         ))}
         {isSending && <div className="message assistant"><span>Máša</span><p>Pracuju s vaultem…</p></div>}
       </div>
+
+      {pendingActions.length > 0 && (
+        <section className="agent-actions" aria-label="Máša navržené akce">
+          <div className="agent-actions-heading">
+            <strong>Navržené akce</strong>
+            <button type="button" onClick={() => setPendingActions([])}>Zahodit vše</button>
+          </div>
+
+          {pendingActions.map((pending) => (
+            <div className="agent-action-card" key={pending.id}>
+              <span>ASSIST · čeká na potvrzení</span>
+              <strong>{describeAgentAction(pending.action, notes)}</strong>
+              <div>
+                <button
+                  type="button"
+                  className="agent-apply"
+                  disabled={applyingActionId !== null}
+                  onClick={() => void applyAction(pending)}
+                >
+                  {applyingActionId === pending.id ? "Provádím…" : "Použít"}
+                </button>
+                <button
+                  type="button"
+                  disabled={applyingActionId !== null}
+                  onClick={() => setPendingActions((current) => current.filter((candidate) => candidate.id !== pending.id))}
+                >
+                  Zahodit
+                </button>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
 
       {error && <div className="ai-error">{error}</div>}
 
@@ -251,7 +347,7 @@ export const AiPanel = memo(function AiPanel({ activeNote, notes }: AiPanelProps
               void submit();
             }
           }}
-          placeholder={connection.modelOnline ? "Zeptej se nad vaultem…" : "AI je offline – nejdřív spusť lokální model"}
+          placeholder={connection.modelOnline ? "Řekni Máše, co má v Ethical World udělat…" : "AI je offline – nejdřív spusť lokální model"}
           rows={3}
         />
         <button className="primary-button" type="button" onClick={() => void submit()} disabled={!canSend}>

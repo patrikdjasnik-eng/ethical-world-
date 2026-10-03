@@ -32,3 +32,11 @@ export interface AiSettings {
   baseUrl: string;
   apiKey: string;
 }
+
+export type AiPermissionMode = "read" | "assist";
+
+export type AgentAction =
+  | { type: "create_note"; title: string; content: string; folder?: string }
+  | { type: "update_note"; noteId: string; title?: string; content?: string; folder?: string }
+  | { type: "create_folder"; name: string; parentPath?: string | null }
+  | { type: "open_note"; noteId: string };

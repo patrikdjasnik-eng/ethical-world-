@@ -1,10 +1,12 @@
-import type { AiMessage, AiProvider, AiSettings, Note } from "../types";
+import type { AiMessage, AiPermissionMode, AiProvider, AiSettings, Note, VaultFolder } from "../types";
 
 interface SendAiMessageInput {
   settings: AiSettings;
   messages: AiMessage[];
   notes: Note[];
+  folders: VaultFolder[];
   activeNote: Note | null;
+  permissionMode: AiPermissionMode;
 }
 
 interface ChatResponse {
@@ -80,6 +82,7 @@ export async function sendAiMessage(input: SendAiMessageInput): Promise<ChatResp
   const vaultContext = input.notes.slice(0, 12).map((note) => ({
     id: note.id,
     title: note.title,
+    folder: note.folder,
     content: note.content.slice(0, 4000)
   }));
 
@@ -94,6 +97,8 @@ export async function sendAiMessage(input: SendAiMessageInput): Promise<ChatResp
       baseUrl: input.settings.baseUrl,
       apiKey: input.settings.apiKey || null,
       activeNoteId: input.activeNote?.id ?? null,
+      permissionMode: input.permissionMode,
+      vaultFolders: input.folders.map((folder) => folder.path),
       vaultContext,
       messages: input.messages.map(({ role, content }) => ({ role, content }))
     })

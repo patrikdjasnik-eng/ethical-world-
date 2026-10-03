@@ -193,3 +193,15 @@ GitHub Actions workflow zůstává nakonfigurovaný, ale dostupné runy dříve 
 - MSI generování je vypnuté přes `noMsi: true`, protože distribuce používá Squirrel Setup.exe;
 - přidané izolované maker příkazy `desktop:make:squirrel` a `desktop:make:zip`;
 - installer smoke test při pádu vypíše příkazy pro izolaci konkrétního makeru.
+
+
+### Máša agent tools v0.1
+
+- přidané permission režimy READ a ASSIST;
+- výchozí ASSIST stále vyžaduje explicitní potvrzení každé akce;
+- Máša umí navrhnout vytvoření poznámky, úpravu poznámky, vytvoření složky a otevření poznámky;
+- strojové akce používají validovaný `ethical-actions` JSON protokol;
+- neznámé, nevalidní a malformed akce se nikdy neprovedou;
+- model pracuje s přesnými note IDs a seznamem existujících folder paths;
+- `masa-cyber` je preferovaný lokální Ollama model, pokud je dostupný;
+- mazání a jiné destruktivní tools nejsou v první verzi agentovi zpřístupněné.

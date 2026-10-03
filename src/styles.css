@@ -2083,3 +2083,90 @@ body,
     width: 110px;
   }
 }
+
+
+/* Máša agent actions v0.1 */
+.agent-actions {
+  display: grid;
+  gap: 7px;
+  max-height: 235px;
+  padding: 8px 9px;
+  border-top: 1px solid var(--border-soft);
+  overflow-y: auto;
+  background: #121216;
+}
+
+.agent-actions-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.agent-actions-heading strong {
+  color: #8f82bd;
+  font-size: 9px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.agent-actions-heading button {
+  border: 0;
+  background: transparent;
+  color: #595963;
+  cursor: pointer;
+  font-size: 8px;
+}
+
+.agent-actions-heading button:hover { color: #aaaab4; }
+
+.agent-action-card {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid #302d3a;
+  border-radius: 6px;
+  background: #18171d;
+}
+
+.agent-action-card > span {
+  color: #6f638f;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.agent-action-card > strong {
+  color: #c5c1d0;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.agent-action-card > div {
+  display: flex;
+  gap: 6px;
+}
+
+.agent-action-card button {
+  padding: 5px 8px;
+  border: 1px solid #32303a;
+  border-radius: 4px;
+  background: #202027;
+  color: #85858f;
+  cursor: pointer;
+  font-size: 8px;
+}
+
+.agent-action-card button:hover:not(:disabled) { color: #d2d2d8; }
+
+.agent-action-card .agent-apply {
+  border-color: #49405e;
+  background: #272231;
+  color: #b8a8e9;
+}
+
+.agent-action-card button:disabled {
+  opacity: .45;
+  cursor: default;
+}

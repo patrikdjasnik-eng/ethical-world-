@@ -5,6 +5,7 @@ import { VaultSidebar, type WorkspaceView } from "./components/VaultSidebar";
 import {
   inferFoldersFromNotes,
   isPathInsideFolder,
+  normalizeFolderPath,
   joinFolderPath,
   renameFolderPath,
   sanitizeFolderName
@@ -20,7 +21,7 @@ import {
   saveNote,
   saveNotes
 } from "./lib/storage";
-import type { Note, VaultFolder } from "./types";
+import type { AgentAction, Note, VaultFolder } from "./types";
 
 const AiPanel = lazy(() => import("./components/AiPanel"));
 const GraphPane = lazy(() => import("./components/GraphPane"));
@@ -229,6 +230,93 @@ export default function App() {
     setView("note");
   }, []);
 
+  const handleApplyAgentAction = useCallback(async (action: AgentAction): Promise<string> => {
+    if (action.type === "open_note") {
+      const note = notes.find((candidate) => candidate.id === action.noteId);
+      if (!note) throw new Error("Poznámka už ve vaultu neexistuje.");
+
+      setActiveNoteId(note.id);
+      setSelectedFolderPath(note.folder || null);
+      setView("note");
+      return "Otevřena poznámka „" + note.title + "“.";
+    }
+
+    if (action.type === "create_folder") {
+      const name = sanitizeFolderName(action.name);
+      const parentPath = action.parentPath ? normalizeFolderPath(action.parentPath) : null;
+
+      if (!name) throw new Error("Máša navrhla neplatný název složky.");
+      if (parentPath && !folders.some((folder) => folder.path === parentPath)) {
+        throw new Error("Nadřazená složka „" + parentPath + "“ neexistuje.");
+      }
+
+      const folderPath = joinFolderPath(parentPath, name);
+      if (folders.some((folder) => folder.path === folderPath)) {
+        throw new Error("Složka „" + folderPath + "“ už existuje.");
+      }
+
+      const timestamp = new Date().toISOString();
+      const folder: VaultFolder = {
+        id: crypto.randomUUID(),
+        name,
+        path: folderPath,
+        parentPath,
+        createdAt: timestamp,
+        updatedAt: timestamp
+      };
+
+      setFolders((current) => [...current, folder].sort((left, right) => left.path.localeCompare(right.path, "cs")));
+      setSelectedFolderPath(folder.path);
+      await saveFolder(folder);
+      return "Vytvořena složka „" + folder.path + "“.";
+    }
+
+    if (action.type === "create_note") {
+      const title = action.title.trim().slice(0, 300) || "Máša – poznámka";
+      const folderPath = normalizeFolderPath(action.folder ?? "");
+
+      if (folderPath && !folders.some((folder) => folder.path === folderPath)) {
+        throw new Error("Složka „" + folderPath + "“ neexistuje. Nejdřív ji vytvoř.");
+      }
+
+      const note = createEmptyNote(title, folderPath);
+      note.content = action.content;
+      note.updatedAt = new Date().toISOString();
+
+      setNotes((current) => [note, ...current]);
+      setActiveNoteId(note.id);
+      setSelectedFolderPath(folderPath || null);
+      setView("note");
+      await saveNote(note);
+      return "Vytvořena poznámka „" + note.title + "“.";
+    }
+
+    const currentNote = notes.find((candidate) => candidate.id === action.noteId);
+    if (!currentNote) throw new Error("Poznámka určená k úpravě už neexistuje.");
+
+    const nextFolder = action.folder === undefined
+      ? currentNote.folder
+      : normalizeFolderPath(action.folder);
+
+    if (nextFolder && !folders.some((folder) => folder.path === nextFolder)) {
+      throw new Error("Složka „" + nextFolder + "“ neexistuje.");
+    }
+
+    const nextNote: Note = {
+      ...currentNote,
+      title: action.title === undefined
+        ? currentNote.title
+        : action.title.trim().slice(0, 300) || currentNote.title,
+      content: action.content ?? currentNote.content,
+      folder: nextFolder,
+      updatedAt: new Date().toISOString()
+    };
+
+    setNotes((current) => current.map((note) => note.id === nextNote.id ? nextNote : note));
+    await saveNote(nextNote);
+    return "Upravena poznámka „" + nextNote.title + "“.";
+  }, [folders, notes]);
+
   useEffect(() => {
     const handleKeyboardShortcut = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
@@ -341,7 +429,12 @@ export default function App() {
 
         {aiOpen && (
           <Suspense fallback={<aside className="ai-panel loading-screen">Načítám AI panel…</aside>}>
-            <AiPanel activeNote={activeNote} notes={notes} />
+            <AiPanel
+              activeNote={activeNote}
+              notes={notes}
+              folders={folders}
+              onApplyAgentAction={handleApplyAgentAction}
+            />
           </Suspense>
         )}
       </div>

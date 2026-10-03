@@ -143,3 +143,19 @@ Audit log
 ```
 
 Cílem není automatizovat vše bez kontroly. Cílem je, aby běžná práce vyžadovala méně klikání a syntaktických znalostí, zatímco rizikové změny zůstaly explicitní a dohledatelné.
+
+
+## Agent tools v0.1
+
+Máša má první skutečné schopnosti nad UI a vaultem přes potvrzovaný ASSIST režim.
+
+Aktuálně dostupné akce:
+
+- vytvořit poznámku;
+- upravit existující poznámku podle přesného note ID;
+- vytvořit složku;
+- otevřít existující poznámku.
+
+Model nikdy nezapisuje přímo do IndexedDB. Vrací omezený `ethical-actions` JSON blok, renderer ho validuje a uživatel musí každou zapisovací akci potvrdit tlačítkem `Použít`. READ režim žádné tool akce nepřijímá.
+
+Mazání, přejmenování, hromadné přesuny a jiné destruktivní operace v této verzi nejsou dostupné.
