@@ -11,6 +11,7 @@ import {
   sanitizeFolderName
 } from "./lib/folders";
 import { createEmptyNote } from "./lib/notes";
+import { bootstrapOwnerAccount, restoreAccount } from "./lib/auth";
 import {
   listFolders,
   listNotes,
@@ -48,8 +49,39 @@ export default function App() {
   const [view, setView] = useState<WorkspaceView>("note");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
+  const [accountLocked, setAccountLocked] = useState(false);
   const [folderCreateNonce, setFolderCreateNonce] = useState(0);
   const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const initialiseIdentity = async () => {
+      let profile = await restoreAccount();
+
+      if (!profile) {
+        const bootstrap = await bootstrapOwnerAccount();
+        profile = bootstrap?.user ?? null;
+      }
+
+      if (cancelled || !profile) return;
+
+      if (profile.mustChangePassword) {
+        setAccountLocked(true);
+        setSidebarOpen(false);
+        setAiOpen(false);
+        setView("account");
+      }
+    };
+
+    void initialiseIdentity().catch((error) => {
+      console.error("Unable to initialise identity", error);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const loadVault = async () => {
@@ -349,6 +381,7 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyboardShortcut = (event: KeyboardEvent) => {
+      if (accountLocked) return;
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
 
       const key = event.key.toLocaleLowerCase("cs-CZ");
@@ -379,7 +412,7 @@ export default function App() {
 
     window.addEventListener("keydown", handleKeyboardShortcut);
     return () => window.removeEventListener("keydown", handleKeyboardShortcut);
-  }, [handleCreateNote, selectedFolderPath]);
+  }, [accountLocked, handleCreateNote, selectedFolderPath]);
 
   if (!isReady) {
     return <div className="loading-screen">Načítám lokální vault…</div>;
@@ -433,12 +466,16 @@ export default function App() {
           view={view}
           sidebarOpen={sidebarOpen}
           aiOpen={aiOpen}
-          onViewChange={setView}
-          onToggleSidebar={() => setSidebarOpen((current) => !current)}
-          onToggleAi={() => setAiOpen((current) => !current)}
+          onViewChange={(nextView) => setView(accountLocked ? "account" : nextView)}
+          onToggleSidebar={() => {
+            if (!accountLocked) setSidebarOpen((current) => !current);
+          }}
+          onToggleAi={() => {
+            if (!accountLocked) setAiOpen((current) => !current);
+          }}
         />
 
-        {sidebarOpen && (
+        {sidebarOpen && !accountLocked && (
           <VaultSidebar
             notes={notes}
             folders={folders}
@@ -446,7 +483,7 @@ export default function App() {
             selectedFolderPath={selectedFolderPath}
             query={query}
             folderCreateNonce={folderCreateNonce}
-            onViewChange={setView}
+            onViewChange={(nextView) => setView(accountLocked ? "account" : nextView)}
             onQueryChange={setQuery}
             onSelectNote={setActiveNoteId}
             onSelectFolder={setSelectedFolderPath}
@@ -471,9 +508,18 @@ export default function App() {
           <Suspense fallback={<main className="guide-pane loading-screen">Načítám návod…</main>}>
             <GuidePanel />
           </Suspense>
-        ) : view === "account" ? (
+        ) : view === "account" || accountLocked ? (
           <Suspense fallback={<main className="account-pane loading-screen">Načítám účet…</main>}>
-            <AccountPanel />
+            <AccountPanel
+              onSecurityStateChange={(locked) => {
+                setAccountLocked(locked);
+                if (locked) {
+                  setSidebarOpen(false);
+                  setAiOpen(false);
+                  setView("account");
+                }
+              }}
+            />
           </Suspense>
         ) : (
           <EditorPane
@@ -485,7 +531,7 @@ export default function App() {
           />
         )}
 
-        {aiOpen && (
+        {aiOpen && !accountLocked && (
           <Suspense fallback={<aside className="ai-panel loading-screen">Načítám AI panel…</aside>}>
             <AiPanel
               activeNote={activeNote}

@@ -2742,3 +2742,37 @@ body,
     flex-direction: column;
   }
 }
+
+
+.account-password-required {
+  border-color: #4b405f;
+  background:
+    linear-gradient(180deg, rgba(141, 116, 232, .06), transparent 45%),
+    #15151a;
+}
+
+.account-password-required h2 {
+  margin: 0;
+  color: #d9d4e8;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.account-password-required > p {
+  margin: 0;
+  color: #777380;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.account-lock-badge {
+  width: fit-content;
+  padding: 4px 7px;
+  border: 1px solid #4b405f;
+  border-radius: 999px;
+  color: #b7a8ed;
+  background: #201b29;
+  font-size: 7px;
+  font-weight: 750;
+  letter-spacing: .1em;
+}

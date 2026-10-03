@@ -79,3 +79,35 @@ export async function restoreAccount(): Promise<UserProfile | null> {
 
   return response.json() as Promise<UserProfile>;
 }
+
+
+export async function bootstrapOwnerAccount(): Promise<AuthSession | null> {
+  const response = await fetch(apiUrl + "/api/auth/bootstrap-owner", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" }
+  });
+
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(await parseError(response));
+
+  const session = await response.json() as AuthSession;
+  await writeStoredToken(session.sessionToken);
+  return session;
+}
+
+export async function changeAccountPassword(newPassword: string): Promise<UserProfile> {
+  const token = await getStoredSessionToken();
+  if (!token) throw new Error("Chybí aktivní session.");
+
+  const response = await fetch(apiUrl + "/api/auth/change-password", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + token
+    },
+    body: JSON.stringify({ newPassword })
+  });
+
+  if (!response.ok) throw new Error(await parseError(response));
+  return response.json() as Promise<UserProfile>;
+}

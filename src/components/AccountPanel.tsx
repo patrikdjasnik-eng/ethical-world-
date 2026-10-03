@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useState } from "react";
 import {
+  changeAccountPassword,
   clearStoredSession,
   loginAccount,
   registerAccount,
@@ -7,7 +8,11 @@ import {
 } from "../lib/auth";
 import type { UserProfile } from "../types";
 
-export const AccountPanel = memo(function AccountPanel() {
+interface AccountPanelProps {
+  onSecurityStateChange?: (locked: boolean) => void;
+}
+
+export const AccountPanel = memo(function AccountPanel({ onSecurityStateChange }: AccountPanelProps) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [mode, setMode] = useState<"login" | "register">("login");
   const [displayName, setDisplayName] = useState("");
@@ -15,6 +20,8 @@ export const AccountPanel = memo(function AccountPanel() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(true);
   const [status, setStatus] = useState("Načítám účet…");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -22,7 +29,14 @@ export const AccountPanel = memo(function AccountPanel() {
     void restoreAccount().then((profile) => {
       if (cancelled) return;
       setUser(profile);
-      setStatus(profile ? "Session obnovena." : "Přihlas se nebo vytvoř lokální účet.");
+      onSecurityStateChange?.(Boolean(profile?.mustChangePassword));
+      setStatus(
+        profile?.mustChangePassword
+          ? "Owner účet čeká na nastavení vlastního hesla."
+          : profile
+            ? "Session obnovena."
+            : "Přihlas se nebo vytvoř lokální účet."
+      );
       setBusy(false);
     }).catch(() => {
       if (!cancelled) {
@@ -34,7 +48,7 @@ export const AccountPanel = memo(function AccountPanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [onSecurityStateChange]);
 
   const submit = useCallback(async () => {
     setBusy(true);
@@ -46,6 +60,7 @@ export const AccountPanel = memo(function AccountPanel() {
 
       const session = await loginAccount(email, password);
       setUser(session.user);
+      onSecurityStateChange?.(session.user.mustChangePassword);
       setPassword("");
       setStatus("Přihlášeno jako " + session.user.displayName + ".");
     } catch (error) {
@@ -53,14 +68,34 @@ export const AccountPanel = memo(function AccountPanel() {
     } finally {
       setBusy(false);
     }
-  }, [displayName, email, mode, password]);
+  }, [displayName, email, mode, onSecurityStateChange, password]);
+
+  const submitPasswordChange = useCallback(async () => {
+    if (newPassword.length < 12 || newPassword !== confirmPassword) return;
+
+    setBusy(true);
+
+    try {
+      const updated = await changeAccountPassword(newPassword);
+      setUser(updated);
+      setNewPassword("");
+      setConfirmPassword("");
+      onSecurityStateChange?.(false);
+      setStatus("Heslo změněno. Owner účet je aktivní.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Změna hesla selhala.");
+    } finally {
+      setBusy(false);
+    }
+  }, [confirmPassword, newPassword, onSecurityStateChange]);
 
   const logout = useCallback(async () => {
     await clearStoredSession();
     setUser(null);
     setPassword("");
+    onSecurityStateChange?.(false);
     setStatus("Odhlášeno.");
-  }, []);
+  }, [onSecurityStateChange]);
 
   return (
     <main className="account-pane">
@@ -71,13 +106,57 @@ export const AccountPanel = memo(function AccountPanel() {
           <p>Účet je základ pro budoucí sync, team workspaces a E2E messaging.</p>
         </header>
 
-        {user ? (
+        {user?.mustChangePassword ? (
+          <div className="account-form account-password-required">
+            <div className="account-lock-badge">OWNER · FIRST LOGIN</div>
+            <h2>Nastav vlastní heslo</h2>
+            <p>
+              Bootstrap přístup je jednorázový. Dokud heslo nezměníš,
+              ostatní části Ethical World zůstanou zamčené.
+            </p>
+
+            <label>
+              Nové heslo
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                autoComplete="new-password"
+              />
+            </label>
+
+            <label>
+              Potvrzení hesla
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                    event.preventDefault();
+                    void submitPasswordChange();
+                  }
+                }}
+                autoComplete="new-password"
+              />
+            </label>
+
+            <button
+              type="button"
+              className="account-submit"
+              disabled={busy || newPassword.length < 12 || newPassword !== confirmPassword}
+              onClick={() => void submitPasswordChange()}
+            >
+              {busy ? "Ukládám…" : "Nastavit heslo a odemknout"}
+            </button>
+          </div>
+        ) : user ? (
           <div className="account-profile">
             <div className="account-avatar">{user.displayName.slice(0, 1).toUpperCase()}</div>
             <div>
               <strong>{user.displayName}</strong>
               <span>{user.email}</span>
-              <small>User ID · {user.id}</small>
+              <small>{user.role.toUpperCase()} · {user.id}</small>
             </div>
             <button type="button" onClick={() => void logout()}>Odhlásit</button>
           </div>

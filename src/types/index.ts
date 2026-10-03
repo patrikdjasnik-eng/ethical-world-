@@ -56,6 +56,8 @@ export interface UserProfile {
   email: string;
   displayName: string;
   createdAt: string;
+  role: "owner" | "user";
+  mustChangePassword: boolean;
 }
 
 export interface AuthSession {
