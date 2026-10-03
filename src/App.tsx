@@ -41,6 +41,7 @@ export default function App() {
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<WorkspaceView>("note");
+  const [folderCreateNonce, setFolderCreateNonce] = useState(0);
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
@@ -214,6 +215,24 @@ export default function App() {
     void removeFolder(folderId);
   }, [folders, notes, selectedFolderPath]);
 
+  const handleMoveNote = useCallback((noteId: string, folderPath: string | null) => {
+    const note = notes.find((candidate) => candidate.id === noteId);
+
+    if (!note || note.folder === (folderPath ?? "")) {
+      return;
+    }
+
+    const nextNote: Note = {
+      ...note,
+      folder: folderPath ?? "",
+      updatedAt: new Date().toISOString()
+    };
+
+    setNotes((current) => current.map((candidate) => candidate.id === noteId ? nextNote : candidate));
+    setSelectedFolderPath(folderPath);
+    void saveNote(nextNote);
+  }, [notes]);
+
   const handleDeleteNote = useCallback((noteId: string) => {
     setNotes((current) => {
       const nextNotes = current.filter((note) => note.id !== noteId);
@@ -236,6 +255,29 @@ export default function App() {
     setView("note");
   }, []);
 
+  useEffect(() => {
+    const handleKeyboardShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) {
+        return;
+      }
+
+      if (event.key.toLocaleLowerCase("cs-CZ") !== "n") {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (event.shiftKey) {
+        setFolderCreateNonce((current) => current + 1);
+      } else {
+        handleCreateNote(selectedFolderPath);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyboardShortcut);
+    return () => window.removeEventListener("keydown", handleKeyboardShortcut);
+  }, [handleCreateNote, selectedFolderPath]);
+
   if (!isReady) {
     return <div className="loading-screen">Načítám lokální vault…</div>;
   }
@@ -249,6 +291,7 @@ export default function App() {
         selectedFolderPath={selectedFolderPath}
         query={query}
         view={view}
+        folderCreateNonce={folderCreateNonce}
         onViewChange={setView}
         onQueryChange={setQuery}
         onSelectNote={setActiveNoteId}
@@ -258,6 +301,7 @@ export default function App() {
         onRenameFolder={handleRenameFolder}
         onDeleteFolder={handleDeleteFolder}
         onDeleteNote={handleDeleteNote}
+        onMoveNote={handleMoveNote}
       />
 
       {view === "graph" ? (

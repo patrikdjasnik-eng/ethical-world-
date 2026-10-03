@@ -113,3 +113,11 @@ Lokálně ověřit `npm test`, `npm run build` a `python -m compileall server`. 
 - breadcrumb podporuje nested folder path;
 - graph i Máša dál pracují nad stejnými poznámkami bez změny datového kontraktu;
 - přidané unit testy pro folder path, migraci legacy notes a sestavení folder tree.
+
+
+### Vault explorer polish
+
+- přidané drag & drop přesouvání poznámek mezi složkami i zpět do rootu;
+- `Ctrl+N` vytvoří novou poznámku v právě vybrané složce;
+- `Ctrl+Shift+N` otevře inline vytvoření složky v právě vybrané složce;
+- opravené IndexedDB transaction completion handlery tak, aby se registrovaly před dokončením transakce.

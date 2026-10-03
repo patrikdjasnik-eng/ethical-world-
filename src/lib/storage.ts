@@ -46,8 +46,9 @@ function openDatabase(): Promise<IDBDatabase> {
 export async function listNotes(): Promise<Note[]> {
   const database = await openDatabase();
   const transaction = database.transaction(notesStore, "readonly");
+  const done = transactionDone(transaction);
   const notes = await requestToPromise(transaction.objectStore(notesStore).getAll() as IDBRequest<Note[]>);
-  await transactionDone(transaction);
+  await done;
   database.close();
 
   return notes.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
@@ -64,31 +65,34 @@ export async function saveNotes(notes: Note[]): Promise<void> {
 
   const database = await openDatabase();
   const transaction = database.transaction(notesStore, "readwrite");
+  const done = transactionDone(transaction);
   const store = transaction.objectStore(notesStore);
 
   for (const note of notes) {
     store.put(note);
   }
 
-  await transactionDone(transaction);
+  await done;
   database.close();
 }
 
 export async function removeNote(noteId: string): Promise<void> {
   const database = await openDatabase();
   const transaction = database.transaction(notesStore, "readwrite");
+  const done = transactionDone(transaction);
   transaction.objectStore(notesStore).delete(noteId);
-  await transactionDone(transaction);
+  await done;
   database.close();
 }
 
 export async function listFolders(): Promise<VaultFolder[]> {
   const database = await openDatabase();
   const transaction = database.transaction(foldersStore, "readonly");
+  const done = transactionDone(transaction);
   const folders = await requestToPromise(
     transaction.objectStore(foldersStore).getAll() as IDBRequest<VaultFolder[]>
   );
-  await transactionDone(transaction);
+  await done;
   database.close();
 
   return folders.sort((left, right) => left.path.localeCompare(right.path, "cs"));
@@ -105,20 +109,22 @@ export async function saveFolders(folders: VaultFolder[]): Promise<void> {
 
   const database = await openDatabase();
   const transaction = database.transaction(foldersStore, "readwrite");
+  const done = transactionDone(transaction);
   const store = transaction.objectStore(foldersStore);
 
   for (const folder of folders) {
     store.put(folder);
   }
 
-  await transactionDone(transaction);
+  await done;
   database.close();
 }
 
 export async function removeFolder(folderId: string): Promise<void> {
   const database = await openDatabase();
   const transaction = database.transaction(foldersStore, "readwrite");
+  const done = transactionDone(transaction);
   transaction.objectStore(foldersStore).delete(folderId);
-  await transactionDone(transaction);
+  await done;
   database.close();
 }

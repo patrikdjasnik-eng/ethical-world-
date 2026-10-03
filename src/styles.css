@@ -1508,3 +1508,18 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
     display: none;
   }
 }
+
+
+.folder-row[data-drop-active="true"],
+.root-folder-row[data-drop-active="true"] {
+  background: #312c39;
+  box-shadow: inset 0 0 0 1px #67558a;
+}
+
+.tree-note-row[draggable="true"] {
+  cursor: grab;
+}
+
+.tree-note-row[draggable="true"]:active {
+  cursor: grabbing;
+}
