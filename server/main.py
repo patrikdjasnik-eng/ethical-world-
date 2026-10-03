@@ -11,6 +11,8 @@ from pydantic import BaseModel, Field
 from .auth_store import (
     AuthStoreError,
     bootstrap_admin_from_env,
+    bootstrap_owner_login,
+    change_user_password,
     init_auth_store,
     login_user,
     register_user,
@@ -106,12 +108,18 @@ class UserResponse(BaseModel):
     email: str
     displayName: str
     createdAt: str
+    role: Literal["owner", "user"] = "user"
+    mustChangePassword: bool = False
 
 
 class AuthResponse(BaseModel):
     user: UserResponse
     sessionToken: str
     expiresAt: str
+
+
+class ChangePasswordRequest(BaseModel):
+    newPassword: str = Field(min_length=12, max_length=1024)
 
 
 app = FastAPI(title="Ethical World AI Gateway", version="0.1.2")
@@ -160,6 +168,20 @@ async def register(request: RegisterRequest) -> UserResponse:
     return UserResponse(**user)
 
 
+@app.post("/api/auth/bootstrap-owner", response_model=AuthResponse)
+async def bootstrap_owner() -> AuthResponse:
+    result = bootstrap_owner_login()
+    if not result:
+        raise HTTPException(status_code=404, detail="Bootstrap owner není dostupný.")
+
+    user, token, expires_at = result
+    return AuthResponse(
+        user=UserResponse(**user),
+        sessionToken=token,
+        expiresAt=expires_at,
+    )
+
+
 @app.post("/api/auth/login", response_model=AuthResponse)
 async def login(request: LoginRequest) -> AuthResponse:
     try:
@@ -172,6 +194,20 @@ async def login(request: LoginRequest) -> AuthResponse:
         sessionToken=token,
         expiresAt=expires_at,
     )
+
+
+@app.post("/api/auth/change-password", response_model=UserResponse)
+async def change_password(
+    request: ChangePasswordRequest,
+    authorization: str | None = Header(default=None),
+) -> UserResponse:
+    user = _require_user(authorization)
+    try:
+        updated = change_user_password(user["id"], request.newPassword)
+    except AuthStoreError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return UserResponse(**updated)
 
 
 @app.get("/api/auth/me", response_model=UserResponse)

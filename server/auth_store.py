@@ -58,6 +58,43 @@ def _normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
+def _user_dict(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "email": row["email"],
+        "displayName": row["display_name"],
+        "createdAt": row["created_at"],
+        "role": row["role"],
+        "mustChangePassword": bool(row["must_change_password"]),
+    }
+
+
+def _create_session(
+    connection: sqlite3.Connection,
+    user_id: str,
+    days: int = 30,
+) -> tuple[str, str]:
+    token = secrets.token_urlsafe(48)
+    session_id = str(uuid.uuid4())
+    created = _utc_now()
+    expires = created + timedelta(days=days)
+
+    connection.execute(
+        """
+        INSERT INTO sessions(id, user_id, token_hash, created_at, expires_at)
+        VALUES(?, ?, ?, ?, ?)
+        """,
+        (
+            session_id,
+            user_id,
+            _token_digest(token),
+            created.isoformat(),
+            expires.isoformat(),
+        ),
+    )
+    return token, expires.isoformat()
+
+
 def init_auth_store() -> None:
     with _connect() as connection:
         connection.executescript(
@@ -68,7 +105,9 @@ def init_auth_store() -> None:
                 display_name TEXT NOT NULL,
                 password_salt BLOB NOT NULL,
                 password_hash BLOB NOT NULL,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'user',
+                must_change_password INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS sessions (
@@ -120,17 +159,61 @@ def init_auth_store() -> None:
             """
         )
 
+        columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(users)").fetchall()
+        }
+
+        if "role" not in columns:
+            connection.execute(
+                "ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'"
+            )
+
+        if "must_change_password" not in columns:
+            connection.execute(
+                "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0"
+            )
+
+        owner = connection.execute(
+            "SELECT id FROM users WHERE role = 'owner' LIMIT 1"
+        ).fetchone()
+
+        if not owner:
+            salt = secrets.token_bytes(16)
+            bootstrap_password = secrets.token_urlsafe(48)
+            connection.execute(
+                """
+                INSERT INTO users(
+                    id, email, display_name, password_salt, password_hash,
+                    created_at, role, must_change_password
+                )
+                VALUES(?, ?, ?, ?, ?, ?, 'owner', 1)
+                """,
+                (
+                    str(uuid.uuid4()),
+                    "owner@ethical.world.local",
+                    "Owner",
+                    salt,
+                    _password_digest(bootstrap_password, salt),
+                    _utc_now().isoformat(),
+                ),
+            )
+
 
 def user_by_email(email: str) -> dict[str, Any] | None:
     normalized = _normalize_email(email)
 
     with _connect() as connection:
         row = connection.execute(
-            "SELECT id, email, display_name, created_at FROM users WHERE email = ?",
+            """
+            SELECT id, email, display_name, created_at, role, must_change_password
+            FROM users
+            WHERE email = ?
+            """,
             (normalized,),
         ).fetchone()
 
-    return dict(row) if row else None
+    return _user_dict(row) if row else None
 
 
 def register_user(email: str, password: str, display_name: str) -> dict[str, Any]:
@@ -153,8 +236,11 @@ def register_user(email: str, password: str, display_name: str) -> dict[str, Any
         with _connect() as connection:
             connection.execute(
                 """
-                INSERT INTO users(id, email, display_name, password_salt, password_hash, created_at)
-                VALUES(?, ?, ?, ?, ?, ?)
+                INSERT INTO users(
+                    id, email, display_name, password_salt, password_hash,
+                    created_at, role, must_change_password
+                )
+                VALUES(?, ?, ?, ?, ?, ?, 'user', 0)
                 """,
                 (user_id, normalized, clean_name, salt, digest, created_at),
             )
@@ -166,6 +252,8 @@ def register_user(email: str, password: str, display_name: str) -> dict[str, Any
         "email": normalized,
         "displayName": clean_name,
         "createdAt": created_at,
+        "role": "user",
+        "mustChangePassword": False,
     }
 
 
@@ -175,7 +263,8 @@ def login_user(email: str, password: str) -> tuple[dict[str, Any], str, str]:
     with _connect() as connection:
         row = connection.execute(
             """
-            SELECT id, email, display_name, password_salt, password_hash, created_at
+            SELECT id, email, display_name, password_salt, password_hash,
+                   created_at, role, must_change_password
             FROM users
             WHERE email = ?
             """,
@@ -189,33 +278,61 @@ def login_user(email: str, password: str) -> tuple[dict[str, Any], str, str]:
         if not hmac.compare_digest(candidate, row["password_hash"]):
             raise AuthStoreError("Neplatný e-mail nebo heslo.")
 
-        token = secrets.token_urlsafe(48)
-        session_id = str(uuid.uuid4())
-        created = _utc_now()
-        expires = created + timedelta(days=30)
+        token, expires_at = _create_session(connection, row["id"])
 
+    return _user_dict(row), token, expires_at
+
+
+def bootstrap_owner_login() -> tuple[dict[str, Any], str, str] | None:
+    with _connect() as connection:
+        row = connection.execute(
+            """
+            SELECT id, email, display_name, created_at, role, must_change_password
+            FROM users
+            WHERE role = 'owner' AND must_change_password = 1
+            ORDER BY created_at ASC
+            LIMIT 1
+            """
+        ).fetchone()
+
+        if not row:
+            return None
+
+        token, expires_at = _create_session(connection, row["id"], days=1)
+
+    return _user_dict(row), token, expires_at
+
+
+def change_user_password(user_id: str, new_password: str) -> dict[str, Any]:
+    if len(new_password) < 12:
+        raise AuthStoreError("Nové heslo musí mít alespoň 12 znaků.")
+
+    salt = secrets.token_bytes(16)
+    digest = _password_digest(new_password, salt)
+
+    with _connect() as connection:
         connection.execute(
             """
-            INSERT INTO sessions(id, user_id, token_hash, created_at, expires_at)
-            VALUES(?, ?, ?, ?, ?)
+            UPDATE users
+            SET password_salt = ?, password_hash = ?, must_change_password = 0
+            WHERE id = ?
             """,
-            (
-                session_id,
-                row["id"],
-                _token_digest(token),
-                created.isoformat(),
-                expires.isoformat(),
-            ),
+            (salt, digest, user_id),
         )
 
-    user = {
-        "id": row["id"],
-        "email": row["email"],
-        "displayName": row["display_name"],
-        "createdAt": row["created_at"],
-    }
+        row = connection.execute(
+            """
+            SELECT id, email, display_name, created_at, role, must_change_password
+            FROM users
+            WHERE id = ?
+            """,
+            (user_id,),
+        ).fetchone()
 
-    return user, token, expires.isoformat()
+    if not row:
+        raise AuthStoreError("Účet neexistuje.")
+
+    return _user_dict(row)
 
 
 def user_from_session(token: str) -> dict[str, Any] | None:
@@ -228,7 +345,8 @@ def user_from_session(token: str) -> dict[str, Any] | None:
     with _connect() as connection:
         row = connection.execute(
             """
-            SELECT u.id, u.email, u.display_name, u.created_at
+            SELECT u.id, u.email, u.display_name, u.created_at,
+                   u.role, u.must_change_password
             FROM sessions s
             JOIN users u ON u.id = s.user_id
             WHERE s.token_hash = ? AND s.expires_at > ?
@@ -236,15 +354,7 @@ def user_from_session(token: str) -> dict[str, Any] | None:
             (token_hash, now),
         ).fetchone()
 
-    if not row:
-        return None
-
-    return {
-        "id": row["id"],
-        "email": row["email"],
-        "displayName": row["display_name"],
-        "createdAt": row["created_at"],
-    }
+    return _user_dict(row) if row else None
 
 
 def bootstrap_admin_from_env() -> None:
