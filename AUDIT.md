@@ -314,6 +314,33 @@ Doporučený fix:
 - nebo dependency graph batch actions;
 - po každém kroku aktualizovat working state před validací dalšího.
 
+### P2 — login nemá abuse/rate-limit guard
+
+`/api/auth/login` používá správně scrypt + constant-time compare, ale endpoint nemá rate limit ani krátkodobý lockout/backoff.
+
+Protože je backend loopback-only, není to internet-facing brute-force problém. Pořád ale platí:
+
+- jiný lokální proces může zkoušet hesla neomezeně;
+- scrypt je záměrně drahý, takže rychlé opakované pokusy mohou zároveň vytvořit CPU DoS;
+- endpoint nemá per-account cooldown ani globální concurrency limit.
+
+Doporučený fix:
+
+- in-memory token bucket / exponential backoff per normalizovaný e-mail;
+- malý globální limit souběžných scrypt loginů;
+- generická chybová hláška zůstává stejná;
+- úspěšný login resetuje backoff;
+- nevytvářet permanentní account lockout, který by šel zneužít k DoS.
+
+### P3 — sessions se po expiraci průběžně nečistí
+
+Expirace je kontrolovaná při lookupu, takže starý token přestane fungovat. Expired rows ale mohou zůstávat v SQLite neomezeně dlouho.
+
+Fix:
+
+- při startu a občas při login/logout smazat `expires_at <= now`;
+- případně limitovat počet aktivních sessions per user/device.
+
 ### P2 — Notion encryption key je lokální file vedle dat
 
 Fernet payload v SQLite je šifrovaný, ale fallback `connector.key` je ve stejném user data prostoru.
@@ -426,7 +453,10 @@ Přidat `pytest` a izolovaný temp data dir.
 - password change ruší jiné sessions;
 - bootstrap je single-use/capability gated po implementaci;
 - expired token = 401;
-- malformed bearer = 401.
+- malformed bearer = 401;
+- opakované chybné loginy aktivují backoff/rate limit;
+- úspěšný login backoff resetuje;
+- expired session cleanup odstraní staré DB rows.
 
 `server/tests/test_provider_security.py`
 

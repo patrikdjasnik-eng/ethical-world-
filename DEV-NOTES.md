@@ -1564,3 +1564,13 @@ Do `AUDIT.md` proto přibyl P1 backlog:
 - reject neznámého nebo podvrženého `keyId/publicKey`;
 - test forged signer key;
 - budoucí key rotation/revocation model.
+
+
+### Audit addendum — auth abuse controls
+
+Deep audit doplnil ještě dvě backend priority:
+
+- login potřebuje lokální rate-limit/backoff, protože scrypt může být zneužit i k CPU DoS;
+- expired sessions sice už nejsou platné, ale SQLite rows je vhodné průběžně čistit a omezit počet sessions per user/device.
+
+Obě věci jsou přidané do navrženého FastAPI security test balíku.
