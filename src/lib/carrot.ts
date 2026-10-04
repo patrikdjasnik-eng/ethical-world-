@@ -133,6 +133,7 @@ export async function verifyCarrotCommit(commit: CarrotCommit): Promise<boolean 
     commit.signatureAlgorithm !== "Ed25519" ||
     !commit.signature ||
     !commit.publicKey ||
+    typeof window === "undefined" ||
     !window.ethicalDesktop?.carrotVerify
   ) {
     return null;
@@ -149,24 +150,51 @@ export async function verifyCarrotHistory(
   commits: CarrotCommit[]
 ): Promise<Record<string, boolean | null>> {
   const byId = new Map(commits.map((commit) => [commit.id, commit]));
-  const entries = await Promise.all(commits.map(async (commit) => {
-    let verified = await verifyCarrotCommit(commit);
+  const ownVerification = new Map<string, boolean | null>();
 
-    const chainValid = commit.parentId === null
-      ? commit.parentCommitHash === null
-      : (() => {
-          const parent = byId.get(commit.parentId);
-          return Boolean(
-            parent &&
-            parent.noteId === commit.noteId &&
-            parent.commitHash === commit.parentCommitHash &&
-            parent.createdAt <= commit.createdAt
-          );
-        })();
-
-    if (!chainValid) verified = false;
-    return [commit.id, verified] as const;
+  await Promise.all(commits.map(async (commit) => {
+    ownVerification.set(commit.id, await verifyCarrotCommit(commit));
   }));
 
-  return Object.fromEntries(entries);
+  const chainCache = new Map<string, boolean>();
+
+  const chainIsValid = (commit: CarrotCommit, visiting = new Set<string>()): boolean => {
+    const cached = chainCache.get(commit.id);
+    if (cached !== undefined) return cached;
+
+    if (visiting.has(commit.id) || ownVerification.get(commit.id) === false) {
+      chainCache.set(commit.id, false);
+      return false;
+    }
+
+    if (commit.parentId === null) {
+      const validRoot = commit.parentCommitHash === null;
+      chainCache.set(commit.id, validRoot);
+      return validRoot;
+    }
+
+    const parent = byId.get(commit.parentId);
+    if (
+      !parent ||
+      parent.noteId !== commit.noteId ||
+      parent.commitHash !== commit.parentCommitHash ||
+      parent.createdAt > commit.createdAt
+    ) {
+      chainCache.set(commit.id, false);
+      return false;
+    }
+
+    const nextVisiting = new Set(visiting);
+    nextVisiting.add(commit.id);
+    const valid = chainIsValid(parent, nextVisiting);
+    chainCache.set(commit.id, valid);
+    return valid;
+  };
+
+  return Object.fromEntries(
+    commits.map((commit) => [
+      commit.id,
+      chainIsValid(commit) ? ownVerification.get(commit.id) ?? null : false
+    ])
+  );
 }

@@ -59,7 +59,7 @@ export const EditorPane = memo(function EditorPane({
           : commits[0]?.id ?? null
       );
 
-      setCarrotVerified(await verifyCarrotHistory(commits.slice(0, 100)));
+      setCarrotVerified(await verifyCarrotHistory(commits));
     } finally {
       setCarrotLoading(false);
     }
