@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import os
 from typing import Literal
 
@@ -16,6 +17,7 @@ from .auth_store import (
     init_auth_store,
     login_user,
     register_user,
+    revoke_session,
     user_from_session,
 )
 from .notion_connector import (
@@ -202,8 +204,9 @@ async def change_password(
     authorization: str | None = Header(default=None),
 ) -> UserResponse:
     user = _require_user(authorization)
+    current_token = authorization[len("Bearer "):].strip() if authorization else ""
     try:
-        updated = change_user_password(user["id"], request.newPassword)
+        updated = change_user_password(user["id"], request.newPassword, current_token)
     except AuthStoreError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -213,6 +216,14 @@ async def change_password(
 @app.get("/api/auth/me", response_model=UserResponse)
 async def me(authorization: str | None = Header(default=None)) -> UserResponse:
     return UserResponse(**_require_user(authorization))
+
+
+@app.post("/api/auth/logout")
+async def logout(authorization: str | None = Header(default=None)) -> dict[str, bool]:
+    _require_user(authorization)
+    token = authorization[len("Bearer "):].strip() if authorization else ""
+    revoke_session(token)
+    return {"loggedOut": True}
 
 
 @app.post("/api/connectors/notion/start")
@@ -230,15 +241,17 @@ async def notion_callback(code: str = Query(...), state: str = Query(...)) -> HT
         result = await notion_finish_oauth(code, state)
     except NotionConnectorError as error:
         return HTMLResponse(
-            "<h2>Ethical World · Notion</h2><p>" + str(error) + "</p>",
+            "<h2>Ethical World · Notion</h2><p>" + html.escape(str(error)) + "</p>",
             status_code=400,
+            headers={"Content-Security-Policy": "default-src 'none'"},
         )
 
-    workspace = result.get("workspaceName") or "workspace"
+    workspace = html.escape(str(result.get("workspaceName") or "workspace"))
     return HTMLResponse(
         "<h2>Ethical World · Notion connected</h2>"
-        "<p>" + str(workspace) + "</p>"
-        "<p>Můžeš zavřít toto okno a vrátit se do aplikace.</p>"
+        "<p>" + workspace + "</p>"
+        "<p>Můžeš zavřít toto okno a vrátit se do aplikace.</p>",
+        headers={"Content-Security-Policy": "default-src 'none'"},
     )
 
 

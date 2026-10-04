@@ -303,7 +303,11 @@ def bootstrap_owner_login() -> tuple[dict[str, Any], str, str] | None:
     return _user_dict(row), token, expires_at
 
 
-def change_user_password(user_id: str, new_password: str) -> dict[str, Any]:
+def change_user_password(
+    user_id: str,
+    new_password: str,
+    current_session_token: str | None = None,
+) -> dict[str, Any]:
     if len(new_password) < 12:
         raise AuthStoreError("Nové heslo musí mít alespoň 12 znaků.")
 
@@ -320,6 +324,17 @@ def change_user_password(user_id: str, new_password: str) -> dict[str, Any]:
             (salt, digest, user_id),
         )
 
+        if current_session_token:
+            connection.execute(
+                """
+                DELETE FROM sessions
+                WHERE user_id = ? AND token_hash <> ?
+                """,
+                (user_id, _token_digest(current_session_token)),
+            )
+        else:
+            connection.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+
         row = connection.execute(
             """
             SELECT id, email, display_name, created_at, role, must_change_password
@@ -333,6 +348,17 @@ def change_user_password(user_id: str, new_password: str) -> dict[str, Any]:
         raise AuthStoreError("Účet neexistuje.")
 
     return _user_dict(row)
+
+
+def revoke_session(token: str) -> None:
+    if not token:
+        return
+
+    with _connect() as connection:
+        connection.execute(
+            "DELETE FROM sessions WHERE token_hash = ?",
+            (_token_digest(token),),
+        )
 
 
 def user_from_session(token: str) -> dict[str, Any] | None:

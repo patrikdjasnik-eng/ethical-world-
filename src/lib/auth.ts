@@ -29,6 +29,20 @@ export async function clearStoredSession(): Promise<void> {
   window.sessionStorage.removeItem(browserSessionKey);
 }
 
+export async function logoutAccount(): Promise<void> {
+  const token = await getStoredSessionToken();
+
+  if (token) {
+    await fetch(apiUrl + "/api/auth/logout", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+      signal: AbortSignal.timeout(5000)
+    }).catch(() => null);
+  }
+
+  await clearStoredSession();
+}
+
 async function parseError(response: Response): Promise<string> {
   const payload = await response.json().catch(() => null) as { detail?: string } | null;
   return payload?.detail ?? "Požadavek se nepodařilo dokončit.";

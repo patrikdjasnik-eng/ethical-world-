@@ -1,8 +1,8 @@
 import { memo, useCallback, useEffect, useState } from "react";
 import {
   changeAccountPassword,
-  clearStoredSession,
   loginAccount,
+  logoutAccount,
   registerAccount,
   restoreAccount
 } from "../lib/auth";
@@ -97,7 +97,7 @@ export const AccountPanel = memo(function AccountPanel({
   }, [confirmPassword, newPassword, onSecurityStateChange, onUserChange]);
 
   const logout = useCallback(async () => {
-    await clearStoredSession();
+    await logoutAccount();
     setUser(null);
     onUserChange?.(null);
     setPassword("");
