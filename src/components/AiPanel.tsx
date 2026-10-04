@@ -20,6 +20,8 @@ interface AiPanelProps {
   activeNote: Note | null;
   notes: Note[];
   folders: VaultFolder[];
+  visible: boolean;
+  onRequestHide: () => void;
   onApplyAgentAction: (action: AgentAction) => Promise<string>;
 }
 
@@ -53,6 +55,8 @@ export const AiPanel = memo(function AiPanel({
   activeNote,
   notes,
   folders,
+  visible,
+  onRequestHide,
   onApplyAgentAction
 }: AiPanelProps) {
   const [messages, setMessages] = useState<AiMessage[]>([initialMessage]);
@@ -239,11 +243,39 @@ export const AiPanel = memo(function AiPanel({
     }
   }, [onApplyAgentAction]);
 
+  const applyAllActions = useCallback(async () => {
+    const queued = [...pendingActions];
+
+    for (const pending of queued) {
+      setApplyingActionId(pending.id);
+      try {
+        const result = await onApplyAgentAction(pending.action);
+        setPendingActions((current) => current.filter((candidate) => candidate.id !== pending.id));
+        setMessages((current) => [
+          ...current,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: result
+          }
+        ]);
+      } catch (caughtError) {
+        setError(caughtError instanceof Error ? caughtError.message : "Akci se nepodařilo provést");
+        break;
+      } finally {
+        setApplyingActionId(null);
+      }
+    }
+  }, [onApplyAgentAction, pendingActions]);
+
   return (
-    <aside className="ai-panel">
+    <aside className={"ai-panel " + (visible ? "" : "ai-hidden")} aria-hidden={!visible}>
       <div className="pane-titlebar">
         <span>Assistant · {permissionMode.toUpperCase()}</span>
-        <span className="pane-actions">− □</span>
+        <span className="pane-actions">
+          <button type="button" onClick={onRequestHide} title="Minimalizovat Mášu do lišty">−</button>
+          <button type="button" onClick={onRequestHide} title="Skrýt Mášu bez ztráty konverzace">×</button>
+        </span>
       </div>
 
       <div className="ai-header">
@@ -366,7 +398,16 @@ export const AiPanel = memo(function AiPanel({
         <section className="agent-actions" aria-label="Máša navržené akce">
           <div className="agent-actions-heading">
             <strong>Navržené akce</strong>
-            <button type="button" onClick={() => setPendingActions([])}>Zahodit vše</button>
+            <div>
+              {pendingActions.length > 1 && (
+                <button type="button" disabled={applyingActionId !== null} onClick={() => void applyAllActions()}>
+                  Použít vše
+                </button>
+              )}
+              <button type="button" disabled={applyingActionId !== null} onClick={() => setPendingActions([])}>
+                Zahodit vše
+              </button>
+            </div>
           </div>
 
           {pendingActions.map((pending) => (

@@ -3354,3 +3354,37 @@ body,
   margin: 0;
   white-space: pre-wrap;
 }
+
+
+/* Preserve Máša session while the dock is hidden. */
+.ai-panel.ai-hidden {
+  display: none;
+}
+
+.pane-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.pane-actions button {
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #77717f;
+  cursor: pointer;
+  font: inherit;
+}
+
+.pane-actions button:hover {
+  background: #25222c;
+  color: #d4cfdb;
+}
+
+.agent-actions-heading > div {
+  display: flex;
+  gap: 6px;
+}

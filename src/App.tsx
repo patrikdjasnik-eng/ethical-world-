@@ -50,6 +50,7 @@ export default function App() {
   const [view, setView] = useState<WorkspaceView>("note");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiLoaded, setAiLoaded] = useState(false);
   const [accountLocked, setAccountLocked] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [folderCreateNonce, setFolderCreateNonce] = useState(0);
@@ -397,6 +398,16 @@ export default function App() {
     return "Upravena poznámka „" + nextNote.title + "“.";
   }, [currentUser, folders, notes]);
 
+  const toggleAiPanel = useCallback(() => {
+    if (accountLocked) return;
+
+    setAiOpen((current) => {
+      const next = !current;
+      if (next) setAiLoaded(true);
+      return next;
+    });
+  }, [accountLocked]);
+
   useEffect(() => {
     const handleKeyboardShortcut = (event: KeyboardEvent) => {
       if (accountLocked) return;
@@ -424,13 +435,13 @@ export default function App() {
 
       if (key === "j") {
         event.preventDefault();
-        setAiOpen((current) => !current);
+        toggleAiPanel();
       }
     };
 
     window.addEventListener("keydown", handleKeyboardShortcut);
     return () => window.removeEventListener("keydown", handleKeyboardShortcut);
-  }, [accountLocked, handleCreateNote, selectedFolderPath]);
+  }, [accountLocked, handleCreateNote, selectedFolderPath, toggleAiPanel]);
 
   if (!isReady) {
     return <div className="loading-screen">Načítám lokální vault…</div>;
@@ -475,7 +486,7 @@ export default function App() {
           <button type="button" onClick={() => setSidebarOpen((current) => !current)} title="Files panel (Ctrl+B)">
             {sidebarOpen ? "Hide files" : "Files"}
           </button>
-          <button type="button" onClick={() => setAiOpen((current) => !current)} title="Máša panel (Ctrl+J)">
+          <button type="button" onClick={toggleAiPanel} title="Máša panel (Ctrl+J)">
             {aiOpen ? "Hide Máša" : "Máša"}
           </button>
         </div>
@@ -490,9 +501,7 @@ export default function App() {
           onToggleSidebar={() => {
             if (!accountLocked) setSidebarOpen((current) => !current);
           }}
-          onToggleAi={() => {
-            if (!accountLocked) setAiOpen((current) => !current);
-          }}
+          onToggleAi={toggleAiPanel}
         />
 
         {sidebarOpen && !accountLocked && (
@@ -552,12 +561,14 @@ export default function App() {
           />
         )}
 
-        {aiOpen && !accountLocked && (
-          <Suspense fallback={<aside className="ai-panel loading-screen">Načítám AI panel…</aside>}>
+        {aiLoaded && !accountLocked && (
+          <Suspense fallback={aiOpen ? <aside className="ai-panel loading-screen">Načítám AI panel…</aside> : null}>
             <AiPanel
               activeNote={activeNote}
               notes={notes}
               folders={folders}
+              visible={aiOpen}
+              onRequestHide={() => setAiOpen(false)}
               onApplyAgentAction={handleApplyAgentAction}
             />
           </Suspense>
