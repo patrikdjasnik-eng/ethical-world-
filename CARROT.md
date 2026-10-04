@@ -56,7 +56,7 @@ sign canonical Carrot payload
 
 Private key renderer nikdy nedostává.
 
-UI může podpis zpětně ověřit přes úzký Electron IPC bridge.
+UI může podpis zpětně ověřit přes úzký Electron IPC bridge. Před ověřením podpisu se navíc znovu počítá `snapshotHash` ze skutečně uloženého názvu/folderu/obsahu a `commitHash` z kanonického payloadu.
 
 ## Author identity
 
@@ -79,7 +79,7 @@ Identický stav se podruhé neukládá.
 
 ## Threat model
 
-Carrot pomáhá zjistit změnu lokální historie, ale není vzdálený transparency log.
+Carrot ověřuje integritu jednotlivého snapshotu, commit payloadu i vazbu na skutečný parent commit v načtené lokální historii. Stále ale není vzdálený transparency log.
 
 Útočník s plnou kontrolou nad uživatelským OS může teoreticky napadnout aplikaci, secure storage i lokální databázi. Pro budoucí team režim bude vhodné podepsané commit hashe navíc replikovat na server nebo append-only audit log.
 

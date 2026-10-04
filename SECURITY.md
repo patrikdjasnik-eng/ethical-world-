@@ -1,7 +1,7 @@
 # Security
 
 ![Security](https://img.shields.io/badge/security-local--first-16a34a)
-![Secrets](https://img.shields.io/badge/secrets-no_persistence-dc2626)
+![Secrets](https://img.shields.io/badge/secrets-OS_encrypted-2563eb)
 ![Model](https://img.shields.io/badge/threat_model-active-f59e0b)
 
 ## Zásady
@@ -10,11 +10,11 @@
 2. API klíče se v MVP neukládají do localStorage ani IndexedDB.
 3. Frontend komunikuje s lokálním FastAPI gateway.
 4. AI kontext je omezený a transparentní.
-5. Budoucí destruktivní tools budou používat approval flow.
+5. Zapisovací AI tools používají READ / ASSIST permission gate a explicitní approval flow.
 
 ## API keys
 
-v0.1 přijímá API key pouze jako součást aktuálního requestu pro OpenAI-compatible provider. Produkční desktop varianta bude používat OS credential store.
+OpenAI-compatible API key zůstává pouze v runtime paměti formuláře. GitHub OAuth token a Ethical World session token desktop ukládá přes Electron `safeStorage`; Notion access payload je šifrovaný v backend storage.
 
 Nikdy necommituj `.env`, tokeny nebo API klíče.
 
@@ -63,3 +63,29 @@ Při první databázi backend vytvoří lokální owner identitu `owner@ethical.
 ## Notion secrets
 
 Notion OAuth code exchange probíhá výhradně v backendu. Access payload je před uložením do `connector_secrets` šifrovaný Fernetem. Klíč lze dodat přes `ETHICAL_WORLD_CONNECTOR_KEY`; lokální fallback generuje klíč mimo Git repozitář. Renderer Notion token nikdy nedostává.
+
+
+## Mermaid preview
+
+Mermaid source z poznámek je nedůvěryhodný obsah stejně jako ostatní Markdown.
+
+Renderer proto:
+
+- načítá Mermaid až při skutečném `mermaid` fenced blocku;
+- používá `securityLevel: "strict"`;
+- vypíná start-on-load;
+- omezuje maximální délku vstupu a počet hran;
+- při parse chybě nevykonává fallback HTML, ale zobrazí původní Mermaid source jako kód.
+
+Máša je navíc instruovaná nepoužívat click callbacky, HTML labely ani init direktivy.
+
+## Carrot integrity
+
+Před zobrazením `podpis ověřen` se znovu počítá:
+
+1. SHA-256 snapshot hash z aktuálně uloženého `title + folder + content`;
+2. commit hash z kanonického Carrot payloadu;
+3. vazba `parentId + parentCommitHash` proti skutečnému parent commitu v lokální historii;
+4. teprve potom Ed25519 podpis přes Electron bridge.
+
+Samotné zachování starého `snapshotHash` a podpisu tedy nestačí, pokud někdo ručně změní uložený Markdown snapshot.

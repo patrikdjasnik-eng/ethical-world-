@@ -17,11 +17,15 @@ Cílem je mít jedno místo pro poznámky, projekty, wiki odkazy a kontextovou A
 - Autosave.
 - Fulltext vyhledávání.
 - `[[wiki links]]` a backlinks.
-- Markdown preview.
+- Markdown preview včetně lokálně renderovaných Mermaid diagramů.
 - AI panel nad aktuální poznámkou a vaultem.
-- Lazy-loaded AI panel.
+- READ / ASSIST agentní návrhy s approval flow a batch `Použít vše`.
+- Lazy-loaded AI panel, který po prvním otevření zachovává chat session i při skrytí.
 - Ollama provider.
 - OpenAI-compatible provider pro lokální `llama-server` a kompatibilní služby.
+- Interaktivní knowledge graph s wiki + related edges.
+- Local Markdown, GitHub a Notion connector vrstva.
+- Carrot signed history s ověřením obsahu, commit hashe a lokálního chainu.
 - Produkční Service Worker pro offline cache.
 - API klíč se v UI neukládá do persistentního storage.
 

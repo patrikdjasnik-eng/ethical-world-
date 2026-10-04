@@ -10,16 +10,17 @@
 - [x] Create/edit/delete notes.
 - [x] Autosave.
 - [x] Fulltext search.
-- [x] Wiki links.
-- [x] Backlinks.
+- [x] Wiki links a backlinks.
 - [x] Markdown preview.
-- [x] AI chat panel.
+- [x] Lokální Mermaid rendering v Markdown preview.
+- [x] AI chat panel Máša.
 - [x] Lazy loading AI panelu.
+- [x] Schování a znovuotevření Máši bez ztráty chat session.
 - [x] Ollama provider.
 - [x] OpenAI-compatible provider.
 - [x] Produkční Service Worker.
-- [x] CI workflow nakonfigurovaný.
-- [ ] CI green run – aktuální GitHub joby končí před spuštěním kroků.
+- [x] Automatický CI workflow pro push/PR + manual run.
+- [ ] Potvrzený green GitHub Actions run – GitHub runner aktuálně ukončuje oba joby ještě před prvním krokem.
 
 ## v0.2 – Real knowledge retrieval
 
@@ -32,27 +33,43 @@
 
 ## v0.3 – Agent mode
 
-- [ ] `searchNotes` tool.
-- [ ] `readNote` tool.
-- [ ] `createNote` tool.
-- [ ] `updateNote` proposal.
-- [ ] Diff approval.
+- [x] Omezený vault context + vault index.
+- [x] `create_note` action.
+- [x] `update_note` proposal podle přesného note ID.
+- [x] `create_folder` action.
+- [x] `open_note` action.
+- [x] READ / ASSIST permission gate.
+- [x] Jednotlivé approval.
+- [x] `Použít vše` pro batch návrhy.
+- [x] Knowledge Note envelope parser.
+- [ ] Explicitní `searchNotes` tool.
+- [ ] Explicitní `readNote` tool.
+- [ ] Rich diff approval.
 - [ ] AI tagging.
+- [ ] Streaming / progress orchestrace.
 
 ## v0.4 – Knowledge OS
 
-- [ ] Graph view.
-- [ ] AI semantic graph.
+- [x] Interaktivní Graph view.
+- [x] Wiki edges.
+- [x] Heuristické related edges.
+- [ ] AI semantic graph / embeddings.
 - [ ] Canvas.
 - [ ] Tasks.
 - [ ] Daily notes.
 - [ ] Templates.
 
-## v0.5 – Desktop and sync
+## v0.5 – Desktop, connectors a historie
 
-- [ ] Desktop shell.
-- [ ] Filesystem Markdown vault.
-- [ ] Obsidian-compatible import.
-- [ ] Git version history.
-- [ ] Optional encrypted sync.
+- [x] Electron desktop shell.
+- [x] Local Markdown connector.
+- [x] GitHub Markdown connector.
+- [x] Notion connector backend + OAuth flow.
+- [x] Carrot lokální signed Markdown history.
+- [x] Carrot snapshot/commit integrity verification.
 - [x] PWA/offline service worker základ.
+- [x] Windows standalone/installer práce byla dokončena před dnešním scope.
+- [ ] Filesystem Markdown vault jako primární source of truth.
+- [ ] Obsidian-compatible plný import/export.
+- [ ] Remote/append-only transparency log pro Carrot.
+- [ ] Optional encrypted sync.

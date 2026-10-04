@@ -17,7 +17,10 @@ Aktuální v0.1 podporuje:
 - OpenAI-compatible endpoint;
 - automatické hledání lokálního modelu;
 - model a endpoint nastavitelné v UI;
-- API key pouze v runtime paměti formuláře.
+- API key pouze v runtime paměti formuláře;
+- Knowledge Note mode s raw Markdown envelope;
+- skutečný lokální Mermaid renderer v Markdown preview;
+- zachování chat session při schování Máša panelu.
 
 ## Provider routing
 
@@ -189,7 +192,7 @@ vault note
 
 Máša má při authoringu rozhodovat podle významu, nikoli mechanicky:
 
-- Mermaid pro architekturu, flow, síťové vztahy, lifecycle a procesy;
+- Mermaid pro architekturu, flow, síťové vztahy, lifecycle a procesy; fenced `mermaid` blok se po uložení skutečně vykreslí v Preview přes lazy-loaded Mermaid runtime v strict režimu;
 - Prisma schema pro databázové entity, identity, messaging, backendové vztahy a ORM návrhy;
 - správně označené code blocks pro relevantní programovací/shell/config příklady;
 - tabulky a checklisty tam, kde zvyšují čitelnost;

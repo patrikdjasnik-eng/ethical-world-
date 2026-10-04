@@ -1375,7 +1375,7 @@ AI dock musí mít normální desktop window UX:
   - open;
   - working in background.
 
-### 4. Nativní Ethical World Windows ikonka
+### 4. Windows installer / icon pipeline – hotovo před dnešním scope
 
 SVG brand mark převést na produkční Windows icon pipeline.
 
@@ -1403,7 +1403,7 @@ Požadovaný výsledek:
 
 Cíl: po instalaci už nesmí Ethical World na PC používat generickou Electron ikonu.
 
-### 5. Installer / packaging green
+### 5. Installer / packaging – hotovo před dnešním scope
 
 - izolovat důvod posledního `LASTEXITCODE = 1`;
 - samostatně ověřit:
@@ -1458,3 +1458,64 @@ source-available Rabbithollow product
 ```
 
 Největší zítřejší téma není přidat další hromadu funkcí, ale zlepšit pocit z práce s Mášou: rychlost, orchestrace, průběžná odezva a skutečně agentické workflow uvnitř Ethical World.
+
+
+## Dokončovací pass 2026-10-04
+
+Dnešní jediný implementační balík byl zaměřený na dotažení existujících funkcí, nikoli na další feature creep.
+
+### Mermaid je skutečně renderovaný
+
+- přidán lokální `mermaid` runtime;
+- `EditorPane` rozpozná fenced `mermaid` block v Markdown preview;
+- runtime se načítá lazy až při diagramu;
+- Mermaid běží s `securityLevel: strict`;
+- limit 50 000 znaků a 500 edges;
+- neplatná syntaxe nesestřelí preview, zobrazí fallback se source;
+- Máša dostala přesnější instrukci generovat validní fenced Mermaid bez click callbacků, HTML labelů a init direktiv;
+- přidány deterministické testy detekce/normalizace Mermaid bloků.
+
+### Carrot integrity dotažena
+
+- před důvěrou v podpis se znovu počítá snapshot hash z reálného `title + folder + content`;
+- znovu se počítá commit hash;
+- lokální historie kontroluje `parentId` a `parentCommitHash` proti skutečnému parent commitu;
+- ruční změna obsahu se zachovaným starým hashem už musí skončit jako neplatná;
+- přidány tamper testy.
+
+### Máša dock dotažen
+
+- po prvním otevření zůstává AiPanel mounted;
+- schování přes Ctrl+J, topbar nebo activity rail už nemaže chat session;
+- skrytý panel dál může dokončit právě běžící request;
+- titlebar má funkční minimalizaci/skrytí;
+- batch návrhy mají `Použít vše`.
+
+### CI
+
+- workflow se znovu spouští automaticky na push a pull request pro `main` a `dev/first-runnable`;
+- manual `workflow_dispatch` zůstal;
+- oba aktuální GitHub Actions joby stále končí před prvním krokem a GitHub neposkytuje žádné step/log output;
+- to je oddělený runner/account-level blocker, ne zaznamenané selhání `npm test`, `npm run build` nebo Python compile kroku;
+- z workflow byl odstraněn npm cache požadavek, protože repo zatím nemá package lock.
+
+### Dokumentace srovnána s realitou
+
+Aktualizované:
+
+- `README.md`;
+- `ROADMAP.md`;
+- `STRUCTURE.md`;
+- `SECURITY.md`;
+- `AI.md`;
+- `CARROT.md`.
+
+ROADMAP už nevede Graph, Electron shell ani základní agent actions jako neimplementované.
+
+### Windows installer
+
+Windows installer / standalone packaging byl dokončený už před dnešním scope. Dnes jsme na installeru nic neměnili.
+
+### 2026-10-05
+
+**Day off.** Žádné nové implementační questy na zítřek. AI Booster/orchestrace zůstává zdokumentovaný backlog pro další pracovní den.
