@@ -810,6 +810,268 @@ Probrat a implementovat jednu nebo kombinaci možností:
 
 Cíl: i když samotný 7B model nebude dramaticky rychlejší, uživatel musí průběžně vidět, že Máša skutečně pracuje.
 
+#### AI Booster — multi-model Máša
+
+![AI Booster](https://img.shields.io/badge/AI_Booster-multi--model_orchestration-7c3aed)
+![Local](https://img.shields.io/badge/local--first-GGUF-16a34a)
+![Routing](https://img.shields.io/badge/routing-role--based-2563eb)
+
+Cíl není nahradit současnou Mášu jedním větším modelem, ale rozdělit práci podle silných stránek jednotlivých modelů. Modely se nemají automaticky spouštět všechny na každý prompt. Router má vybrat pouze model nebo sekvenci modelů, která dává pro konkrétní úkol smysl.
+
+Plánované role:
+
+```text
+uživatel
+  ↓
+task router
+  ├─ běžná odpověď / cyber → masa-cyber
+  ├─ plán / struktura / knowledge writing → Synthia 7B
+  └─ těžké reasoning / review / judge → Nous-Hermes-2-Mixtral 8x7B
+  ↓
+deterministický verifier
+  ↓
+ASSIST approval
+  ↓
+vault + Carrot
+```
+
+Toppy-M 7B je z tohoto plánu vyřazený. Nechceme na něm stavět produkční orchestraci.
+
+##### Synthia 7B v1.3
+
+Referenční varianta:
+
+`TheBloke/Synthia-7B-v1.3-GGUF`
+
+Základní fakta:
+
+- 7B model z Mistral rodiny;
+- dostupný jako GGUF a použitelný přes `llama.cpp`, Ollama a OpenAI-compatible lokální runtime;
+- licence publikované GGUF varianty: Apache-2.0;
+- `Q4_K_M` má přibližně 4.37 GB;
+- referenční tabulka uvádí přibližně 6.87 GB maximální RAM bez GPU offloadu;
+- `Q5_K_M` má přibližně 5.13 GB a nižší kvantizační ztrátu;
+- `Q2_K` je menší, ale model card ho kvůli výrazné ztrátě kvality nedoporučuje pro běžné použití.
+
+Plánovaná role v Máše:
+
+- rychlý planner;
+- návrh struktury knowledge notes;
+- dlouhé vysvětlující Markdown dokumenty;
+- rewrite a sjednocování stylu;
+- rozdělení multi-note úkolu na menší kroky;
+- příprava osnovy před předáním specializovanému modelu.
+
+Očekávané silné stránky:
+
+- výrazně menší paměťové nároky než Mixtral;
+- vhodnější pro lokální provoz na běžném PC;
+- dobrý kandidát pro úlohy, kde je důležitá struktura, čitelnost a instruction following;
+- nízká cena přepnutí modelu při lokálním GGUF provozu;
+- rozumný kandidát na rychlou první vrstvu orchestrace.
+
+Slabiny / co nesmíme předpokládat bez benchmarku:
+
+- 7B model nemá být automaticky považovaný za nejlepší model pro hluboké reasoning;
+- není vhodné mu bez další kontroly svěřit finální bezpečnostní rozhodnutí;
+- u složitějšího codingu, dlouhých dependency chainů a více-krokového reasoning může být slabší než větší Mixtral;
+- factual accuracy, češtinu, code generation a stabilitu dlouhého kontextu musíme změřit přímo v Ethical World;
+- model nesmí být jediný verifier agentních akcí.
+
+Doporučený první test:
+
+- GGUF `Q4_K_M`;
+- změřit cold start;
+- time-to-first-token;
+- tokens/s;
+- RAM;
+- VRAM;
+- kvalitu 20 standardizovaných Máša úloh;
+- porovnat proti `masa-cyber` na stejném prompt setu.
+
+##### Nous-Hermes-2-Mixtral 8x7B DPO
+
+Referenční varianta:
+
+`NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO`
+
+GGUF reference:
+
+`TheBloke/Nous-Hermes-2-Mixtral-8x7B-DPO-GGUF`
+
+Základní fakta:
+
+- fine-tune nad Mixtral 8x7B Mixture-of-Experts architekturou;
+- SFT + DPO varianta;
+- model card uvádí trénink na více než 1 000 000 položkách, převážně GPT-4 generovaných a dalších kvalitních datasetech;
+- používá ChatML prompt format;
+- licence: Apache-2.0;
+- autor modelu uvádí zlepšení v řadě benchmarků proti Mixtral Instruct v0.1;
+- `Q4_K_M` GGUF má přibližně 28.45 GB a referenční maximální RAM bez GPU offloadu přibližně 30.95 GB;
+- i `Q2_K` má přibližně 17.31 GB a model card u něj uvádí významnou ztrátu kvality;
+- `Q3_K_M` má přibližně 22.54 GB a stále vysokou kvalitativní ztrátu proti vyšším quantům.
+
+Plánovaná role v Máše:
+
+- heavyweight reasoning;
+- komplikované plánování;
+- second-pass review;
+- posouzení více návrhů;
+- architektonický návrh;
+- složitější debugging;
+- případný judge pro úlohy, kde menší model není dostatečně jistý.
+
+Očekávané silné stránky:
+
+- vyšší reasoning kapacita než 7B vrstva;
+- MoE architektura je vhodná pro širší směs komplexních úloh;
+- silnější kandidát pro komplikované multi-step instrukce;
+- ChatML dobře zapadá do strukturovaného multi-turn orchestration flow;
+- vhodný jako volitelný expert místo modelu, který by běžel permanentně.
+
+Slabiny:
+
+- výrazně vyšší RAM/VRAM nároky;
+- vysoká latence při CPU offloadu;
+- nevhodný jako defaultní model na low-end zařízení;
+- na slabším PC by mohl zhoršit UX místo toho, aby Mášu zrychlil;
+- příliš agresivní quantizace snižuje hlavní důvod, proč tento velký model vůbec použít;
+- nesmí blokovat základní lokální režim aplikace.
+
+Nasazení proto rozdělíme na profily:
+
+```text
+LOW / LOCAL
+masa-cyber + Synthia 7B
+
+BALANCED
+masa-cyber + Synthia 7B
+Nous-Hermes pouze pokud hardware probe projde
+
+HEAVY
+masa-cyber + Synthia 7B + Nous-Hermes Mixtral
+
+REMOTE HEAVY
+Nous-Hermes přes OpenAI-compatible endpoint na jiném stroji/serveru
+```
+
+##### Orchestration pravidla
+
+První verze AI Boosteru má být role-based, ne voting ensemble.
+
+Příklady:
+
+```text
+"Vysvětli mi X"
+→ masa-cyber nebo Synthia podle tématu
+
+"Vytvoř tři propojené knowledge notes"
+→ Synthia: planner
+→ masa-cyber: odborný obsah podle tématu
+→ parser/verifier: deterministic validation
+→ approvals
+
+"Navrhni architekturu a najdi slabiny"
+→ Synthia: první plán
+→ Nous-Hermes: review pouze pokud je dostupný
+→ deterministic verifier
+
+"Uprav ty tři předchozí MD"
+→ router
+→ Synthia / masa-cyber podle typu změny
+→ přesná note IDs
+→ approval
+```
+
+Model nesmí sám rozhodovat o oprávnění k zápisu. READ / ASSIST permission gate, validace note IDs, folder scope, wiki links, Carrot a další bezpečnostní kontroly zůstávají deterministickou vrstvou aplikace.
+
+##### Hardware-aware router
+
+Před povolením heavyweight modelu přidat hardware probe:
+
+- dostupná RAM;
+- dostupná VRAM;
+- typ GPU;
+- backend/runtime;
+- aktuálně načtený model;
+- volitelně naměřené tokens/s.
+
+Router podle toho sestaví capability profil a nesmí nabídnout lokální Mixtral konfiguraci, která by pravděpodobně vedla k extrémnímu swapování nebo nepoužitelnému UX.
+
+##### Benchmark před aktivací
+
+Každý model musí projít stejnou sadou testů:
+
+1. krátká běžná odpověď;
+2. česká technická odpověď;
+3. coding;
+4. debugging;
+5. dlouhá Knowledge Note;
+6. přesný Markdown format;
+7. multi-note generation;
+8. follow-up editace;
+9. wiki-link discipline;
+10. hallucination test nad vault indexem;
+11. cybersecurity vysvětlení;
+12. odmítnutí / bezpečný převod destruktivní operace;
+13. JSON / `<ethical-note>` protocol compliance;
+14. time-to-first-token;
+15. tokens/s;
+16. peak RAM;
+17. peak VRAM.
+
+Výsledek nebude jen jedno "lepší/horší" skóre. Každý model dostane capability profil, například:
+
+```text
+planning       8/10
+knowledge      9/10
+coding         6/10
+cyber          7/10
+reasoning      6/10
+speed          9/10
+memory         9/10
+protocol       8/10
+```
+
+Hodnoty budou doplněné až po reálném benchmarku; výše uvedené čísla jsou pouze příklad formátu a nesmí být použité jako skutečné výsledky.
+
+##### Implementační kroky
+
+1. vytvořit obecný `ModelProfile` kontrakt;
+2. oddělit model od provideru;
+3. umožnit více lokálních OpenAI-compatible/Ollama model endpoints;
+4. přidat capability tags;
+5. přidat hardware probe;
+6. vytvořit deterministic task router;
+7. doplnit fallback chain;
+8. přidat timeout a circuit breaker na každý model;
+9. zabránit tomu, aby chyba heavyweight modelu shodila celou Mášu;
+10. přidat per-model telemetry pouze lokálně:
+    - latency;
+    - TTFT;
+    - tokens/s;
+    - success/failure;
+11. přidat benchmark suite;
+12. až po benchmarku zapnout automatické routing decisions.
+
+Cíl AI Boosteru:
+
+```text
+ne jeden obří model na všechno
+
+ale
+
+rychlý router
+  ↓
+správný specialista
+  ↓
+deterministická kontrola
+  ↓
+uživatelské schválení
+```
+
+To má zlepšit kvalitu Máši bez toho, aby se běžné úlohy zpomalily kvůli permanentnímu používání největšího dostupného modelu.
+
 ### 2. Zlepšit Mášin workflow uvnitř Ethical World
 
 - jasně rozlišit:
