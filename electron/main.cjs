@@ -4,6 +4,7 @@ const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const crypto = require("node:crypto");
 const { spawn } = require("node:child_process");
+const { isAllowedExternalUrl, isTrustedRendererUrl } = require("./security.cjs");
 
 const squirrelStartup = require("electron-squirrel-startup");
 const { updateElectronApp, UpdateSourceType } = require("update-electron-app");
@@ -117,6 +118,34 @@ function stopOwnedBackend() {
   if (!backendProcess) return;
   try { backendProcess.kill(); } catch { }
   backendProcess = null;
+}
+
+function trustedRendererUrl(rawUrl) {
+  return isTrustedRendererUrl(rawUrl, {
+    packaged: app.isPackaged,
+    distDir: path.join(__dirname, "..", "dist"),
+    devOrigins: ["http://127.0.0.1:5173", "http://localhost:5173"]
+  });
+}
+
+function assertTrustedRenderer(event) {
+  const senderUrl = event.senderFrame?.url || event.sender?.getURL?.() || "";
+  if (event.sender !== mainWindow?.webContents || !trustedRendererUrl(senderUrl)) {
+    throw new Error("Blocked IPC call from an untrusted renderer.");
+  }
+}
+
+function handleTrusted(channel, handler) {
+  handleTrusted(channel, async (event, ...args) => {
+    assertTrustedRenderer(event);
+    return handler(event, ...args);
+  });
+}
+
+function openExternalSafe(rawUrl) {
+  if (!isAllowedExternalUrl(rawUrl)) return false;
+  void shell.openExternal(String(rawUrl));
+  return true;
 }
 
 function secretFilePath() {
@@ -471,8 +500,17 @@ if (!squirrelStartup) {
     });
 
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-      void shell.openExternal(url);
+      openExternalSafe(url);
       return { action: "deny" };
+    });
+
+    mainWindow.webContents.on("will-navigate", (event, url) => {
+      event.preventDefault();
+      openExternalSafe(url);
+    });
+
+    mainWindow.webContents.on("will-attach-webview", (event) => {
+      event.preventDefault();
     });
 
     if (app.isPackaged) {
@@ -482,7 +520,7 @@ if (!squirrelStartup) {
     }
   }
 
-  ipcMain.handle("desktop:context-menu", async (event, rawItems) => {
+  handleTrusted("desktop:context-menu", async (event, rawItems) => {
     const items = Array.isArray(rawItems) ? rawItems : [];
 
     return new Promise((resolve) => {
@@ -519,7 +557,7 @@ if (!squirrelStartup) {
     });
   });
 
-  ipcMain.handle("desktop:select-vault-folder", async () => {
+  handleTrusted("desktop:select-vault-folder", async () => {
     const result = await dialog.showOpenDialog(mainWindow ?? undefined, {
       title: "Vyber Ethical World vault",
       properties: ["openDirectory", "createDirectory"]
@@ -532,7 +570,7 @@ if (!squirrelStartup) {
     return result.filePaths[0];
   });
 
-  ipcMain.handle("desktop:select-markdown-folder", async () => {
+  handleTrusted("desktop:select-markdown-folder", async () => {
     const result = await dialog.showOpenDialog(mainWindow ?? undefined, {
       title: "Vyber Markdown / VS Code workspace",
       properties: ["openDirectory", "createDirectory"]
@@ -542,11 +580,11 @@ if (!squirrelStartup) {
     return registerMarkdownRoot(result.filePaths[0]);
   });
 
-  ipcMain.handle("desktop:read-markdown-files", async (_event, connectionId) => {
+  handleTrusted("desktop:read-markdown-files", async (_event, connectionId) => {
     return collectMarkdownFiles(getMarkdownRoot(connectionId));
   });
 
-  ipcMain.handle("desktop:write-markdown-files", async (_event, connectionId, rawFiles) => {
+  handleTrusted("desktop:write-markdown-files", async (_event, connectionId, rawFiles) => {
     const root = getMarkdownRoot(connectionId);
     const files = Array.isArray(rawFiles) ? rawFiles.slice(0, 2000) : [];
     let written = 0;
@@ -567,7 +605,7 @@ if (!squirrelStartup) {
     return { written };
   });
 
-  ipcMain.handle("desktop:github-status", async () => {
+  handleTrusted("desktop:github-status", async () => {
     if (!githubClientId) {
       return { configured: false, connected: false, login: null };
     }
@@ -583,7 +621,7 @@ if (!squirrelStartup) {
     }
   });
 
-  ipcMain.handle("desktop:github-start-login", async () => {
+  handleTrusted("desktop:github-start-login", async () => {
     if (!githubClientId) {
       return { configured: false };
     }
@@ -613,7 +651,7 @@ if (!squirrelStartup) {
     });
 
     if (payload.verification_uri) {
-      void shell.openExternal(payload.verification_uri);
+      openExternalSafe(payload.verification_uri);
     }
 
     return {
@@ -626,7 +664,7 @@ if (!squirrelStartup) {
     };
   });
 
-  ipcMain.handle("desktop:github-poll-login", async (_event, sessionId) => {
+  handleTrusted("desktop:github-poll-login", async (_event, sessionId) => {
     const session = githubDeviceSessions.get(String(sessionId ?? ""));
     if (!session) return { status: "expired" };
     if (Date.now() >= session.expiresAt) {
@@ -668,12 +706,12 @@ if (!squirrelStartup) {
     return { status: "connected", login: user.login ?? null };
   });
 
-  ipcMain.handle("desktop:github-disconnect", async () => {
+  handleTrusted("desktop:github-disconnect", async () => {
     await deleteSecret("github.oauth");
     return { connected: false };
   });
 
-  ipcMain.handle("desktop:github-list-repos", async () => {
+  handleTrusted("desktop:github-list-repos", async () => {
     const repos = await githubRequest(
       "/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member"
     );
@@ -686,39 +724,39 @@ if (!squirrelStartup) {
     }));
   });
 
-  ipcMain.handle("desktop:github-read-markdown", async (_event, repoFullName, branch) => {
+  handleTrusted("desktop:github-read-markdown", async (_event, repoFullName, branch) => {
     return githubMarkdownFiles(repoFullName, branch);
   });
 
-  ipcMain.handle("desktop:github-write-markdown", async (_event, repoFullName, branch, files) => {
+  handleTrusted("desktop:github-write-markdown", async (_event, repoFullName, branch, files) => {
     return githubWriteMarkdown(repoFullName, branch, files);
   });
 
-  ipcMain.handle("desktop:auth-load-session-token", async () => {
+  handleTrusted("desktop:auth-load-session-token", async () => {
     return loadSecret("ethical-world.session");
   });
 
-  ipcMain.handle("desktop:auth-store-session-token", async (_event, token) => {
+  handleTrusted("desktop:auth-store-session-token", async (_event, token) => {
     const value = String(token ?? "");
     if (!value || value.length > 2048) throw new Error("Invalid session token.");
     await saveSecret("ethical-world.session", value);
     return true;
   });
 
-  ipcMain.handle("desktop:auth-clear-session-token", async () => {
+  handleTrusted("desktop:auth-clear-session-token", async () => {
     await deleteSecret("ethical-world.session");
     return true;
   });
 
-  ipcMain.handle("desktop:carrot-sign", async (_event, payload) => {
+  handleTrusted("desktop:carrot-sign", async (_event, payload) => {
     return carrotSignPayload(payload);
   });
 
-  ipcMain.handle("desktop:carrot-verify", async (_event, payload, signature, publicKey) => {
+  handleTrusted("desktop:carrot-verify", async (_event, payload, signature, publicKey) => {
     return carrotVerifyPayload(payload, signature, publicKey);
   });
 
-  ipcMain.handle("desktop:runtime-status", async () => ({
+  handleTrusted("desktop:runtime-status", async () => ({
     backendOnline: await backendHealthy(),
     backendSource: backendRuntimeSource,
     githubClientConfigured: Boolean(githubClientId)

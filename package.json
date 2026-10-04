@@ -15,7 +15,7 @@
     "dev": "vite",
     "desktop:dev": "concurrently -k -n UI,DESKTOP \"vite --host 127.0.0.1\" \"wait-on http-get://127.0.0.1:5173 && electron electron/main.cjs\"",
     "build": "tsc -p tsconfig.json && vite build",
-    "verify": "npm test && npm run build",
+    "verify": "npm test && npm run test:electron && npm run build",
     "desktop:package": "npm run build && electron-forge package",
     "desktop:make": "npm run build && electron-forge make",
     "desktop:publish": "npm run verify && electron-forge publish",
@@ -30,7 +30,8 @@
     "desktop:make:zip": "npm run build && electron-forge make --targets @electron-forge/maker-zip",
     "desktop:backend:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-backend.ps1",
     "desktop:make:standalone": "npm run desktop:backend:build && npm run desktop:make",
-    "desktop:package:standalone": "npm run desktop:backend:build && npm run desktop:package"
+    "desktop:package:standalone": "npm run desktop:backend:build && npm run desktop:package",
+    "test:electron": "node --test tests-electron/*.test.cjs"
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",
