@@ -426,7 +426,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
         tool_instructions = (
             "KNOWLEDGE NOTE MODE: Uživatel chce hotovou Markdown poznámku. Vytvoř plnohodnotný samostatný dokument, ne krátké shrnutí. "
             "Zvol strukturu podle tématu: úvod, princip, architektura nebo flow, praktické příklady, edge cases, obrana/diagnostika, checklist a souvislosti jen pokud dávají smysl. "
-            "Když vztahy, tok, architektura, lifecycle nebo síťové kroky lépe vysvětlí diagram, použij Mermaid code block. "
+            "Když vztahy, tok, architektura, lifecycle nebo síťové kroky lépe vysvětlí diagram, použij validní fenced Mermaid blok ```mermaid. "
+            "Ethical World Mermaid vykresluje lokálně v strict režimu; nepoužívej click callbacky, HTML labely ani init direktivy a drž diagram čitelný a přiměřeně malý. "
             "Když je tématem databázový model, identity, uživatelé, messaging, backend entity nebo ORM návrh, přidej relevantní Prisma schema; Prisma nepřidávej mechanicky tam, kde nemá význam. "
             "Používej skutečné code blocks se správným jazykem a komentáři, tabulky a checklisty podle potřeby. Ethical World doplní badge hlavičku programově. "
             "Pro interní wiki propojení používej [[Přesný název poznámky]] pouze tehdy, když přesný název existuje ve VAULT INDEXU. "

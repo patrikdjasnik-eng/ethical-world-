@@ -1,12 +1,22 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { isValidElement, memo, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { InsertMenu } from "./InsertMenu";
+import { MermaidDiagram } from "./MermaidDiagram";
 import { applyMarkdownInsert, type MarkdownInsertRequest } from "../lib/editorInsert";
 import { extractWikiLinks, getBacklinks, normalizeTitle } from "../lib/notes";
 import { listCarrotCommits } from "../lib/storage";
-import { verifyCarrotCommit } from "../lib/carrot";
+import { verifyCarrotHistory } from "../lib/carrot";
+import { mermaidSourceFromCode } from "../lib/mermaid";
 import type { CarrotCommit, Note, VaultFolder } from "../types";
+
+function mermaidSourceFromMarkdownNode(children: ReactNode): string | null {
+  if (!isValidElement<{ className?: string; children?: ReactNode }>(children)) return null;
+
+  const source = children.props.children;
+  const value = Array.isArray(source) ? source.join("") : String(source ?? "");
+  return mermaidSourceFromCode(children.props.className, value);
+}
 
 interface EditorPaneProps {
   note: Note | null;
@@ -49,13 +59,7 @@ export const EditorPane = memo(function EditorPane({
           : commits[0]?.id ?? null
       );
 
-      const verificationEntries = await Promise.all(
-        commits.slice(0, 100).map(async (commit) => [
-          commit.id,
-          await verifyCarrotCommit(commit)
-        ] as const)
-      );
-      setCarrotVerified(Object.fromEntries(verificationEntries));
+      setCarrotVerified(await verifyCarrotHistory(commits.slice(0, 100)));
     } finally {
       setCarrotLoading(false);
     }
@@ -207,7 +211,21 @@ export const EditorPane = memo(function EditorPane({
           {mode === "edit" ? (
             <textarea ref={textareaRef} className="note-editor" value={note.content} onChange={(event) => updateField("content", event.target.value)} spellCheck />
           ) : (
-            <article className="markdown-preview"><ReactMarkdown remarkPlugins={[remarkGfm]}>{note.content}</ReactMarkdown></article>
+            <article className="markdown-preview">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  pre({ children }) {
+                    const source = mermaidSourceFromMarkdownNode(children);
+                    return source
+                      ? <MermaidDiagram source={source} />
+                      : <pre>{children}</pre>;
+                  }
+                }}
+              >
+                {note.content}
+              </ReactMarkdown>
+            </article>
           )}
 
           {carrotOpen && (

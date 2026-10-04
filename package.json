@@ -39,7 +39,8 @@
     "react-force-graph-2d": "^1.29.2",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "update-electron-app": "^3.3.0"
+    "update-electron-app": "^3.3.0",
+    "mermaid": "^12.1.0"
   },
   "devDependencies": {
     "@electron-forge/cli": "^8.0.1",
