@@ -985,6 +985,269 @@ Příklady:
 
 Model nesmí sám rozhodovat o oprávnění k zápisu. READ / ASSIST permission gate, validace note IDs, folder scope, wiki links, Carrot a další bezpečnostní kontroly zůstávají deterministickou vrstvou aplikace.
 
+##### Czech Quality Layer
+
+Cíl: model nesmí pouze "odpovídat česky". Má generovat přirozenou, technicky přesnou a konzistentní češtinu bez doslovných anglických konstrukcí, divných skloňování a náhodného přepínání do angličtiny.
+
+Čeština bude řešená jako samostatná kvalita orchestrace:
+
+```text
+prompt
+  ↓
+language intent detector
+  ↓
+Czech system profile
+  ↓
+vybraný model
+  ↓
+Czech language verifier
+  ↓
+pokud kvalita neprojde
+  → Czech rewrite pass
+  ↓
+finální odpověď
+```
+
+Základní pravidla:
+
+- pokud uživatel píše česky, výchozí odpověď je česky;
+- technické názvy, API, knihovny, příkazy, názvy tříd a kód se nepřekládají násilně;
+- anglické odborné termíny mohou zůstat, pokud je to přirozenější než umělý český překlad;
+- model nesmí míchat češtinu a angličtinu uvnitř běžné věty bez důvodu;
+- zachovat českou diakritiku;
+- nepoužívat strojově působící doslovné překlady;
+- u dlouhých dokumentů držet stejný styl od začátku do konce;
+- názvy sekcí, vysvětlení a komentáře v generovaných knowledge notes mají být česky, pokud uživatel neurčí jinak;
+- code blocks, CLI příkazy, JSON, SQL, TypeScript, Python a další zdrojový kód zůstávají ve své přirozené syntaxi.
+
+###### Czech system profile
+
+Každý model dostane krátký pevný jazykový profil, ne obří opakovaný prompt.
+
+Příklad pravidel:
+
+```text
+Odpovídej přirozenou moderní češtinou.
+Nepřekládej názvy API, knihoven, funkcí ani kód.
+Vyhýbej se doslovným anglickým konstrukcím.
+Technické termíny používej tak, jak je běžně používají čeští vývojáři.
+Pokud český překlad působí nepřirozeně, ponech anglický odborný termín.
+Drž terminologii konzistentní v celé odpovědi.
+```
+
+Profil bude verzovaný, například:
+
+`cz-profile-v1`
+
+aby bylo možné změny stylu měřit v benchmarku.
+
+###### Few-shot Czech examples
+
+Do orchestrace přidat malou sadu kvalitních českých ukázek.
+
+Ne dlouhé celé konverzace, ale několik krátkých referencí pro:
+
+- běžnou technickou odpověď;
+- debugging;
+- vysvětlení architektury;
+- cybersecurity;
+- Knowledge Note;
+- code review;
+- stručnou odpověď;
+- dlouhou odbornou odpověď.
+
+Few-shot sada má učit hlavně:
+
+- slovosled;
+- přirozené skloňování;
+- správné používání odborných termínů;
+- konzistentní tykání;
+- českou interpunkci;
+- práci s anglickými názvy uvnitř české věty.
+
+Few-shot data budou lokální součást projektu a nesmí obsahovat citlivá uživatelská data.
+
+###### Terminology memory
+
+Přidat lokální slovník preferované terminologie.
+
+Příklad:
+
+```text
+commit → commit
+branch → větev / branch podle kontextu
+pull request → pull request / PR
+runtime → runtime
+knowledge note → knowledge note
+vault → vault
+endpoint → endpoint
+renderer → renderer
+backend → backend
+frontend → frontend
+deployment → nasazení / deployment podle kontextu
+```
+
+Nejde o mechanický překladač. Slovník má zabránit tomu, aby jeden model psal "vykreslovač", druhý "renderer" a třetí "renderovací proces" pro stejný pojem.
+
+Terminology memory bude možné rozšířit podle konkrétního projektu nebo oboru.
+
+###### Czech verifier
+
+Po odpovědi lze spustit lehkou deterministickou kontrolu bez dalšího LLM:
+
+- poměr českých a anglických slov;
+- přítomnost diakritiky;
+- neočekávané změny jazyka;
+- duplicity vět;
+- rozbité Unicode znaky;
+- podezřelé doslovné překlady z interní blacklist/heuristic sady;
+- konzistence vybraných termínů;
+- zda nebyl přeložen kód nebo identifikátory.
+
+Verifier vrátí například:
+
+```text
+language: cs
+czechRatio: 0.91
+mixedLanguage: false
+terminologyConsistency: pass
+unicode: pass
+rewriteNeeded: false
+```
+
+Tento verifier nemá rozhodovat o faktické správnosti. Kontroluje pouze jazykovou kvalitu a formát.
+
+###### Czech rewrite pass
+
+Pokud odpověď neprojde jazykovým thresholdem, nespouštět celý reasoning znovu.
+
+Použít levnější rewrite krok:
+
+```text
+původní obsah
+  ↓
+"zachovej význam, uprav pouze češtinu"
+  ↓
+Czech rewrite model
+```
+
+Rewrite pass nesmí:
+
+- měnit fakta;
+- měnit čísla;
+- přidávat nové závěry;
+- měnit kód;
+- měnit JSON;
+- měnit příkazy;
+- měnit URL;
+- měnit wiki link targets;
+- měnit note IDs.
+
+Pro první verzi může Czech rewrite dělat Synthia 7B, pokud benchmark potvrdí, že v češtině podává konzistentní výsledky.
+
+Pokud se ukáže, že specializovaný model Máši generuje lepší odborný obsah, ale horší češtinu, pipeline může vypadat:
+
+```text
+masa-cyber
+  ↓
+odborný obsah
+  ↓
+Synthia 7B
+  ↓
+Czech language polish
+  ↓
+deterministický verifier
+```
+
+U heavyweight úlohy:
+
+```text
+Nous-Hermes
+  ↓
+reasoning / návrh
+  ↓
+Synthia
+  ↓
+česká finalizace
+  ↓
+verifier
+```
+
+Tím oddělíme "inteligenci úlohy" od "kvality českého výstupu".
+
+###### Czech benchmark
+
+Do model benchmark suite přidat samostatné české skóre.
+
+Testovací sada minimálně:
+
+1. běžná otázka v češtině;
+2. technické vysvětlení;
+3. debugging;
+4. architektura;
+5. cybersecurity;
+6. dlouhý Markdown dokument;
+7. překlad odborného anglického konceptu do přirozené češtiny;
+8. odpověď s velkým množstvím anglických API názvů;
+9. čeština s code blocks;
+10. follow-up konverzace alespoň 5 kol;
+11. oprava gramaticky špatného českého vstupu bez změny významu;
+12. terminologická konzistence napříč více odpověďmi.
+
+Měřit:
+
+- Czech fluency;
+- grammar;
+- naturalness;
+- terminology consistency;
+- instruction following;
+- accidental English leakage;
+- preservation of code/identifiers;
+- long-form consistency.
+
+Výsledek uložit do capability profilu modelu:
+
+```text
+czechFluency
+czechTechnical
+czechLongForm
+czechTerminology
+czechConsistency
+```
+
+Automatický router nesmí preferovat model pro český long-form výstup pouze podle reasoning skóre. Musí zohlednit i český jazykový profil.
+
+###### User language preference
+
+Do lokálního profilu Ethical World uložit:
+
+```text
+preferredLanguage: cs
+technicalTerms: mixed
+tone: natural
+codeComments: cs
+```
+
+Uživatel musí mít možnost profil změnit.
+
+Language preference nesmí být natvrdo součástí modelu; patří do orchestrace, takže stejný model může odpovídat česky, anglicky nebo jiným jazykem podle workspace/user profilu.
+
+###### Dlouhodobý cíl
+
+Nechceme fine-tunovat model jen proto, že občas udělá špatný český slovosled.
+
+Pořadí řešení:
+
+1. dobrý system profile;
+2. terminology memory;
+3. few-shot příklady;
+4. benchmark;
+5. Czech verifier;
+6. rewrite pass;
+7. teprve pokud to nestačí, zvážit LoRA / fine-tuning nad kvalitním českým datasetem.
+
+Fine-tuning má smysl až tehdy, když benchmark prokáže opakující se problém, který promptování a orchestrace neumí odstranit.
+
 ##### Hardware-aware router
 
 Před povolením heavyweight modelu přidat hardware probe:
