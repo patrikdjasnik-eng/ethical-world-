@@ -84,6 +84,37 @@ Hotový fix:
 
 ## Otevřené nálezy
 
+### P1 — Carrot podpis zatím nemá trusted signer binding
+
+Aktuální verifier správně přepočítává obsah, commit hash i parent chain. Ed25519 podpis ale ověřuje proti `publicKey`, který je uložený přímo v daném Carrot commitu.
+
+To znamená, že útočník s možností přepsat IndexedDB může teoreticky:
+
+1. změnit obsah historie;
+2. přepočítat snapshot/commit hash;
+3. vygenerovat vlastní Ed25519 keypair;
+4. podepsat falešný payload;
+5. uložit do commitu svůj `publicKey` a `keyId`.
+
+Kryptografická verifikace potom může projít, protože chybí nezávislý trust anchor, který řekne, kterému signer klíči aplikace skutečně důvěřuje.
+
+Doporučený fix:
+
+- Electron main drží registry důvěryhodných Carrot public keys / key IDs;
+- lokální device key je trust anchor v OS `safeStorage`;
+- commit ideálně odkazuje na `keyId`, ne na libovolný self-declared key jako jediný zdroj důvěry;
+- verifier nejdřív ověří, že `keyId + publicKey` odpovídá známé identitě, teprve potom podpis;
+- budoucí team režim musí mít explicitní key enrollment/revocation;
+- key rotation musí zachovat předchozí veřejné klíče jako read-only trust history.
+
+Testy:
+
+- commit podepsaný cizím, nově vloženým keypair musí selhat;
+- známý `keyId` + jiný public key musí selhat;
+- neznámý `keyId` musí být `untrusted`, ne `verified`;
+- legitimní lokální device key musí projít;
+- po key rotation se staré legitimní commity musí dát ověřit proti uložené trust history.
+
 ### P1 — backend na portu 8787 nemá runtime identity
 
 Electron považuje backend za důvěryhodný, pokud `http://127.0.0.1:8787/health` pouze vrátí úspěšný HTTP status.
@@ -353,6 +384,17 @@ Nové soubory:
   - deterministic result;
   - 100/500/1000 synthetic notes;
   - budget pro related-edge build.
+
+#### Carrot trust-anchor tests
+
+Rozšířit `tests/carrot.test.ts` a Electron security testy o:
+
+- forged commit s vlastním útočníkovým Ed25519 keypair;
+- mismatch `keyId/publicKey`;
+- unknown signer;
+- trusted local signer;
+- key rotation + ověření historického signer key;
+- rozlišení `integrity valid` vs `signature valid` vs `signer trusted`.
 
 #### Node test runner
 

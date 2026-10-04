@@ -1549,3 +1549,18 @@ Nejvyšší zbývající priority:
 5. symlink/junction-safe Markdown writer.
 
 Zítřek zůstává **day off**; audit je backlog pro další pracovní den, ne další dnešní feature sprint.
+
+
+### Audit addendum — Carrot signer trust
+
+Druhý průchod auditem odhalil, že Carrot už kontroluje snapshot hash, commit hash, parent chain a Ed25519 podpis, ale podpis je stále ověřovaný proti public key uloženému v samotném commitu.
+
+To je dobrá integrita, ale ještě ne plná autenticita signer identity.
+
+Do `AUDIT.md` proto přibyl P1 backlog:
+
+- trusted signer registry v Electron main;
+- device public key jako lokální trust anchor;
+- reject neznámého nebo podvrženého `keyId/publicKey`;
+- test forged signer key;
+- budoucí key rotation/revocation model.
