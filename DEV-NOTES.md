@@ -1519,3 +1519,33 @@ Windows installer / standalone packaging byl dokončený už před dnešním sco
 ### 2026-10-05
 
 **Day off.** Žádné nové implementační questy na zítřek. AI Booster/orchestrace zůstává zdokumentovaný backlog pro další pracovní den.
+
+
+## Deep audit 2026-10-04
+
+Po dokončení dnešních questů proběhl samostatný bug + cybersecurity audit.
+
+Výsledek je uložený v `AUDIT.md`.
+
+Během auditu byly rovnou opravené:
+
+- Electron top-level navigation trust boundary;
+- IPC sender validation;
+- unsafe external URL protocols;
+- Carrot snapshot/commit/parent integrity;
+- server-side session revocation při logoutu;
+- revokace ostatních sessions po změně hesla;
+- Notion OAuth callback HTML escaping + CSP;
+- základní Electron security policy test suite.
+
+Repo nyní obsahuje 44 explicitních test cases, ale GitHub Actions stále končí před prvním runner stepem, takže dnešní HEAD nelze označit jako CI-green pouze podle Actions.
+
+Nejvyšší zbývající priority:
+
+1. backend runtime identity na portu 8787;
+2. owner bootstrap one-time capability;
+3. packaged renderer E2E a bezpečné vyřešení file-origin/CORS;
+4. autosave flush při rychlém switchi;
+5. symlink/junction-safe Markdown writer.
+
+Zítřek zůstává **day off**; audit je backlog pro další pracovní den, ne další dnešní feature sprint.

@@ -65,6 +65,7 @@ Pro Ollamu nastav v aplikaci například `http://localhost:11434`. Pro `llama-se
 - [STRUCTURE.md](STRUCTURE.md) – struktura repozitáře.
 - [AI.md](AI.md) – AI agent, providery a kontext.
 - [SECURITY.md](SECURITY.md) – bezpečnostní model.
+- [AUDIT.md](AUDIT.md) – poslední hluboký bug/security audit a test plan.
 - [ROADMAP.md](ROADMAP.md) – plán dalších verzí.
 - [DEV-NOTES.md](DEV-NOTES.md) – průběžný vývojový deník.
 - [CONTRIBUTING.md](CONTRIBUTING.md) – pravidla vývoje.
