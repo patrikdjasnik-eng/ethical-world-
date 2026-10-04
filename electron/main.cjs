@@ -136,7 +136,7 @@ function assertTrustedRenderer(event) {
 }
 
 function handleTrusted(channel, handler) {
-  handleTrusted(channel, async (event, ...args) => {
+  ipcMain.handle(channel, async (event, ...args) => {
     assertTrustedRenderer(event);
     return handler(event, ...args);
   });
