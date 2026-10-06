@@ -38,7 +38,10 @@ if (-not (Test-Path -LiteralPath $updatePython)) {
 }
 Invoke-Checked -Executable $updatePython -CommandArguments @("-m", "pip", "install", "-r", "server\requirements.lock.txt")
 Invoke-Checked -Executable "npm.cmd" -CommandArguments @("run", "verify")
-Invoke-Checked -Executable $updatePython -CommandArguments @("-m", "unittest", "discover", "-s", "server/tests", "-v")
+& $updatePython -m server.test_runner
+if ($LASTEXITCODE -ne 0) {
+  throw "Backend tests failed. Full tracebacks are saved in out\diagnostics\backend-tests.log. Update stopped before installation."
+}
 Invoke-Checked -Executable "npm.cmd" -CommandArguments @("run", "desktop:backend:build")
 
 # Zabraňuje použití starého instalátoru, pokud make nevytvoří nový výstup.

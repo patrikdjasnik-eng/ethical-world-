@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import atexit
 import asyncio
 import hashlib
 import hmac
@@ -11,6 +12,7 @@ from unittest.mock import AsyncMock, patch
 
 os.environ["ETHICAL_WORLD_RUNTIME_TOKEN"] = "test-capability-not-a-real-secret-0123456789"
 _initial_data = tempfile.TemporaryDirectory(prefix="ethical-import-test-")
+atexit.register(_initial_data.cleanup)
 os.environ["ETHICAL_WORLD_DATA_DIR"] = _initial_data.name
 
 import httpx

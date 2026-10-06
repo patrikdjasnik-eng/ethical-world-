@@ -1634,3 +1634,14 @@ Uživatel chce aktualizovat stávající desktop instalaci, nikoli pouze spustit
 - Installer verification nyní kontroluje exit code Setup.exe, očekávanou ProductVersion, bundled backend a cestu skutečně spuštěného EXE; samotný starý shortcut už nestačí jako důkaz upgradu.
 - DESKTOP.md rozlišuje lokální upgrade private repozitáře od automatického GitHub updateru. Veřejný update service zůstává vypnutý pro private releases.
 - Ověření zde: konzistence verze/lockfile, npm testy a Node helper testy. Windows make/Setup/upgrade se provede na uživatelově stroji; úspěšný upgrade ještě netvrdíme. Skript vyžaduje funkční Windows packaging toolchain a Python, již použité při předchozím installeru.
+
+## 2026-10-06 — backend tests blokují Windows upgrade
+
+Uživatel hlásí `FAILED (errors=6)` při backend gate v desktop:update. Poslal pouze konec výpisu, bez prvního tracebacku: konkrétní příčinu všech šesti chyb zatím nelze potvrdit.
+
+- Kontrola odhalila prokazatelný leak SQLite spojení: původní `with _connect()` řídil transakci, ale nezavíral Connection. Windows může následně odmítnout odstranění dočasné databáze/WAL; Linux dovoluje unlink otevřeného souboru, takže původní test suite problém skrývala.
+- `_connect` nyní vlastní celý lifecycle: PRAGMA konfigurace, transakční commit/rollback a `close()` ve finally i při chybě konfigurace. Žádný test ani bezpečnostní gate se nepřeskakuje.
+- Tři regression testy drží reference na Connection a ověřují zavření bez spoléhání na garbage collection. Před opravou všechny tři selhaly; po opravě procházejí. Ověřen také commit a rollback.
+- Nový `python -m server.test_runner` ukládá úplný UTF-8 výpis testů a tracebacky do `out/diagnostics/backend-tests.log`, včetně Python/platform/SQLite verzí. Nepíše obsah prostředí ani reálné tokeny. ASCII console encoding nesmí zamaskovat původní chybu; to ověřuje fault-path test.
+- `desktop:update` a npm test:backend používají runner; při selhání updater odkáže na log a zastaví před instalací. Dočasný import fixture se explicitně uklízí při ukončení.
+- Výsledek lokální validace: 17 backend testů prošlo na Python 3.12/Linux, včetně původních security testů. Windows retest a přesná diagnóza původních šesti chyb čekají na běh u uživatele; samotný nalezený leak nevydáváme za potvrzení neviděného tracebacku.

@@ -32,7 +32,7 @@
     "desktop:make:standalone": "npm run desktop:backend:build && npm run desktop:make",
     "desktop:package:standalone": "npm run desktop:backend:build && npm run desktop:package",
     "test:electron": "node --test tests-electron/*.test.cjs",
-    "test:backend": "python -m unittest discover -s server/tests -v",
+    "test:backend": "python -m server.test_runner",
     "verify:full": "npm run verify && npm run test:backend",
     "desktop:update": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/update-desktop.ps1"
   },

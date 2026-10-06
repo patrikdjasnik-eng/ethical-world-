@@ -6,6 +6,8 @@ import os
 import secrets
 import sqlite3
 import uuid
+from contextlib import contextmanager
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -30,12 +32,18 @@ def _db_path() -> Path:
     return _data_dir() / "ethical-world.db"
 
 
-def _connect() -> sqlite3.Connection:
-    connection = sqlite3.connect(_db_path())
+@contextmanager
+def _connect() -> Iterator[sqlite3.Connection]:
+  connection = sqlite3.connect(_db_path())
+  try:
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA journal_mode = WAL")
-    return connection
+    # SQLite context manager řídí transakci; samotné spojení zavíráme zvlášť.
+    with connection:
+      yield connection
+  finally:
+    connection.close()
 
 
 def _password_digest(password: str, salt: bytes) -> bytes:
