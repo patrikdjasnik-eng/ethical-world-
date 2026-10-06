@@ -6,8 +6,10 @@ const bundledBackend = path.join(__dirname, "resources", "backend");
 if (fs.existsSync(bundledBackend)) extraResource.push(bundledBackend);
 
 module.exports = {
+  outDir: process.env.ETHICAL_WORLD_BUILD_DIR || "out",
   packagerConfig: {
     asar: true,
+    ignore: [/^\/out(?:\/|$)/, /^\/\.venv(?:\/|$)/, /^\/resources(?:\/|$)/, /^\/\.git(?:\/|$)/, /^\/\.env(?:\.|$)/],
     name: "Ethical World",
     executableName: "EthicalWorld",
     extraResource

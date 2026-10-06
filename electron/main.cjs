@@ -6,6 +6,7 @@ const crypto = require("node:crypto");
 const { createSecureStore, createSigner } = require("./secure-store.cjs");
 const { verifyBackend, gatewayRequest } = require("./backend-runtime.cjs");
 const { spawn } = require("node:child_process");
+const { stopBackendProcess } = require("./backend-process.cjs");
 const { isAllowedExternalUrl, isTrustedRendererUrl } = require("./security.cjs");
 
 const squirrelStartup = require("electron-squirrel-startup");
@@ -59,12 +60,12 @@ function backendCandidates() {
     }
     candidates.push({
       source: "python", command: "python",
-      args: ["-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", String(backendPort)],
+      args: ["-m", "server.desktop_entry"],
       cwd: process.resourcesPath
     });
     candidates.push({
       source: "py", command: "py",
-      args: ["-3", "-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", String(backendPort)],
+      args: ["-3", "-m", "server.desktop_entry"],
       cwd: process.resourcesPath
     });
     return candidates;
@@ -77,13 +78,13 @@ function backendCandidates() {
   if (fsSync.existsSync(venvPython)) {
     candidates.push({
       source: "venv", command: venvPython,
-      args: ["-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", String(backendPort)],
+      args: ["-m", "server.desktop_entry"],
       cwd: projectRoot
     });
   }
   candidates.push({
     source: "python", command: "python",
-    args: ["-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", String(backendPort)],
+    args: ["-m", "server.desktop_entry"],
     cwd: projectRoot
   });
   return candidates;
@@ -104,14 +105,15 @@ async function startBackendCandidate(candidate) {
     const child = spawn(candidate.command, candidate.args, {
       cwd: candidate.cwd,
       windowsHide: true,
-      stdio: app.isPackaged ? "ignore" : "inherit",
-      env: { ...process.env, PYTHONUNBUFFERED: "1", ETHICAL_WORLD_PORT: String(backendPort), ETHICAL_WORLD_RUNTIME_TOKEN: backendToken }
+      stdio: ["pipe", app.isPackaged ? "ignore" : "inherit", app.isPackaged ? "ignore" : "inherit"],
+      env: { ...process.env, PYTHONUNBUFFERED: "1", ETHICAL_WORLD_PORT: String(backendPort), ETHICAL_WORLD_RUNTIME_TOKEN: backendToken, ETHICAL_WORLD_PARENT_PIPE: "1" }
     });
     const finish = (value) => {
       if (settled) return;
       settled = true;
       resolve(value);
     };
+    child.stdin?.on("error", () => { /* Backend may close its pipe while exiting. */ });
     child.once("error", () => finish(null));
     child.once("spawn", () => finish(child));
   });
@@ -127,17 +129,18 @@ async function ensureBackendRuntime() {
     backendProcess = child;
     backendRuntimeSource = candidate.source;
     if (await waitForBackend()) return true;
-    try { child.kill(); } catch { }
+    await stopBackendProcess(child);
     backendProcess = null;
   }
   backendRuntimeSource = "offline";
   return false;
 }
 
-function stopOwnedBackend() {
+async function stopOwnedBackend() {
   if (!backendProcess) return;
-  try { backendProcess.kill(); } catch { }
-  backendProcess = null;
+  const child = backendProcess;
+  await stopBackendProcess(child);
+  if (backendProcess === child) backendProcess = null;
 }
 
 function trustedRendererUrl(rawUrl) {
@@ -742,8 +745,20 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
     });
   });
 
-  app.on("before-quit", () => {
-    stopOwnedBackend();
+  let backendStopped = false;
+  let backendStopping = false;
+  app.on("before-quit", (event) => {
+    if (backendStopped || !backendProcess) return;
+    event.preventDefault();
+    if (backendStopping) return;
+    backendStopping = true;
+    void stopOwnedBackend().then(() => {
+      backendStopped = true;
+      app.quit();
+    }).catch((error) => {
+      backendStopping = false;
+      dialog.showErrorBox("Backend shutdown failed", String(error));
+    });
   });
 
   app.on("window-all-closed", () => {

@@ -1645,3 +1645,15 @@ Uživatel hlásí `FAILED (errors=6)` při backend gate v desktop:update. Poslal
 - Nový `python -m server.test_runner` ukládá úplný UTF-8 výpis testů a tracebacky do `out/diagnostics/backend-tests.log`, včetně Python/platform/SQLite verzí. Nepíše obsah prostředí ani reálné tokeny. ASCII console encoding nesmí zamaskovat původní chybu; to ověřuje fault-path test.
 - `desktop:update` a npm test:backend používají runner; při selhání updater odkáže na log a zastaví před instalací. Dočasný import fixture se explicitně uklízí při ukončení.
 - Výsledek lokální validace: 17 backend testů prošlo na Python 3.12/Linux, včetně původních security testů. Windows retest a přesná diagnóza původních šesti chyb čekají na běh u uživatele; samotný nalezený leak nevydáváme za potvrzení neviděného tracebacku.
+
+## 2026-10-06 — EBUSY při packagingu a neplatný desktop shortcut
+
+Uživatel hlásí EBUSY při rmdir `out/Ethical World-win32-x64/resources/backend`, následně dialog Windows o chybějícím cílovém EthicalWorld.exe. Konkrétní držitel zámku nebyl identifikovaný; chyba potvrzuje uzamčený předchozí výstup. Zástupce sám o sobě neznamená ztrátu vault dat.
+
+- Updater nyní používá pro každý build vlastní `out/updates/<guid>` přes Forge outDir. Starý výstup se nemaže ani znovu nepoužívá. InstallerPath se předává explicitně, takže upgrade nevybere jiný starý Setup.exe podle globálního timestampu.
+- Forge ignoruje out, .venv, resources kopii, .git a .env při balení app obsahu. Backend se přidává přes extraResource. Staré buildy ani runtime secrets se nesmí rekurzivně zabalit do nové aplikace.
+- Před lokálním buildem updater ukončí pouze zbylé procesy EthicalWorldBackend, jejichž executable path leží pod out/resources tohoto projektu nebo známou Squirrel instalací ethical_world. Otevřená hlavní aplikace stále blokuje update. Žádné obecné taskkill podle názvu Python/Electron a žádné mazání uživatelských dat.
+- Nový backend dostává vlastní stdin pipe. EOF při zavření nebo pádu Electron parenta spustí graceful uvicorn shutdown. Electron při quit čeká na backend; Windows fallback cílí pouze PID vlastního ChildProcess a jeho potomky. To řeší i onefile parent/child lifecycle, kde původní kill samotného bootloader parenta mohl ponechat child.
+- Installer test ověří instalaci v LocalAppData/ethical_world, verzi a bundled backend a opraví canonical desktop shortcut i rozpoznané existující EXE shortcuty na stabilní Update.exe --processStart EthicalWorld.exe. Zástupce tedy neodkazuje na cestu jednorázového packaging výstupu nebo starého app-version adresáře.
+- Validace: 54 frontend testů, 13 Electron/helper testů, 20 backend testů (87 celkem). Nové testy ověřují výstupní izolaci/ignore policy, graceful pipe close, pouze scoped PID fallback, již ukončený proces a skutečný Python subprocess health → EOF → exit 0. Node syntax a git diff --check prošly.
+- Windows Squirrel make/COM shortcuts/bootloader upgrade zde nelze provést: finální ověření proběhne u uživatele po pullu. Legacy backend při nuceném ukončení může zanechat PyInstaller temp cache; updater ji plošně nemaže. Staré out buildy zůstávají pro ruční úklid po úspěšném upgradu.

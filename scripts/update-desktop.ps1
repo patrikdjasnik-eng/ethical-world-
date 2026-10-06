@@ -15,6 +15,20 @@ if (Get-Process -Name "EthicalWorld" -ErrorAction SilentlyContinue) {
   throw "Close Ethical World first, then run npm run desktop:update again."
 }
 
+# Starší onefile backend může po zavření okna zůstat jako samostatný proces.
+$ownedBackendRoots = @(
+  (Join-Path $projectRoot "out"),
+  (Join-Path $projectRoot "resources\backend"),
+  (Join-Path $env:LOCALAPPDATA "ethical_world")
+) | ForEach-Object { [IO.Path]::GetFullPath($_).TrimEnd('\') + '\' }
+foreach ($backend in @(Get-Process -Name "EthicalWorldBackend" -ErrorAction SilentlyContinue)) {
+  $backendPath = $backend.Path
+  if ($backendPath -and ($ownedBackendRoots | Where-Object { $backendPath.StartsWith($_, [StringComparison]::OrdinalIgnoreCase) })) {
+    Write-Host "Stopping leftover Ethical World backend PID $($backend.Id): $backendPath"
+    Stop-Process -InputObject $backend -ErrorAction Stop
+  }
+}
+
 function Invoke-Checked {
   param([string]$Executable, [string[]]$CommandArguments)
   & $Executable @CommandArguments
@@ -44,15 +58,27 @@ if ($LASTEXITCODE -ne 0) {
 }
 Invoke-Checked -Executable "npm.cmd" -CommandArguments @("run", "desktop:backend:build")
 
-# Zabraňuje použití starého instalátoru, pokud make nevytvoří nový výstup.
+# Každý pokus balí do vlastní složky; starý build může být otevřený či zamčený.
+$buildId = [guid]::NewGuid().ToString("N")
+$buildOutput = Join-Path $projectRoot "out\updates\$buildId"
+$previousBuildDir = $env:ETHICAL_WORLD_BUILD_DIR
+$env:ETHICAL_WORLD_BUILD_DIR = $buildOutput
 $makeStarted = (Get-Date).ToUniversalTime()
-Invoke-Checked -Executable "npm.cmd" -CommandArguments @("exec", "--", "electron-forge", "make", "--targets", "@electron-forge/maker-squirrel")
-$setup = Get-ChildItem -Path (Join-Path $projectRoot "out\make") -Filter "EthicalWorldSetup.exe" -File -Recurse |
+try {
+  Invoke-Checked -Executable "npm.cmd" -CommandArguments @("exec", "--", "electron-forge", "make", "--targets", "@electron-forge/maker-squirrel")
+} finally {
+  if ($null -eq $previousBuildDir) {
+    Remove-Item Env:ETHICAL_WORLD_BUILD_DIR -ErrorAction SilentlyContinue
+  } else {
+    $env:ETHICAL_WORLD_BUILD_DIR = $previousBuildDir
+  }
+}
+$setup = Get-ChildItem -Path (Join-Path $buildOutput "make") -Filter "EthicalWorldSetup.exe" -File -Recurse |
   Sort-Object LastWriteTimeUtc -Descending |
   Select-Object -First 1
 if (-not $setup -or $setup.LastWriteTimeUtc -lt $makeStarted.AddSeconds(-2)) {
   throw "No fresh installer was produced. Existing installation was not touched."
 }
 
-& (Join-Path $PSScriptRoot "test-desktop-install.ps1") -SkipMake -Launch -ExpectedVersion $targetVersion -RequireBundledBackend
+& (Join-Path $PSScriptRoot "test-desktop-install.ps1") -SkipMake -Launch -ExpectedVersion $targetVersion -RequireBundledBackend -InstallerPath $setup.FullName
 Write-Host "Installed Ethical World $targetVersion updated and launched." -ForegroundColor Green

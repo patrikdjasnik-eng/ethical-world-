@@ -3,6 +3,7 @@ param(
   [switch]$SkipMake,
   [switch]$Launch,
   [string]$ExpectedVersion = "",
+  [string]$InstallerPath = "",
   [switch]$RequireBundledBackend,
   [int]$TimeoutSeconds = 90
 )
@@ -72,18 +73,26 @@ if (-not $SkipMake) {
   Write-Host "[1/4] Build skipped."
 }
 
-$setup = Get-ChildItem -Path (Join-Path $root "out") -Filter "EthicalWorldSetup.exe" -File -Recurse -ErrorAction SilentlyContinue |
-  Sort-Object LastWriteTimeUtc -Descending |
-  Select-Object -First 1
-
-if (-not $setup) {
-  $setup = Get-ChildItem -Path (Join-Path $root "out") -Filter "*Setup.exe" -File -Recurse -ErrorAction SilentlyContinue |
+if ($InstallerPath) {
+  $setup = Get-Item -LiteralPath $InstallerPath
+  if ($setup.PSIsContainer -or $setup.Name -ne "EthicalWorldSetup.exe") {
+    throw "InstallerPath must point to EthicalWorldSetup.exe."
+  }
+} else {
+  $setup = Get-ChildItem -Path (Join-Path $root "out") -Filter "EthicalWorldSetup.exe" -File -Recurse -ErrorAction SilentlyContinue |
     Sort-Object LastWriteTimeUtc -Descending |
     Select-Object -First 1
-}
 
-if (-not $setup) {
-  throw "No Squirrel Setup.exe was found under $root\out."
+  if (-not $setup) {
+    $setup = Get-ChildItem -Path (Join-Path $root "out") -Filter "*Setup.exe" -File -Recurse -ErrorAction SilentlyContinue |
+      Sort-Object LastWriteTimeUtc -Descending |
+      Select-Object -First 1
+  }
+
+  if (-not $setup) {
+    throw "No Squirrel Setup.exe was found under $root\out."
+  }
+
 }
 
 $before = @(Get-EthicalWorldShortcuts)
@@ -98,6 +107,48 @@ $installStarted = (Get-Date).ToUniversalTime()
 $installerProcess = Start-Process -FilePath $setup.FullName -Wait -PassThru
 if ($installerProcess.ExitCode -ne 0) {
   throw "Installer failed with exit code $($installerProcess.ExitCode)."
+}
+
+if ($ExpectedVersion) {
+  $installRoot = Join-Path $env:LOCALAPPDATA "ethical_world"
+  $installedApp = Join-Path $installRoot "app-$ExpectedVersion"
+  $installedExe = Join-Path $installedApp "EthicalWorld.exe"
+  if (-not (Test-Path -LiteralPath $installedExe -PathType Leaf)) {
+    throw "Expected installed version $ExpectedVersion was not found at $installedExe."
+  }
+  $productVersion = (Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion
+  if ($productVersion -notmatch ("^" + [regex]::Escape($ExpectedVersion) + "(?:$|[.+-])")) {
+    throw "Installed EXE reports version $productVersion instead of $ExpectedVersion."
+  }
+  if ($RequireBundledBackend -and -not (Test-Path -LiteralPath (Join-Path $installedApp "resources\backend\EthicalWorldBackend.exe") -PathType Leaf)) {
+    throw "Updated EXE has no bundled backend."
+  }
+  Write-Host "[PASS] Installed EXE version: $productVersion" -ForegroundColor Green
+
+  $updateExe = Join-Path $installRoot "Update.exe"
+  if (-not (Test-Path -LiteralPath $updateExe -PathType Leaf)) {
+    throw "Installed Squirrel updater was not found at $updateExe."
+  }
+  $desktopDirectory = [Environment]::GetFolderPath("Desktop")
+  if (-not $desktopDirectory) { throw "Current user has no Desktop directory." }
+  $canonicalShortcut = Join-Path $desktopDirectory "Ethical World.lnk"
+  $shortcutPaths = @($canonicalShortcut)
+  foreach ($item in $before) {
+    if ($item.TargetPath -match '(?i)[\\/](EthicalWorld|Update)\.exe$') {
+      $shortcutPaths += $item.Path
+    }
+  }
+  $shortcutShell = New-Object -ComObject WScript.Shell
+  foreach ($shortcutPath in ($shortcutPaths | Select-Object -Unique)) {
+    $shortcut = $shortcutShell.CreateShortcut($shortcutPath)
+    $shortcut.TargetPath = $updateExe
+    $shortcut.Arguments = '--processStart "EthicalWorld.exe"'
+    $shortcut.WorkingDirectory = $installRoot
+    $shortcut.Description = "Ethical World"
+    $shortcut.IconLocation = "$installedExe,0"
+    $shortcut.Save()
+  }
+  Write-Host "[PASS] Desktop shortcuts now use installed Update.exe." -ForegroundColor Green
 }
 
 Write-Host "[3/4] Waiting for Desktop/Start Menu shortcut..."
@@ -120,7 +171,7 @@ if ($shortcuts.Count -eq 0) {
 
 $desktopPath = [Environment]::GetFolderPath("Desktop")
 $desktopShortcut = $shortcuts |
-  Where-Object { $_.Path.StartsWith($desktopPath, [System.StringComparison]::OrdinalIgnoreCase) } |
+  Where-Object { $_.Path.StartsWith($desktopPath, [System.StringComparison]::OrdinalIgnoreCase) -and (-not $ExpectedVersion -or $_.TargetPath -eq $updateExe) } |
   Select-Object -First 1
 
 if (-not $desktopShortcut) {
@@ -163,25 +214,6 @@ if (-not $targetLooksValid) {
 
 Write-Host "[PASS] Shortcut target looks valid." -ForegroundColor Green
 
-if ($ExpectedVersion) {
-  $installRoot = Split-Path -Parent $desktopShortcut.TargetPath
-  if ((Split-Path -Leaf $installRoot) -match "^app-") {
-    $installRoot = Split-Path -Parent $installRoot
-  }
-  $installedApp = Join-Path $installRoot "app-$ExpectedVersion"
-  $installedExe = Join-Path $installedApp "EthicalWorld.exe"
-  if (-not (Test-Path -LiteralPath $installedExe -PathType Leaf)) {
-    throw "Expected installed version $ExpectedVersion was not found at $installedExe."
-  }
-  $productVersion = (Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion
-  if ($productVersion -notmatch ("^" + [regex]::Escape($ExpectedVersion) + "(?:$|[.+-])")) {
-    throw "Installed EXE reports version $productVersion instead of $ExpectedVersion."
-  }
-  if ($RequireBundledBackend -and -not (Test-Path -LiteralPath (Join-Path $installedApp "resources\backend\EthicalWorldBackend.exe") -PathType Leaf)) {
-    throw "Updated EXE has no bundled backend."
-  }
-  Write-Host "[PASS] Installed EXE version: $productVersion" -ForegroundColor Green
-}
 
 if ($Launch) {
   Write-Host "[4/4] Launching Ethical World through the Desktop shortcut..."
