@@ -43,13 +43,26 @@ export interface AiSettings {
   apiKey: string;
 }
 
-export type AiPermissionMode = "read" | "assist";
+export type AiPermissionMode = "read" | "assist" | "agent";
 
-export type AgentAction =
+export type AgentAction = (
   | { type: "create_note"; title: string; content: string; folder?: string; knowledgeNote?: boolean }
   | { type: "update_note"; noteId: string; title?: string; content?: string; folder?: string; knowledgeNote?: boolean }
   | { type: "create_folder"; name: string; parentPath?: string | null }
-  | { type: "open_note"; noteId: string };
+  | { type: "open_note"; noteId: string }
+  | { type: "rename_note"; noteId: string; title: string }
+  | { type: "move_note"; noteId: string; folder: string }
+  | { type: "link_notes"; noteId: string; targetNoteId: string }
+  | { type: "create_task"; noteId: string; text: string }
+) & { expectedUpdatedAt?: string; expectedSnapshot?: string };
+
+export interface AgentAuditEntry {
+  id: string;
+  createdAt: string;
+  actionType: AgentAction["type"];
+  noteId?: string;
+  result: string;
+}
 
 
 export interface UserProfile {

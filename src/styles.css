@@ -3399,3 +3399,11 @@ body,
   padding: 12px;
   border-radius: 8px;
 }
+
+.agent-action-card details pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 320px;
+  overflow: auto;
+  font-size: 12px;
+}

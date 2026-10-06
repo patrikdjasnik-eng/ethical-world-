@@ -1,3 +1,4 @@
+import { changedNote } from "./lib/vaultTools";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityRail } from "./components/ActivityRail";
 import { EditorPane } from "./components/EditorPane";
@@ -329,9 +330,9 @@ export default function App() {
   }, [activeNoteId, currentUser, folders, notes]);
 
   const handleApplyAgentAction = useCallback(async (action: AgentAction): Promise<string> => {
+    await persistence.current.flush();
     const notes = notesRef.current;
     const folders = foldersRef.current;
-    await persistence.current.flush();
     if (action.type === "open_note") {
       const note = notes.find((candidate) => candidate.id === action.noteId);
       if (!note) throw new Error("Poznámka už ve vaultu neexistuje.");
@@ -389,34 +390,23 @@ export default function App() {
       setActiveNoteId(note.id);
       setSelectedFolderPath(folderPath || null);
       setView("note");
-      await createCarrotCommit(note, currentUser, "Máša created note");
+      try { await createCarrotCommit(note, currentUser, "Máša created note"); }
+      catch (error) { setWorkspaceError("Poznámka je uložená, ale Carrot checkpoint selhal: " + String(error)); }
       return "Vytvořena poznámka „" + note.title + "“.";
     }
 
-    const currentNote = notes.find((candidate) => candidate.id === action.noteId);
-    if (!currentNote) throw new Error("Poznámka určená k úpravě už neexistuje.");
-
-    const nextFolder = action.folder === undefined
-      ? currentNote.folder
-      : normalizeFolderPath(action.folder);
-
-    if (nextFolder && !folders.some((folder) => folder.path === nextFolder)) {
-      throw new Error("Složka „" + nextFolder + "“ neexistuje.");
+    const nextNote = changedNote(action, notes);
+    if (!nextNote) throw new Error("Nepodporovaná akce.");
+    nextNote.folder = normalizeFolderPath(nextNote.folder);
+    if (nextNote.folder && !folders.some((folder) => folder.path === nextNote.folder)) {
+      throw new Error("Cílová složka neexistuje.");
     }
 
-    const nextNote: Note = {
-      ...currentNote,
-      title: action.title === undefined
-        ? currentNote.title
-        : action.title.trim().slice(0, 300) || currentNote.title,
-      content: action.content ?? currentNote.content,
-      folder: nextFolder,
-      updatedAt: new Date().toISOString()
-    };
-
-    await saveNote(nextNote);
-    setNotes((current) => current.map((note) => note.id === nextNote.id ? nextNote : note));
-    await createCarrotCommit(nextNote, currentUser, "Máša updated note");
+    const baseline = notes.find((note) => note.id === nextNote.id)!;
+    await persistence.current.enqueue(nextNote);
+    setNotes((current) => current.map((note) => note.id === nextNote.id && note.content === baseline.content && note.title === baseline.title && note.folder === baseline.folder ? nextNote : note));
+    try { await createCarrotCommit(nextNote, currentUser, "Máša updated note"); }
+    catch (error) { setWorkspaceError("Změna je uložená, ale Carrot checkpoint selhal: " + String(error)); }
     return "Upravena poznámka „" + nextNote.title + "“.";
   }, [currentUser, folders, notes]);
 

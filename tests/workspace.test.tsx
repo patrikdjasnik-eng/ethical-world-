@@ -16,6 +16,10 @@ vi.mock("../src/components/AiPanel", () => ({
   default: ({ onApplyAgentAction }: { onApplyAgentAction: (action: AgentAction) => Promise<string> }) => <button onClick={() => void (async () => {
     await onApplyAgentAction({ type: "create_folder", name: "Batch folder" });
     await onApplyAgentAction({ type: "create_note", title: "Batch note", content: "created", folder: "Batch folder" });
+    await onApplyAgentAction({ type: "rename_note", noteId: "first", title: "Renamed" });
+    await onApplyAgentAction({ type: "move_note", noteId: "first", folder: "Batch folder" });
+    await onApplyAgentAction({ type: "create_task", noteId: "first", text: "Retest" });
+    await onApplyAgentAction({ type: "link_notes", noteId: "first", targetNoteId: "second" });
   })()}>test batch</button>
 }));
 
@@ -62,6 +66,6 @@ describe("workspace persistence and dependent actions", () => {
     await waitFor(() => expect(screen.getAllByRole("button", { name: "Máša" })[0]).toBeTruthy());
     fireEvent.click(screen.getAllByRole("button", { name: "Máša" })[0]);
     fireEvent.click(await screen.findByRole("button", { name: "test batch" }));
-    await waitFor(async () => expect((await storage.listNotes()).some((note) => note.title === "Batch note" && note.folder === "Batch folder")).toBe(true));
+    await waitFor(async () => expect((await storage.listNotes()).find((note) => note.id === "first")).toMatchObject({ title: "Renamed", folder: "Batch folder", content: "old\n\n- [ ] Retest\n\n[[Second]]" }));
   });
 });

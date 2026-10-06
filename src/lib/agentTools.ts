@@ -3,6 +3,7 @@ import type { AgentAction, Note } from "../types";
 export interface ParsedAgentResponse {
   content: string;
   actions: AgentAction[];
+  warning?: string;
 }
 
 const actionBlockPattern = new RegExp("\\x60\\x60\\x60ethical-actions\\s*([\\s\\S]*?)\\x60\\x60\\x60", "gi");
@@ -184,6 +185,25 @@ export function validateAgentAction(value: unknown): AgentAction | null {
     return { type: "create_folder", name, ...(parentPath !== undefined ? { parentPath } : {}) };
   }
 
+  if (["rename_note", "move_note", "link_notes", "create_task"].includes(String(candidate.type))) {
+    const noteId = nonEmptyString(candidate.noteId, 200);
+    if (!noteId) return null;
+    if (candidate.type === "rename_note") {
+      const title = nonEmptyString(candidate.title, 300);
+      return title ? { type: "rename_note", noteId, title } : null;
+    }
+    if (candidate.type === "move_note") {
+      const folder = optionalString(candidate.folder, 500);
+      return typeof folder === "string" ? { type: "move_note", noteId, folder } : null;
+    }
+    if (candidate.type === "link_notes") {
+      const targetNoteId = nonEmptyString(candidate.targetNoteId, 200);
+      return targetNoteId ? { type: "link_notes", noteId, targetNoteId } : null;
+    }
+    const text = nonEmptyString(candidate.text, 1000);
+    return text && !/[\r\n]/.test(text) ? { type: "create_task", noteId, text } : null;
+  }
+
   if (candidate.type === "open_note") {
     const noteId = nonEmptyString(candidate.noteId, 200);
     if (!noteId) return null;
@@ -208,12 +228,13 @@ function parseKnowledgeEnvelope(
     return null;
   }
 
+  if (!["create", "update"].includes(String(metadata.action)) || markdownRaw.length > 60000) return null;
   const action = metadata.action === "update" ? "update" : "create";
   const title = nonEmptyString(metadata.title, 300);
   const folder = optionalString(metadata.folder, 500);
   if (!title || folder === null) return null;
   const content = finalizeKnowledgeMarkdown(
-    markdownRaw.slice(0, 60000),
+    markdownRaw,
     title,
     notes,
     batchTitles
@@ -280,10 +301,16 @@ export function parseAgentResponse(raw: string, notes: Note[] = []): ParsedAgent
   }).trim();
 
   return {
+    ...(matchedMachineBlock && actions.length === 0 ? { warning: "Model vrátil neplatný nebo nepodporovaný návrh. Nic se neprovedlo; požádej o nový návrh." } : {}),
+    ...(actions.length > 8 ? { warning: "Návrh přesáhl limit 8 akcí. Připrav další položky v samostatné odpovědi." } : {}),
     content: content || (matchedMachineBlock && actions.length > 0
       ? "Připravil jsem návrh změny v Ethical World."
       : raw.trim()),
-    actions
+    actions: actions.slice(0, 8).map((action) => {
+      if (!("noteId" in action) || action.type === "open_note") return action;
+      const note = notes.find((candidate) => candidate.id === action.noteId);
+      return note ? { ...action, expectedUpdatedAt: note.updatedAt, expectedSnapshot: JSON.stringify([note.title, note.folder, note.content]) } : action;
+    })
   };
 }
 
@@ -300,5 +327,6 @@ export function describeAgentAction(action: AgentAction, notes: Note[]): string 
     return "Vytvořit složku „" + parent + action.name + "“";
   }
   const note = notes.find((candidate) => candidate.id === action.noteId);
-  return "Otevřít poznámku „" + (note?.title ?? action.noteId) + "“";
+  const label = action.type === "rename_note" ? "Přejmenovat" : action.type === "move_note" ? "Přesunout" : action.type === "link_notes" ? "Propojit" : action.type === "create_task" ? "Přidat úkol do" : "Otevřít";
+  return label + " poznámku „" + (note?.title ?? action.noteId) + "“";
 }

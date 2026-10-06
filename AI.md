@@ -59,7 +59,7 @@ dotaz
 
 Máša má používat stejné doménové operace jako UI, ne obcházet data vrstvu.
 
-Plánované tools:
+Doménové nástroje a generované výstupy (implementační stav viz tabulka níže):
 
 ```text
 searchNotes()
@@ -84,7 +84,7 @@ Režimy:
 
 - `READ` – pouze čtení vaultu a odpovědi.
 - `ASSIST` – Máša připraví návrh změny a diff.
-- `AGENT` – povolené zapisovací tools v definovaném scope.
+- `AGENT` – nové poznámky ve složce explicitně povolené pro session; ostatní akce se potvrzují.
 
 Mazání, hromadné přesuny a větší přepisy musí mít preview nebo explicitní potvrzení.
 
@@ -157,11 +157,14 @@ Aktuálně dostupné akce:
 - vytvořit poznámku;
 - upravit existující poznámku podle přesného note ID;
 - vytvořit složku;
-- otevřít existující poznámku.
+- otevřít existující poznámku;
+- přejmenovat nebo přesunout poznámku;
+- propojit existující poznámky wiki odkazem;
+- přidat Markdown úkol.
 
-Model nikdy nezapisuje přímo do IndexedDB. Vrací omezený `ethical-actions` JSON blok, renderer ho validuje a uživatel musí každou zapisovací akci potvrdit tlačítkem `Použít`. READ režim žádné tool akce nepřijímá.
+Model nikdy nezapisuje přímo do IndexedDB. Vrací omezený `ethical-actions` JSON blok, renderer ho validuje a ASSIST vyžaduje potvrzení tlačítkem `Použít`. V AGENT režimu se create_note ve schválené složce provede automaticky; jiné operace čekají na potvrzení. READ režim žádné tool akce nepřijímá.
 
-Mazání, přejmenování, hromadné přesuny a jiné destruktivní operace v této verzi nejsou dostupné.
+Mazání není dostupné. Přejmenování a přesuny jednotlivých poznámek mají náhled a potvrzení; hromadný návrh je omezený na 8 akcí.
 
 
 ## Knowledge Note mode
@@ -202,3 +205,22 @@ Máša má při authoringu rozhodovat podle významu, nikoli mechanicky:
 Každá AI-authored knowledge note dostává programově badge hlavičku, takže ji model nemůže omylem vynechat.
 
 Cybersecurity persona je edukativně široká: Máša může vysvětlovat malware, útočné techniky, exploit concepts, reverse engineering i obranu. Samotná registrace účtu není bezpečnostní bypass; rizikové praktické kroky se mají držet v autorizovaném lab/defenzivním scope.
+
+## Implementační stav 2026-10-06
+
+Konkrétní hranice implementace a způsob provedení:
+
+| Schopnost | Skutečné provedení |
+| --- | --- |
+| searchNotes / readNote / findRelatedNotes | Lokální lexikální retrieval, přímý lookup ID a wiki návaznosti; relevantní obsah se přidává před posledními poznámkami. Nejde o embeddings ani hybrid RAG. |
+| createNote / updateNote / createFolder / openNote | Validovaný action/envelope protokol a zápis přes stejnou datovou vrstvu jako UI. |
+| renameNote / moveNote / linkNotes / createTask | Akce rename_note, move_note, link_notes a create_task. Přesun jen do existující složky; task je Markdown checkbox; link má jednoznačný existující cíl. |
+| summarizeVault / createCyberReport / coding assistant | Generování textu nebo Markdown poznámky připojeným modelem. Shrnutí pokrývá omezený vyhledaný kontext; report neznamená provedení síťového skenu nebo spuštění kódu. |
+| READ | Žádné návrhy se nezařazují k provedení. |
+| ASSIST | Každá akce čeká na potvrzení, obsah a změna cesty mají rozbalitelný náhled. |
+| AGENT | Uživatel musí pro tuto session zvolit konkrétní složku. Automaticky lze pouze vytvořit nové poznámky v ní, maximálně 8 akcí v jedné odpovědi. Ostatní operace čekají na potvrzení. Změna režimu zruší čekající návrhy i grant. |
+| Audit log | IndexedDB agentAudit: zahájení, výsledek nebo chyba; export JSON v AI nastavení. Neobsahuje API klíče ani celé poznámky. |
+
+Přepisy existující poznámky jsou chráněné snapshot baseline z okamžiku návrhu. Změněná poznámka vyžaduje nový návrh. Backend vrací completeNoteIds: celkový kontext má budget 30 000 znaků, každý vstup maximálně 10 000. Návrh nahrazení obsahu je odmítnut, pokud model neměl celý cílový dokument. Přidání tasku nebo odkazu zachovává původní obsah deterministicky. Pro velké dokumenty pracuj po menších poznámkách.
+
+AGENT grant se neukládá mezi sessions; shell, mazání, externí zápisy a neomezená autonomie nejsou dostupné. Modelové výstupy mají stále závislost na schopnostech zvoleného LLM. Aplikace zaručuje validaci a permission gate, nikoli faktickou správnost libovolného generovaného textu. Starší chat paměť je posuvné okno posledních 40 zpráv, nikoli trvalá dlouhodobá modelová paměť.

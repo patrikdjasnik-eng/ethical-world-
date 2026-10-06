@@ -1608,3 +1608,19 @@ Scope: stabilizace existujícího MVP a bezpečnostních hranic. Ověření prob
 6. Carrot rotation/revocation a přenos důvěry mezi zařízeními nejsou implementované. Bootstrap po restartu je vědomé lokální device-owner chování, nikoli vzdálená autentizace identity.
 
 Původní `AUDIT.md` zůstává historický nález; tento zápis popisuje aktuální remediation a přiznaný backlog. Žádný Windows installer ani release nebyl tímto předáním publikován.
+
+## 2026-10-06 — Máša: deklarace versus skutečné schopnosti
+
+Požadavek: Máša musí provádět deklarované operace, ne pouze slibovat jejich provedení.
+
+- Implementované doménové nástroje pro rename/move/link/task vedle existujícího create/update/folder/open. Zachovávají původní obsah, kontrolují cílové IDs, existující složky a jednoznačné wiki názvy.
+- Retrieval nyní řadí relevantní starší poznámky podle dotazu a přidává wiki návaznosti. readNote je lookup přesného ID. Embeddings/hybrid RAG zůstává explicitně budoucí vrstva, nikoli tvrzení o současné implementaci.
+- ASSIST má rozbalitelný náhled původního i výsledného obsahu/cesty. Snapshot + updatedAt chrání čekající návrh před přepsáním mezitím změněné poznámky. Zápisy používají serializovanou queue; pozdější uživatelské úpravy mají přednost.
+- AGENT dovoluje pouze nové poznámky ve složce explicitně zvolené pro session. Bez grantu se vše potvrzuje. Existující poznámky/struktura se mění po potvrzení i v AGENT. READ nemůže akce použít; přepnutí režimu ruší čekající návrhy/grant. Apply je serializovaný a nelze ho spustit souběžně s generováním.
+- DB migrace v4 přidává agentAudit se zahájením, výsledkem a chybou. Export JSON v nastavení. Zápis auditu předchází provedení; selhání výsledného audit zápisu neoznačí již provedenou změnu za neprovedenou.
+- Backend i frontend rozlišují úplný a zkrácený kontext. Neúplně přečtená poznámka nesmí být nahrazena modelovým dokumentem. Envelope přes limit se odmítá, nikoli tiše zkracuje. Carrot failure po úspěšném uložení hlásí vlastní chybu místo nabídnutí opakovaného vytvoření stejné poznámky.
+- AI.md má tabulku skutečného stavu: shrnutí/report/code review jsou generování připojeným LLM nad omezeným kontextem. Nejde o spuštění skriptů, skeny nebo garantovanou faktickou správnost. Trvalá sumarizovaná paměť, embeddings a neomezená autonomie nejsou implementované.
+
+Validace: přidané testy retrieval, rename/move/link/task, stale/ambiguous targets, parser baseline, skutečný App batch až do IndexedDB, UI ASSIST preview/approval/audit, READ rejection, AGENT scope a partial-context overwrite rejection. Backend testuje AGENT prompt i completeNoteIds. Windows packaged/browser E2E nadále otevřené dle předchozího zápisu; na CI/CD nečekáme.
+
+Výsledek lokálního ověření tohoto bloku: 54 frontend testů, 9 Electron helper testů a 12 backend testů (75 celkem), TypeScript + Vite produkční build a live Vite/API/provider fixture smoke. Neplatný modelový návrh hlásí chybu místo tichého tvrzení o provedení.

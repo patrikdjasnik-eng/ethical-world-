@@ -46,6 +46,21 @@ class SecurityTests(unittest.TestCase):
       self.assertEqual(self.client.post("/api/chat", json=payload, headers=self.capability).status_code, 200)
       self.assertEqual(model.await_count, 1)
 
+  def test_agent_mode_receives_tools_and_complete_context_metadata(self):
+    payload = {"provider": "ollama", "model": "demo", "baseUrl": "http://localhost:11434", "permissionMode": "agent", "messages": [{"role": "user", "content": "vytvor poznamku"}], "vaultContext": [{"id": "full", "title": "Full", "content": "complete"}, {"id": "partial", "title": "Partial", "content": "excerpt", "complete": False}]}
+    with patch.object(main, "chat_ollama", AsyncMock(return_value="demo")) as model:
+      response = self.client.post("/api/chat", json=payload, headers=self.capability)
+      self.assertEqual(response.status_code, 200)
+      self.assertEqual(response.json()["completeNoteIds"], ["full"])
+      prompt = model.call_args.args[2][0]["content"]
+      self.assertIn("KNOWLEDGE NOTE MODE", prompt)
+      self.assertIn("ČÁSTEČNÝ OBSAH", prompt)
+
+    payload["messages"] = [{"role": "user", "content": "presun"}]
+    with patch.object(main, "chat_ollama", AsyncMock(return_value="demo")) as model:
+      self.client.post("/api/chat", json=payload, headers=self.capability)
+      self.assertIn("move_note", model.call_args.args[2][0]["content"])
+
   def test_health_uses_challenge_proof_without_exposing_capability(self):
     response = self.client.get("/health?challenge=unique").json()
     expected = hmac.new(runtime_security.runtime_token.encode(), b"unique", hashlib.sha256).hexdigest()

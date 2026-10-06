@@ -1,3 +1,5 @@
+import { actionPreview } from "../lib/vaultTools";
+import { saveAgentAudit, listAgentAudit } from "../lib/storage";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   autoDetectLocalProvider,
@@ -65,6 +67,33 @@ export const AiPanel = memo(function AiPanel({
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [permissionMode, setPermissionMode] = useState<AiPermissionMode>("assist");
+  const permissionRef = useRef<AiPermissionMode>("assist");
+  const [agentScope, setAgentScope] = useState<string | null>(null);
+  const scopeRef = useRef<string | null>(null);
+  const actionLock = useRef(false);
+  const changePermission = (mode: AiPermissionMode) => {
+    permissionRef.current = mode;
+    setPermissionMode(mode);
+    setPendingActions([]);
+    scopeRef.current = null;
+    setAgentScope(null);
+  };
+  const executeAction = useCallback(async (action: AgentAction): Promise<string> => {
+    if (permissionRef.current === "read") throw new Error("READ režim nemůže měnit vault.");
+    const id = crypto.randomUUID();
+    const entry = { id, createdAt: new Date().toISOString(), actionType: action.type, ...("noteId" in action ? { noteId: action.noteId } : {}), result: "started" };
+    await saveAgentAudit(entry);
+    try {
+      const result = await onApplyAgentAction(action);
+      try { await saveAgentAudit({ ...entry, result }); }
+      catch { return result + " Změna proběhla, ale auditní výsledek se nepodařilo uložit."; }
+      return result;
+    } catch (error) {
+      await saveAgentAudit({ ...entry, result: "failed: " + (error instanceof Error ? error.message : "unknown") }).catch(() => undefined);
+      throw error;
+    }
+  }, [onApplyAgentAction]);
+
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
   const [applyingActionId, setApplyingActionId] = useState<string | null>(null);
   const [sendingMode, setSendingMode] = useState<"answer" | "proposal" | "knowledge">("answer");
@@ -148,7 +177,7 @@ export const AiPanel = memo(function AiPanel({
     return { text: "Online", className: "online" };
   }, [connection]);
 
-  const canSend = connection.backendOnline && connection.modelOnline && !isSending;
+  const canSend = connection.backendOnline && connection.modelOnline && !isSending && applyingActionId === null;
 
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -178,9 +207,9 @@ export const AiPanel = memo(function AiPanel({
     setMessages(nextMessages);
     setInput("");
     setSendingMode(
-      permissionMode === "assist" && looksLikeKnowledgeNoteRequest(trimmedInput)
+      permissionMode !== "read" && looksLikeKnowledgeNoteRequest(trimmedInput)
         ? "knowledge"
-        : looksLikeActionRequest(trimmedInput) && permissionMode === "assist"
+        : looksLikeActionRequest(trimmedInput) && permissionMode !== "read"
           ? "proposal"
           : "answer"
     );
@@ -194,9 +223,16 @@ export const AiPanel = memo(function AiPanel({
         notes,
         folders,
         activeNote,
-        permissionMode
+        permissionMode,
+        agentScope: scopeRef.current
       });
       const parsed = parseAgentResponse(response.content, notes);
+      if (parsed.warning) setError(parsed.warning);
+      const unsafeUpdates = parsed.actions.filter((action) => action.type === "update_note" && action.content !== undefined && !response.completeNoteIds?.includes(action.noteId));
+      if (unsafeUpdates.length) {
+        parsed.actions = parsed.actions.filter((action) => !unsafeUpdates.includes(action));
+        setError("Přepis odmítnut: model neměl úplný obsah cílové poznámky. Otevři ji nebo pracuj po menších poznámkách; původní obsah zůstává uložený.");
+      }
 
       setMessages((current) => [
         ...current,
@@ -207,10 +243,24 @@ export const AiPanel = memo(function AiPanel({
         }
       ]);
 
-      if (permissionMode === "assist" && parsed.actions.length > 0) {
+      if (permissionRef.current !== "read" && permissionRef.current === permissionMode && parsed.actions.length > 0) {
+        const pending: PendingAction[] = [];
+        for (const [index, action] of parsed.actions.entries()) {
+          const allowed = permissionMode === "agent" && scopeRef.current !== null && action.type === "create_note" && (action.folder ?? "") === scopeRef.current;
+          if (allowed) {
+            try {
+              const result = await executeAction(action);
+              setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", content: "✓ " + result }]);
+            } catch (error) {
+              setError(error instanceof Error ? error.message : "Agentní akce selhala.");
+              pending.push(...parsed.actions.slice(index).map((item) => ({ id: crypto.randomUUID(), action: item })));
+              break;
+            }
+          } else pending.push({ id: crypto.randomUUID(), action });
+        }
         setPendingActions((current) => [
           ...current,
-          ...parsed.actions.map((action) => ({ id: crypto.randomUUID(), action }))
+          ...pending
         ]);
       }
     } catch (caughtError) {
@@ -219,14 +269,16 @@ export const AiPanel = memo(function AiPanel({
     } finally {
       setIsSending(false);
     }
-  }, [activeNote, canSend, folders, input, messages, notes, permissionMode, refreshConnection, settings]);
+  }, [activeNote, canSend, folders, input, messages, notes, permissionMode, refreshConnection, settings, executeAction]);
 
   const applyAction = useCallback(async (pending: PendingAction) => {
+    if (actionLock.current || isSending) return;
+    actionLock.current = true;
     setApplyingActionId(pending.id);
     setError(null);
 
     try {
-      const result = await onApplyAgentAction(pending.action);
+      const result = await executeAction(pending.action);
       setPendingActions((current) => current.filter((candidate) => candidate.id !== pending.id));
       setMessages((current) => [
         ...current,
@@ -240,16 +292,19 @@ export const AiPanel = memo(function AiPanel({
       setError(caughtError instanceof Error ? caughtError.message : "Akci se nepodařilo provést");
     } finally {
       setApplyingActionId(null);
+      actionLock.current = false;
     }
-  }, [onApplyAgentAction]);
+  }, [executeAction, isSending]);
 
   const applyAllActions = useCallback(async () => {
+    if (actionLock.current || isSending) return;
+    actionLock.current = true;
     const queued = [...pendingActions];
 
     for (const pending of queued) {
       setApplyingActionId(pending.id);
       try {
-        const result = await onApplyAgentAction(pending.action);
+        const result = await executeAction(pending.action);
         setPendingActions((current) => current.filter((candidate) => candidate.id !== pending.id));
         setMessages((current) => [
           ...current,
@@ -266,7 +321,8 @@ export const AiPanel = memo(function AiPanel({
         setApplyingActionId(null);
       }
     }
-  }, [onApplyAgentAction, pendingActions]);
+    actionLock.current = false;
+  }, [executeAction, pendingActions, isSending]);
 
   return (
     <aside className={"ai-panel " + (visible ? "" : "ai-hidden")} aria-hidden={!visible}>
@@ -294,12 +350,30 @@ export const AiPanel = memo(function AiPanel({
         <div className="ai-settings">
           <label>
             Agent permissions
-            <select value={permissionMode} onChange={(event) => setPermissionMode(event.target.value as AiPermissionMode)}>
+            <select value={permissionMode} disabled={isSending || applyingActionId !== null} onChange={(event) => changePermission(event.target.value as AiPermissionMode)}>
               <option value="read">READ · pouze čtení</option>
               <option value="assist">ASSIST · změny po potvrzení</option>
+              <option value="agent">AGENT · nové poznámky ve schválené složce</option>
             </select>
           </label>
 
+          {permissionMode === "agent" && <label>
+            Automatické vytváření pouze v této složce (ostatní změny vyžadují potvrzení)
+            <select aria-label="Agent scope" disabled={isSending || applyingActionId !== null} value={agentScope ?? "__none"} onChange={(event) => {
+              const scope = event.target.value === "__none" ? null : event.target.value;
+              scopeRef.current = scope;
+              setAgentScope(scope);
+            }}>
+              <option value="__none">Bez oprávnění k automatickému zápisu</option>
+              <option value="">Root</option>
+              {folders.map((folder) => <option key={folder.id} value={folder.path}>{folder.path}</option>)}
+            </select>
+          </label>}
+          <button type="button" onClick={() => void listAgentAudit().then((entries) => {
+            const blob = new Blob([JSON.stringify(entries, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a"); link.href = url; link.download = "masa-audit.json"; link.click(); URL.revokeObjectURL(url);
+          }).catch((error: unknown) => setError(error instanceof Error ? error.message : "Audit export selhal."))}>Export auditního logu</button>
           <label>
             Provider
             <select value={settings.provider} onChange={(event) => updateProvider(event.target.value as AiProvider)}>
@@ -334,7 +408,7 @@ export const AiPanel = memo(function AiPanel({
           <button className="secondary-button" type="button" onClick={() => void refreshConnection(true)}>
             Znovu najít lokální AI
           </button>
-          <p>ASSIST nikdy neprovede změnu bez kliknutí na Použít. Mazání zatím Máša vůbec nemá k dispozici.</p>
+          <p>ASSIST změny potvrzuješ. AGENT může vytvářet nové poznámky pouze v předem zvolené složce; úpravy stále potvrzuješ. Máša nespouští skripty a nemaže poznámky.</p>
         </div>
       )}
 
@@ -356,7 +430,7 @@ export const AiPanel = memo(function AiPanel({
         <span>Context · {permissionMode.toUpperCase()}</span>
         <strong>{activeNote?.title ?? "žádná poznámka"}</strong>
         <small>
-          {notes.length} notes · {folders.length} folders · {permissionMode === "assist" ? "actions require approval" : "read only"}
+          {notes.length} notes · {folders.length} folders · {permissionMode !== "read" ? "actions require approval" : "read only"}
         </small>
       </div>
 
@@ -400,11 +474,11 @@ export const AiPanel = memo(function AiPanel({
             <strong>Navržené akce</strong>
             <div>
               {pendingActions.length > 1 && (
-                <button type="button" disabled={applyingActionId !== null} onClick={() => void applyAllActions()}>
+                <button type="button" disabled={applyingActionId !== null || isSending || permissionMode === "read"} onClick={() => void applyAllActions()}>
                   Použít vše
                 </button>
               )}
-              <button type="button" disabled={applyingActionId !== null} onClick={() => setPendingActions([])}>
+              <button type="button" disabled={applyingActionId !== null || isSending || permissionMode === "read"} onClick={() => setPendingActions([])}>
                 Zahodit vše
               </button>
             </div>
@@ -412,20 +486,24 @@ export const AiPanel = memo(function AiPanel({
 
           {pendingActions.map((pending) => (
             <div className="agent-action-card" key={pending.id}>
-              <span>ASSIST · čeká na potvrzení</span>
+              <span>{permissionMode.toUpperCase()} · čeká na potvrzení</span>
               <strong>{describeAgentAction(pending.action, notes)}</strong>
+              <details><summary>Náhled změny</summary><pre>{(() => {
+                try { return actionPreview(pending.action, notes); }
+                catch (error) { return error instanceof Error ? error.message : "Náhled nelze vytvořit."; }
+              })()}</pre></details>
               <div>
                 <button
                   type="button"
                   className="agent-apply"
-                  disabled={applyingActionId !== null}
+                  disabled={applyingActionId !== null || isSending || permissionMode === "read"}
                   onClick={() => void applyAction(pending)}
                 >
                   {applyingActionId === pending.id ? "Provádím…" : "Použít"}
                 </button>
                 <button
                   type="button"
-                  disabled={applyingActionId !== null}
+                  disabled={applyingActionId !== null || isSending || permissionMode === "read"}
                   onClick={() => setPendingActions((current) => current.filter((candidate) => candidate.id !== pending.id))}
                 >
                   Zahodit

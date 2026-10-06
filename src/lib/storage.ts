@@ -1,7 +1,7 @@
-import type { CarrotCommit, Note, VaultFolder } from "../types";
+import type { AgentAuditEntry, CarrotCommit, Note, VaultFolder } from "../types";
 
 const databaseName = "ethical-world";
-const databaseVersion = 3;
+const databaseVersion = 4;
 const notesStore = "notes";
 const foldersStore = "folders";
 const carrotStore = "carrotCommits";
@@ -27,6 +27,10 @@ function openDatabase(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = () => {
       const database = request.result;
+
+      if (!database.objectStoreNames.contains("agentAudit")) {
+        database.createObjectStore("agentAudit", { keyPath: "id" });
+      }
 
       if (!database.objectStoreNames.contains(notesStore)) {
         const store = database.createObjectStore(notesStore, { keyPath: "id" });
@@ -172,6 +176,32 @@ export async function saveWorkspace(notes: Note[], folders: VaultFolder[]): Prom
     for (const note of notes) transaction.objectStore(notesStore).put(note);
     for (const folder of folders) transaction.objectStore(foldersStore).put(folder);
     await done;
+  } finally {
+    database.close();
+  }
+}
+
+
+export async function saveAgentAudit(entry: AgentAuditEntry): Promise<void> {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction("agentAudit", "readwrite");
+    const done = transactionDone(transaction);
+    transaction.objectStore("agentAudit").put(entry);
+    await done;
+  } finally {
+    database.close();
+  }
+}
+
+export async function listAgentAudit(): Promise<AgentAuditEntry[]> {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction("agentAudit", "readonly");
+    const done = transactionDone(transaction);
+    const entries = await requestToPromise(transaction.objectStore("agentAudit").getAll() as IDBRequest<AgentAuditEntry[]>);
+    await done;
+    return entries.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   } finally {
     database.close();
   }

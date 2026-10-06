@@ -1,3 +1,4 @@
+import { searchNotes, findRelatedNotes } from "./vaultTools";
 import { gatewayFetch } from "./gateway";
 import type { AiMessage, AiPermissionMode, AiProvider, AiSettings, Note, VaultFolder } from "../types";
 
@@ -8,9 +9,11 @@ interface SendAiMessageInput {
   folders: VaultFolder[];
   activeNote: Note | null;
   permissionMode: AiPermissionMode;
+  agentScope?: string | null;
 }
 
 interface ChatResponse {
+  completeNoteIds: string[];
   content: string;
   provider: string;
   model: string;
@@ -81,6 +84,8 @@ export async function checkProviderStatus(settings: AiSettings): Promise<Provide
 export async function sendAiMessage(input: SendAiMessageInput): Promise<ChatResponse> {
   const contextCandidates = [
     ...(input.activeNote ? [input.activeNote] : []),
+    ...searchNotes(input.notes, input.messages.at(-1)?.content ?? "", 12),
+    ...(input.activeNote ? findRelatedNotes(input.notes, input.activeNote.id) : []),
     ...[...input.notes].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
   ];
 
@@ -96,7 +101,8 @@ export async function sendAiMessage(input: SendAiMessageInput): Promise<ChatResp
       id: note.id,
       title: note.title,
       folder: note.folder,
-      content: note.content.slice(0, 5000)
+      content: note.content.slice(0, 10000),
+      complete: note.content.length <= 10000
     }));
 
   const response = await gatewayFetch(`/api/chat`, {
@@ -111,6 +117,7 @@ export async function sendAiMessage(input: SendAiMessageInput): Promise<ChatResp
       apiKey: input.settings.apiKey || null,
       activeNoteId: input.activeNote?.id ?? null,
       permissionMode: input.permissionMode,
+      agentScope: input.agentScope ?? null,
       vaultFolders: input.folders.slice(0, 200).map((folder) => folder.path),
       vaultIndex: input.notes.slice(0, 1000).map((note) => ({
         id: note.id,
