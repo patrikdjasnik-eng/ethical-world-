@@ -166,3 +166,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-desktop-install
 ```
 
 > Shortcut zatím používá ikonu zabudovanou v executable. Vlastní brandované `.ico` přidáme do packageru samostatně, jakmile uzamkneme finální Ethical World logo.
+
+## Aktualizace již nainstalovaného EXE z private repozitáře
+
+Po `git pull --ff-only origin dev/first-runnable` zavři Ethical World a spusť `npm run desktop:update` v kořeni repozitáře na Windows. Skript obnoví uzamčené závislosti, spustí lokální kontroly, nově sestaví bundled Python backend a Squirrel installer a provede upgrade stejné aplikace. Potom ověří ProductVersion nainstalovaného EXE, přítomnost backendu a spuštění přes existující desktop shortcut. Uživatelský datový adresář nemaže.
+
+Verze balíčku je nyní 0.1.1, aby instalátor rozlišil novou sestavu od původní 0.1.0. Nejde o automatické stažení z GitHub Releases: instalátor se sestavuje na vlastním Windows stroji a nevyžaduje veřejný repozitář, GitHub token uvnitř aplikace ani Actions. Skript vyžaduje již dostupné Node/npm a Python; při chybě před instalací skončí bez změny nainstalovaného EXE. Git konflikty řešíme před buildem; update skript nepoužívá reset/clean ani nemění Git větve.

@@ -1624,3 +1624,13 @@ Požadavek: Máša musí provádět deklarované operace, ne pouze slibovat jeji
 Validace: přidané testy retrieval, rename/move/link/task, stale/ambiguous targets, parser baseline, skutečný App batch až do IndexedDB, UI ASSIST preview/approval/audit, READ rejection, AGENT scope a partial-context overwrite rejection. Backend testuje AGENT prompt i completeNoteIds. Windows packaged/browser E2E nadále otevřené dle předchozího zápisu; na CI/CD nečekáme.
 
 Výsledek lokálního ověření tohoto bloku: 54 frontend testů, 9 Electron helper testů a 12 backend testů (75 celkem), TypeScript + Vite produkční build a live Vite/API/provider fixture smoke. Neplatný modelový návrh hlásí chybu místo tichého tvrzení o provedení.
+
+## 2026-10-06 — upgrade nainstalovaného EXE
+
+Uživatel chce aktualizovat stávající desktop instalaci, nikoli pouze spustit nové zdroje přes desktop:dev.
+
+- Package version 0.1.1 v package.json i npm lockfile, navazující na původní 0.1.0. Bez automatického tagu, publikace Release nebo CI čekání.
+- Přidán `npm run desktop:update`: Windows-only lokální install/verify, nové sestavení bundled backendu a Squirrel installeru, kontrola čerstvého výstupu, upgrade a launch přes shortcut. Běžící aplikaci nenásilně zastaví až uživatel; skript při otevřené aplikaci odmítne pokračovat. UserData nemaže.
+- Installer verification nyní kontroluje exit code Setup.exe, očekávanou ProductVersion, bundled backend a cestu skutečně spuštěného EXE; samotný starý shortcut už nestačí jako důkaz upgradu.
+- DESKTOP.md rozlišuje lokální upgrade private repozitáře od automatického GitHub updateru. Veřejný update service zůstává vypnutý pro private releases.
+- Ověření zde: konzistence verze/lockfile, npm testy a Node helper testy. Windows make/Setup/upgrade se provede na uživatelově stroji; úspěšný upgrade ještě netvrdíme. Skript vyžaduje funkční Windows packaging toolchain a Python, již použité při předchozím installeru.

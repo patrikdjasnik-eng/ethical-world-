@@ -2,6 +2,8 @@
 param(
   [switch]$SkipMake,
   [switch]$Launch,
+  [string]$ExpectedVersion = "",
+  [switch]$RequireBundledBackend,
   [int]$TimeoutSeconds = 90
 )
 
@@ -51,7 +53,6 @@ function Get-EthicalWorldShortcuts {
 
 Write-Host ""
 Write-Host "Ethical World desktop installer test" -ForegroundColor Cyan
-Write-Host "------------------------------------"
 
 if (-not $SkipMake) {
   Write-Host "[1/4] Building Windows installer..."
@@ -94,7 +95,10 @@ foreach ($item in $before) {
 
 Write-Host "[2/4] Running installer: $($setup.FullName)"
 $installStarted = (Get-Date).ToUniversalTime()
-Start-Process -FilePath $setup.FullName -Wait
+$installerProcess = Start-Process -FilePath $setup.FullName -Wait -PassThru
+if ($installerProcess.ExitCode -ne 0) {
+  throw "Installer failed with exit code $($installerProcess.ExitCode)."
+}
 
 Write-Host "[3/4] Waiting for Desktop/Start Menu shortcut..."
 
@@ -159,6 +163,26 @@ if (-not $targetLooksValid) {
 
 Write-Host "[PASS] Shortcut target looks valid." -ForegroundColor Green
 
+if ($ExpectedVersion) {
+  $installRoot = Split-Path -Parent $desktopShortcut.TargetPath
+  if ((Split-Path -Leaf $installRoot) -match "^app-") {
+    $installRoot = Split-Path -Parent $installRoot
+  }
+  $installedApp = Join-Path $installRoot "app-$ExpectedVersion"
+  $installedExe = Join-Path $installedApp "EthicalWorld.exe"
+  if (-not (Test-Path -LiteralPath $installedExe -PathType Leaf)) {
+    throw "Expected installed version $ExpectedVersion was not found at $installedExe."
+  }
+  $productVersion = (Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion
+  if ($productVersion -notmatch ("^" + [regex]::Escape($ExpectedVersion) + "(?:$|[.+-])")) {
+    throw "Installed EXE reports version $productVersion instead of $ExpectedVersion."
+  }
+  if ($RequireBundledBackend -and -not (Test-Path -LiteralPath (Join-Path $installedApp "resources\backend\EthicalWorldBackend.exe") -PathType Leaf)) {
+    throw "Updated EXE has no bundled backend."
+  }
+  Write-Host "[PASS] Installed EXE version: $productVersion" -ForegroundColor Green
+}
+
 if ($Launch) {
   Write-Host "[4/4] Launching Ethical World through the Desktop shortcut..."
   Start-Process -FilePath $desktopShortcut.Path
@@ -175,6 +199,9 @@ if ($Launch) {
     throw "Desktop shortcut was created, but EthicalWorld.exe did not start within 20 seconds."
   }
 
+  if ($ExpectedVersion -and $process.Path -ne $installedExe) {
+    throw "A different EXE started: $($process.Path). Expected $installedExe."
+  }
   Write-Host "[PASS] EthicalWorld.exe started from the Desktop shortcut (PID $($process.Id))." -ForegroundColor Green
 } else {
   Write-Host "[4/4] Launch test skipped. Use npm run desktop:test-install:launch for the full launch test."

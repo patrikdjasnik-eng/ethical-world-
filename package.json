@@ -4,7 +4,7 @@
   "description": "Local-first knowledge workspace with AI-assisted notes and cybersecurity workflows.",
   "author": "patrikdjasnik-eng",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "main": "electron/main.cjs",
   "repository": {
@@ -33,7 +33,8 @@
     "desktop:package:standalone": "npm run desktop:backend:build && npm run desktop:package",
     "test:electron": "node --test tests-electron/*.test.cjs",
     "test:backend": "python -m unittest discover -s server/tests -v",
-    "verify:full": "npm run verify && npm run test:backend"
+    "verify:full": "npm run verify && npm run test:backend",
+    "desktop:update": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/update-desktop.ps1"
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",
