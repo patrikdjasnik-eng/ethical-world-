@@ -4,6 +4,7 @@ export interface NoteSource {
   provider: NoteSourceProvider;
   connectionId: string;
   relativePath: string;
+  baselineContent?: string;
 }
 
 export interface Note {

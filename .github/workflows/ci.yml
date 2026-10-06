@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install
+      - run: npm ci
       - run: npm run verify
 
   backend:
@@ -36,5 +36,6 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -r server/requirements.txt
+      - run: pip install -r server/requirements.lock.txt
       - run: python -m compileall server
+      - run: python -m unittest discover -s server/tests -v

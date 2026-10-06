@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("ethicalDesktop", {
   isDesktop: true,
+  gatewayRequest: (request) => ipcRenderer.invoke("desktop:gateway-request", request),
+  carrotConfirmSaved: (payload, signature, publicKey) => ipcRenderer.invoke("desktop:carrot-confirm-saved", payload, signature, publicKey),
+  carrotVerifyHead: (noteId, commitHash) => ipcRenderer.invoke("desktop:carrot-verify-head", noteId, commitHash),
   platform: process.platform,
   showContextMenu: (items) => ipcRenderer.invoke("desktop:context-menu", items),
   selectVaultFolder: () => ipcRenderer.invoke("desktop:select-vault-folder"),

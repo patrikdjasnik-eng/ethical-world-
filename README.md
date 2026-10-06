@@ -34,7 +34,7 @@ Cílem je mít jedno místo pro poznámky, projekty, wiki odkazy a kontextovou A
 Frontend:
 
 ```powershell
-npm install
+npm ci
 npm run dev
 ```
 
@@ -43,7 +43,7 @@ Backend:
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r server/requirements.txt
+pip install -r server/requirements.lock.txt
 uvicorn server.main:app --reload --port 8787
 ```
 
@@ -52,9 +52,7 @@ Výchozí frontend běží na `http://localhost:5173` a API na `http://localhost
 Kontrola projektu:
 
 ```powershell
-npm test
-npm run build
-python -m compileall server
+npm run verify:full
 ```
 
 Pro Ollamu nastav v aplikaci například `http://localhost:11434`. Pro `llama-server` použij OpenAI-compatible režim a jeho `/v1` endpoint.
@@ -73,3 +71,5 @@ Pro Ollamu nastav v aplikaci například `http://localhost:11434`. Pro `llama-se
 ## Princip projektu
 
 Poznámky jsou data uživatele. AI je pomocná vrstva nad nimi, ne vlastník dat. Destruktivní agentní operace budou vždy navržené tak, aby měly preview, diff nebo explicitní potvrzení.
+
+Webový vývoj používá Vite `/api` proxy do ověřeného lokálního backendu. Backend a Vite musí mít stejný `ETHICAL_WORLD_DATA_DIR` (výchozí `~/.ethical-world`). Desktop spouští vlastní backend a komunikuje přes omezené IPC; samostatný backend před spuštěním desktopu zastav.

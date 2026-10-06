@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import base64
+import asyncio
 import json
 import os
 import secrets
+import time
+from threading import Lock
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -17,7 +20,10 @@ from .auth_store import (
 )
 
 NOTION_VERSION = "2026-03-11"
-_oauth_states: dict[str, str] = {}
+_oauth_states: dict[str, tuple[str, float]] = {}
+_key_lock = Lock()
+_notion_baselines: dict[tuple[str, str], str] = {}
+_notion_write_locks: dict[tuple[str, str], asyncio.Lock] = {}
 
 
 class NotionConnectorError(RuntimeError):
@@ -31,7 +37,7 @@ def _data_dir() -> Path:
     return root
 
 
-def _fernet() -> Fernet:
+def _load_fernet() -> Fernet:
     configured = os.getenv("ETHICAL_WORLD_CONNECTOR_KEY", "").strip()
     if configured:
         return Fernet(configured.encode("ascii"))
@@ -41,12 +47,22 @@ def _fernet() -> Fernet:
         return Fernet(key_path.read_bytes().strip())
 
     key = Fernet.generate_key()
-    key_path.write_bytes(key)
+    try:
+        descriptor = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(key)
+    except FileExistsError:
+        return Fernet(key_path.read_bytes().strip())
     try:
         os.chmod(key_path, 0o600)
     except OSError:
         pass
     return Fernet(key)
+
+
+def _fernet() -> Fernet:
+    with _key_lock:
+        return _load_fernet()
 
 
 def config() -> dict[str, str | bool]:
@@ -69,8 +85,14 @@ def start_oauth(user_id: str) -> str:
     if not settings["configured"]:
         raise NotionConnectorError("Notion OAuth není nakonfigurovaný.")
 
+    now = time.monotonic()
+    for pending, (_, created) in list(_oauth_states.items()):
+        if created < now - 600:
+            _oauth_states.pop(pending, None)
+    if sum(owner == user_id for owner, _ in _oauth_states.values()) >= 5:
+        raise NotionConnectorError("Příliš mnoho otevřených Notion autorizací.")
     state = secrets.token_urlsafe(32)
-    _oauth_states[state] = user_id
+    _oauth_states[state] = (user_id, now)
     query = urlencode({
         "client_id": settings["client_id"],
         "response_type": "code",
@@ -82,9 +104,10 @@ def start_oauth(user_id: str) -> str:
 
 
 async def finish_oauth(code: str, state: str) -> dict[str, str | None]:
-    user_id = _oauth_states.pop(state, None)
-    if not user_id:
+    pending = _oauth_states.pop(state, None)
+    if not pending or pending[1] < time.monotonic() - 600:
         raise NotionConnectorError("Neplatný nebo expirovaný OAuth state.")
+    user_id = pending[0]
 
     settings = config()
     basic = base64.b64encode(
@@ -228,6 +251,8 @@ async def list_pages(user_id: str) -> list[dict[str, str]]:
 async def read_markdown(user_id: str, page_id: str) -> dict:
     page = await _request(user_id, "GET", f"/v1/pages/{page_id}")
     markdown = await _request(user_id, "GET", f"/v1/pages/{page_id}/markdown")
+    if not markdown.get("truncated"):
+        _notion_baselines[(user_id, page_id)] = markdown.get("markdown", "")
     return {
         "pageId": page_id,
         "title": _page_title(page),
@@ -236,10 +261,16 @@ async def read_markdown(user_id: str, page_id: str) -> dict:
     }
 
 
-async def write_markdown(user_id: str, page_id: str, markdown: str) -> None:
+async def _write_markdown(user_id: str, page_id: str, markdown: str) -> None:
     if len(markdown) > 200_000:
         raise NotionConnectorError("Markdown je příliš velký.")
 
+    baseline = _notion_baselines.get((user_id, page_id))
+    if baseline is None:
+        raise NotionConnectorError("Nejdřív stránku znovu importuj; chybí verze pro kontrolu konfliktu.")
+    current = await _request(user_id, "GET", f"/v1/pages/{page_id}/markdown")
+    if current.get("truncated") or current.get("markdown", "") != baseline:
+        raise NotionConnectorError("Konflikt: Notion stránka se od importu změnila.")
     await _request(
         user_id,
         "PATCH",
@@ -249,3 +280,10 @@ async def write_markdown(user_id: str, page_id: str, markdown: str) -> None:
             "replace_content": {"content": markdown},
         },
     )
+    _notion_baselines[(user_id, page_id)] = markdown
+
+async def write_markdown(user_id: str, page_id: str, markdown: str) -> None:
+    key = (user_id, page_id)
+    lock = _notion_write_locks.setdefault(key, asyncio.Lock())
+    async with lock:
+        await _write_markdown(user_id, page_id, markdown)

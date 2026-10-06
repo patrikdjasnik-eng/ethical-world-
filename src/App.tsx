@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityRail } from "./components/ActivityRail";
 import { EditorPane } from "./components/EditorPane";
 import { VaultSidebar, type WorkspaceView } from "./components/VaultSidebar";
@@ -10,9 +10,10 @@ import {
   renameFolderPath,
   sanitizeFolderName
 } from "./lib/folders";
+import { NoteWriteQueue } from "./lib/notePersistence";
 import { createEmptyNote } from "./lib/notes";
 import { createCarrotCommit } from "./lib/carrot";
-import { bootstrapOwnerAccount, restoreAccount } from "./lib/auth";
+import { initialiseAccount } from "./lib/auth";
 import {
   listFolders,
   listNotes,
@@ -21,7 +22,8 @@ import {
   saveFolder,
   saveFolders,
   saveNote,
-  saveNotes
+  saveNotes,
+  saveWorkspace
 } from "./lib/storage";
 import type { AgentAction, Note, UserProfile, VaultFolder } from "./types";
 
@@ -42,8 +44,33 @@ const welcomeNote: Note = {
 };
 
 export default function App() {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [folders, setFolders] = useState<VaultFolder[]>([]);
+  const [notes, reactSetNotes] = useState<Note[]>([]);
+  const [folders, reactSetFolders] = useState<VaultFolder[]>([]);
+  const notesRef = useRef<Note[]>([]);
+  const foldersRef = useRef<VaultFolder[]>([]);
+  const setNotes = useCallback((next: Note[] | ((current: Note[]) => Note[])) => {
+    notesRef.current = typeof next === "function" ? next(notesRef.current) : next;
+    reactSetNotes(notesRef.current);
+  }, []);
+  const setFolders = useCallback((next: VaultFolder[] | ((current: VaultFolder[]) => VaultFolder[])) => {
+    foldersRef.current = typeof next === "function" ? next(foldersRef.current) : next;
+    reactSetFolders(foldersRef.current);
+  }, []);
+  const persistence = useRef(new NoteWriteQueue(saveNote));
+  const [saveStates, setSaveStates] = useState<Record<string, string>>({});
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [vaultLoadFailed, setVaultLoadFailed] = useState(false);
+  const persistNote = useCallback((note: Note) => {
+    setSaveStates((current) => ({ ...current, [note.id]: "ukládám…" }));
+    return persistence.current.enqueue(note).then(() => {
+      if (notesRef.current.find((item) => item.id === note.id)?.updatedAt === note.updatedAt) {
+        setSaveStates((current) => ({ ...current, [note.id]: "uloženo" }));
+      }
+    }).catch((error: unknown) => {
+      setSaveStates((current) => ({ ...current, [note.id]: "chyba uložení" }));
+      setWorkspaceError(error instanceof Error ? error.message : "Poznámku se nepodařilo uložit.");
+    });
+  }, []);
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -51,7 +78,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiLoaded, setAiLoaded] = useState(false);
-  const [accountLocked, setAccountLocked] = useState(false);
+  const [accountLocked, setAccountLocked] = useState(true);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [folderCreateNonce, setFolderCreateNonce] = useState(0);
   const [isReady, setIsReady] = useState(false);
@@ -60,18 +87,13 @@ export default function App() {
     let cancelled = false;
 
     const initialiseIdentity = async () => {
-      let profile = await restoreAccount();
+      const profile = await initialiseAccount();
 
-      if (!profile) {
-        const bootstrap = await bootstrapOwnerAccount();
-        profile = bootstrap?.user ?? null;
-      }
-
-      if (cancelled || !profile) return;
-
+      if (cancelled) return;
+      setAccountLocked(Boolean(profile?.mustChangePassword));
       setCurrentUser(profile);
 
-      if (profile.mustChangePassword) {
+      if (profile?.mustChangePassword) {
         setAccountLocked(true);
         setSidebarOpen(false);
         setAiOpen(false);
@@ -80,6 +102,10 @@ export default function App() {
     };
 
     void initialiseIdentity().catch((error) => {
+      if (!cancelled) {
+        setAccountLocked(false);
+        setWorkspaceError("Účet je offline. Lokální vault je společný pro tento profil zařízení.");
+      }
       console.error("Unable to initialise identity", error);
     });
 
@@ -107,6 +133,8 @@ export default function App() {
         setFolders(storedFolders);
         setActiveNoteId(storedNotes[0]?.id ?? null);
       } catch (error) {
+        setVaultLoadFailed(true);
+        setWorkspaceError("Vault se nepodařilo načíst. Znovu jej otevři; původní data nebyla přepsána.");
         console.error("Unable to load vault", error);
       } finally {
         setIsReady(true);
@@ -124,19 +152,12 @@ export default function App() {
   useEffect(() => {
     if (!isReady || !activeNote) return;
 
-    const saveTimeout = window.setTimeout(() => {
-      void saveNote(activeNote).catch((error) => console.error("Autosave failed", error));
-    }, 450);
-
     const carrotTimeout = window.setTimeout(() => {
       void createCarrotCommit(activeNote, currentUser, "Autosave Markdown")
-        .catch((error) => console.error("Carrot autosave failed", error));
+        .catch((error) => setWorkspaceError(String(error)));
     }, 1600);
 
-    return () => {
-      window.clearTimeout(saveTimeout);
-      window.clearTimeout(carrotTimeout);
-    };
+    return () => window.clearTimeout(carrotTimeout);
   }, [activeNote, currentUser, isReady]);
 
   const handleCreateNote = useCallback((folderPath: string | null = selectedFolderPath) => {
@@ -146,8 +167,8 @@ export default function App() {
     setSelectedFolderPath(folderPath ?? null);
     setView("note");
     setSidebarOpen(true);
-    void saveNote(note);
-    void createCarrotCommit(note, currentUser, "Created note");
+    void persistNote(note);
+    void createCarrotCommit(note, currentUser, "Created note").catch((error) => setWorkspaceError(String(error)));
   }, [currentUser, selectedFolderPath]);
 
   const handleCreateFolder = useCallback((parentPath: string | null, rawName: string) => {
@@ -169,7 +190,7 @@ export default function App() {
 
     setFolders((current) => [...current, folder].sort((left, right) => left.path.localeCompare(right.path, "cs")));
     setSelectedFolderPath(path);
-    void saveFolder(folder);
+    void saveFolder(folder).catch((error) => setWorkspaceError(String(error)));
   }, [folders]);
 
   const handleRenameFolder = useCallback((folderId: string, rawName: string) => {
@@ -209,18 +230,17 @@ export default function App() {
         updatedAt: timestamp
       }));
 
-    setFolders(nextFolders);
-    setNotes((current) => current.map((note) => changedNotes.find((changed) => changed.id === note.id) ?? note));
-
-    if (selectedFolderPath && isPathInsideFolder(selectedFolderPath, folder.path)) {
-      setSelectedFolderPath(renameFolderPath(selectedFolderPath, folder.path, newPath));
-    }
-
-    void Promise.all([
-      saveFolders(nextFolders.filter((candidate) => isPathInsideFolder(candidate.path, newPath))),
-      saveNotes(changedNotes),
-      ...changedNotes.map((note) => createCarrotCommit(note, currentUser, "Folder path changed"))
-    ]);
+    void persistence.current.flush()
+      .then(() => saveWorkspace(changedNotes, nextFolders))
+      .then(() => {
+        setFolders(nextFolders);
+        setNotes((current) => current.map((note) => changedNotes.find((changed) => changed.id === note.id) ?? note));
+        if (selectedFolderPath && isPathInsideFolder(selectedFolderPath, folder.path)) {
+          setSelectedFolderPath(renameFolderPath(selectedFolderPath, folder.path, newPath));
+        }
+        return Promise.all(changedNotes.map((note) => createCarrotCommit(note, currentUser, "Folder path changed")));
+      })
+      .catch((error) => setWorkspaceError(String(error)));
   }, [currentUser, folders, notes, selectedFolderPath]);
 
   const handleDeleteFolder = useCallback((folderId: string) => {
@@ -243,7 +263,7 @@ export default function App() {
       setSelectedFolderPath(folder.parentPath);
     }
 
-    void removeFolder(folderId);
+    void removeFolder(folderId).catch((error) => setWorkspaceError(String(error)));
   }, [folders, notes, selectedFolderPath]);
 
   const handleMoveNote = useCallback((noteId: string, folderPath: string | null) => {
@@ -258,8 +278,8 @@ export default function App() {
 
     setNotes((current) => current.map((candidate) => candidate.id === noteId ? nextNote : candidate));
     setSelectedFolderPath(folderPath);
-    void saveNote(nextNote);
-    void createCarrotCommit(nextNote, currentUser, "Moved note");
+    void persistNote(nextNote);
+    void createCarrotCommit(nextNote, currentUser, "Moved note").catch((error) => setWorkspaceError(String(error)));
   }, [currentUser, notes]);
 
   const handleDeleteNote = useCallback((noteId: string) => {
@@ -269,12 +289,13 @@ export default function App() {
       return nextNotes;
     });
 
-    void removeNote(noteId);
+    void persistence.current.flush().then(() => removeNote(noteId)).catch((error) => setWorkspaceError(String(error)));
   }, [activeNoteId]);
 
   const handleChangeNote = useCallback((nextNote: Note) => {
     setNotes((current) => current.map((note) => note.id === nextNote.id ? nextNote : note));
-  }, []);
+    void persistNote(nextNote);
+  }, [persistNote, setNotes]);
 
   const handleOpenGraphNote = useCallback((noteId: string) => {
     setActiveNoteId(noteId);
@@ -294,6 +315,8 @@ export default function App() {
     const existingPaths = new Set(folders.map((folder) => folder.path));
     const newFolders = inferredFolders.filter((folder) => !existingPaths.has(folder.path));
 
+    await persistence.current.flush();
+    await saveWorkspace(incomingNotes, newFolders);
     setNotes(mergedNotes);
     setFolders((current) => [
       ...current,
@@ -302,14 +325,13 @@ export default function App() {
     setActiveNoteId(incomingNotes[0]?.id ?? activeNoteId);
     setView("note");
 
-    await Promise.all([
-      saveNotes(incomingNotes),
-      saveFolders(newFolders),
-      ...incomingNotes.map((note) => createCarrotCommit(note, currentUser, "Imported Markdown"))
-    ]);
+    await Promise.all(incomingNotes.map((note) => createCarrotCommit(note, currentUser, "Imported Markdown")));
   }, [activeNoteId, currentUser, folders, notes]);
 
   const handleApplyAgentAction = useCallback(async (action: AgentAction): Promise<string> => {
+    const notes = notesRef.current;
+    const folders = foldersRef.current;
+    await persistence.current.flush();
     if (action.type === "open_note") {
       const note = notes.find((candidate) => candidate.id === action.noteId);
       if (!note) throw new Error("Poznámka už ve vaultu neexistuje.");
@@ -344,9 +366,9 @@ export default function App() {
         updatedAt: timestamp
       };
 
+      await saveFolder(folder);
       setFolders((current) => [...current, folder].sort((left, right) => left.path.localeCompare(right.path, "cs")));
       setSelectedFolderPath(folder.path);
-      await saveFolder(folder);
       return "Vytvořena složka „" + folder.path + "“.";
     }
 
@@ -362,11 +384,11 @@ export default function App() {
       note.content = action.content;
       note.updatedAt = new Date().toISOString();
 
+      await saveNote(note);
       setNotes((current) => [note, ...current]);
       setActiveNoteId(note.id);
       setSelectedFolderPath(folderPath || null);
       setView("note");
-      await saveNote(note);
       await createCarrotCommit(note, currentUser, "Máša created note");
       return "Vytvořena poznámka „" + note.title + "“.";
     }
@@ -392,8 +414,8 @@ export default function App() {
       updatedAt: new Date().toISOString()
     };
 
-    setNotes((current) => current.map((note) => note.id === nextNote.id ? nextNote : note));
     await saveNote(nextNote);
+    setNotes((current) => current.map((note) => note.id === nextNote.id ? nextNote : note));
     await createCarrotCommit(nextNote, currentUser, "Máša updated note");
     return "Upravena poznámka „" + nextNote.title + "“.";
   }, [currentUser, folders, notes]);
@@ -443,6 +465,18 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyboardShortcut);
   }, [accountLocked, handleCreateNote, selectedFolderPath, toggleAiPanel]);
 
+  const handleSecurityChange = useCallback((locked: boolean) => {
+    setAccountLocked(locked);
+    if (locked) {
+      setSidebarOpen(false);
+      setAiOpen(false);
+      setView("account");
+    }
+  }, []);
+
+  if (vaultLoadFailed) {
+    return <main role="alert">{workspaceError}<button type="button" onClick={() => window.location.reload()}>Znovu načíst vault</button></main>;
+  }
   if (!isReady) {
     return <div className="loading-screen">Načítám lokální vault…</div>;
   }
@@ -468,10 +502,16 @@ export default function App() {
 
   return (
     <div className={`workbench ${sidebarOpen ? "sidebar-open" : ""} ${aiOpen ? "ai-open" : ""}`}>
+      {workspaceError && <div role="alert" className="workspace-error">
+        {workspaceError}
+        <button type="button" onClick={() => vaultLoadFailed ? window.location.reload() : setWorkspaceError(null)}>
+          {vaultLoadFailed ? "Znovu načíst" : "Zavřít"}
+        </button>
+      </div>}
       <header className="app-topbar">
         <div className="topbar-brand">
           <div className="topbar-logo">
-            <img src="/ethical-world-mark.svg" alt="" aria-hidden="true" />
+            <img src="./ethical-world-mark.svg" alt="" aria-hidden="true" />
           </div>
           <strong>Ethical World</strong>
         </div>
@@ -541,18 +581,12 @@ export default function App() {
           <Suspense fallback={<main className="account-pane loading-screen">Načítám účet…</main>}>
             <AccountPanel
               onUserChange={setCurrentUser}
-              onSecurityStateChange={(locked) => {
-                setAccountLocked(locked);
-                if (locked) {
-                  setSidebarOpen(false);
-                  setAiOpen(false);
-                  setView("account");
-                }
-              }}
+              onSecurityStateChange={handleSecurityChange}
             />
           </Suspense>
         ) : (
           <EditorPane
+            saveState={activeNote ? saveStates[activeNote.id] ?? "uloženo" : ""}
             note={activeNote}
             notes={notes}
             folders={folders}

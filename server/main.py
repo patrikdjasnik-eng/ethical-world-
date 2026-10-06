@@ -7,6 +7,9 @@ from typing import Literal
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from starlette.concurrency import run_in_threadpool
+from . import runtime_security
+from .runtime_security import RuntimeGuard, health_proof, write_browser_runtime
 from pydantic import BaseModel, Field
 
 from .auth_store import (
@@ -128,18 +131,20 @@ app = FastAPI(title="Ethical World AI Gateway", version="0.1.2")
 
 init_auth_store()
 bootstrap_admin_from_env()
+write_browser_runtime()
 
 allowed_origins = os.getenv(
     "ETHICAL_WORLD_ALLOWED_ORIGINS",
     "http://localhost:5173,http://127.0.0.1:5173",
 ).split(",")
 
+app.add_middleware(RuntimeGuard)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip() for origin in allowed_origins if origin.strip()],
     allow_credentials=False,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization", "X-Ethical-Capability"],
 )
 
 
@@ -156,14 +161,14 @@ def _require_user(authorization: str | None) -> dict:
 
 
 @app.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
+async def health(challenge: str = Query(default="", max_length=128)) -> dict[str, str]:
+    return {"status": "ok", "proof": health_proof(challenge)}
 
 
 @app.post("/api/auth/register", response_model=UserResponse)
 async def register(request: RegisterRequest) -> UserResponse:
     try:
-        user = register_user(request.email, request.password, request.displayName)
+        user = await run_in_threadpool(register_user, request.email, request.password, request.displayName)
     except AuthStoreError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
 
@@ -172,7 +177,11 @@ async def register(request: RegisterRequest) -> UserResponse:
 
 @app.post("/api/auth/bootstrap-owner", response_model=AuthResponse)
 async def bootstrap_owner() -> AuthResponse:
-    result = bootstrap_owner_login()
+    with runtime_security.bootstrap_lock:
+      if runtime_security.bootstrap_claimed:
+        raise HTTPException(status_code=409, detail="Bootstrap už byl v tomto runtime použitý.")
+      runtime_security.bootstrap_claimed = True
+    result = await run_in_threadpool(bootstrap_owner_login)
     if not result:
         raise HTTPException(status_code=404, detail="Bootstrap owner není dostupný.")
 
@@ -187,7 +196,7 @@ async def bootstrap_owner() -> AuthResponse:
 @app.post("/api/auth/login", response_model=AuthResponse)
 async def login(request: LoginRequest) -> AuthResponse:
     try:
-        user, token, expires_at = login_user(request.email, request.password)
+        user, token, expires_at = await run_in_threadpool(login_user, request.email, request.password)
     except AuthStoreError as error:
         raise HTTPException(status_code=401, detail=str(error)) from error
 
@@ -206,7 +215,7 @@ async def change_password(
     user = _require_user(authorization)
     current_token = authorization[len("Bearer "):].strip() if authorization else ""
     try:
-        updated = change_user_password(user["id"], request.newPassword, current_token)
+        updated = await run_in_threadpool(change_user_password, user["id"], request.newPassword, current_token)
     except AuthStoreError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 

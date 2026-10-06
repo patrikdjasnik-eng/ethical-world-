@@ -45,7 +45,11 @@ function openDatabase(): Promise<IDBDatabase> {
       }
     };
 
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      request.result.onversionchange = () => request.result.close();
+      resolve(request.result);
+    };
+    request.onblocked = () => reject(new Error("Vault je otevřený v jiné starší kartě. Zavři ji a zkus znovu."));
     request.onerror = () => reject(request.error ?? new Error("Unable to open IndexedDB"));
   });
 }
@@ -158,4 +162,17 @@ export async function saveCarrotCommit(commit: CarrotCommit): Promise<void> {
   transaction.objectStore(carrotStore).put(commit);
   await done;
   database.close();
+}
+
+export async function saveWorkspace(notes: Note[], folders: VaultFolder[]): Promise<void> {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction([notesStore, foldersStore], "readwrite");
+    const done = transactionDone(transaction);
+    for (const note of notes) transaction.objectStore(notesStore).put(note);
+    for (const folder of folders) transaction.objectStore(foldersStore).put(folder);
+    await done;
+  } finally {
+    database.close();
+  }
 }

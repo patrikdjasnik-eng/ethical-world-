@@ -3388,3 +3388,14 @@ body,
   display: flex;
   gap: 6px;
 }
+
+.workspace-error {
+  position: fixed;
+  top: 44px;
+  left: 10%;
+  right: 10%;
+  z-index: 1000;
+  background: #522035;
+  padding: 12px;
+  border-radius: 8px;
+}

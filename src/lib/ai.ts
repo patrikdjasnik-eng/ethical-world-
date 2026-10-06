@@ -1,3 +1,4 @@
+import { gatewayFetch } from "./gateway";
 import type { AiMessage, AiPermissionMode, AiProvider, AiSettings, Note, VaultFolder } from "../types";
 
 interface SendAiMessageInput {
@@ -23,11 +24,10 @@ export interface ProviderStatus {
   model: string | null;
 }
 
-const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:8787";
 
 export async function checkGatewayHealth(): Promise<boolean> {
   try {
-    const response = await fetch(`${apiUrl}/health`, {
+    const response = await gatewayFetch(`/health`, {
       signal: AbortSignal.timeout(2500)
     });
 
@@ -39,7 +39,7 @@ export async function checkGatewayHealth(): Promise<boolean> {
 
 export async function autoDetectLocalProvider(): Promise<ProviderStatus | null> {
   try {
-    const response = await fetch(`${apiUrl}/api/providers/auto-detect`, {
+    const response = await gatewayFetch(`/api/providers/auto-detect`, {
       signal: AbortSignal.timeout(10000)
     });
 
@@ -55,7 +55,7 @@ export async function autoDetectLocalProvider(): Promise<ProviderStatus | null> 
 
 export async function checkProviderStatus(settings: AiSettings): Promise<ProviderStatus | null> {
   try {
-    const response = await fetch(`${apiUrl}/api/providers/status`, {
+    const response = await gatewayFetch(`/api/providers/status`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -99,7 +99,7 @@ export async function sendAiMessage(input: SendAiMessageInput): Promise<ChatResp
       content: note.content.slice(0, 5000)
     }));
 
-  const response = await fetch(`${apiUrl}/api/chat`, {
+  const response = await gatewayFetch(`/api/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -111,15 +111,16 @@ export async function sendAiMessage(input: SendAiMessageInput): Promise<ChatResp
       apiKey: input.settings.apiKey || null,
       activeNoteId: input.activeNote?.id ?? null,
       permissionMode: input.permissionMode,
-      vaultFolders: input.folders.map((folder) => folder.path),
-      vaultIndex: input.notes.map((note) => ({
+      vaultFolders: input.folders.slice(0, 200).map((folder) => folder.path),
+      vaultIndex: input.notes.slice(0, 1000).map((note) => ({
         id: note.id,
         title: note.title,
         folder: note.folder
       })),
       vaultContext,
-      messages: input.messages.map(({ role, content }) => ({ role, content }))
-    })
+      messages: input.messages.slice(-40).map(({ role, content }) => ({ role, content: content.slice(0, 20000) }))
+    }),
+    signal: AbortSignal.timeout(250000)
   });
 
   if (!response.ok) {

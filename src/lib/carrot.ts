@@ -71,13 +71,16 @@ export async function verifyCarrotCommitIntegrity(commit: CarrotCommit): Promise
   return expectedCommitHash === commit.commitHash;
 }
 
-export async function createCarrotCommit(
+async function writeCarrotCommit(
   note: Note,
   user: UserProfile | null,
   message = "Markdown snapshot"
 ): Promise<CarrotCommit | null> {
   const history = await listCarrotCommits(note.id);
   const parent = history[0] ?? null;
+  if (parent?.signature && parent.publicKey && typeof window !== "undefined" && window.ethicalDesktop?.carrotConfirmSaved) {
+    await window.ethicalDesktop.carrotConfirmSaved(carrotSigningPayload(unsignedFromCommit(parent)), parent.signature, parent.publicKey);
+  }
   const nextHash = await carrotSnapshotHash(note);
 
   if (parent?.snapshotHash === nextHash) return null;
@@ -123,7 +126,23 @@ export async function createCarrotCommit(
   };
 
   await saveCarrotCommit(commit);
+  if (signature && publicKey && window.ethicalDesktop?.carrotConfirmSaved) {
+    await window.ethicalDesktop.carrotConfirmSaved(payload, signature, publicKey);
+  }
   return commit;
+}
+
+const commitQueues = new Map<string, Promise<CarrotCommit | null>>();
+
+export function createCarrotCommit(note: Note, user: UserProfile | null, message = "Markdown snapshot"): Promise<CarrotCommit | null> {
+  const previous = commitQueues.get(note.id) ?? Promise.resolve(null);
+  const snapshot = { ...note };
+  const task = previous.catch(() => null).then(() => writeCarrotCommit(snapshot, user, message));
+  commitQueues.set(note.id, task);
+  void task.finally(() => {
+    if (commitQueues.get(note.id) === task) commitQueues.delete(note.id);
+  }).catch(() => undefined);
+  return task;
 }
 
 export async function verifyCarrotCommit(commit: CarrotCommit): Promise<boolean | null> {
@@ -190,6 +209,12 @@ export async function verifyCarrotHistory(
     chainCache.set(commit.id, valid);
     return valid;
   };
+
+  if (typeof window !== "undefined" && window.ethicalDesktop?.carrotVerifyHead && commits.length > 0) {
+    const latest = [...commits].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+    const trustedHead = await window.ethicalDesktop.carrotVerifyHead(latest.noteId, latest.commitHash);
+    if (trustedHead === false) return Object.fromEntries(commits.map((commit) => [commit.id, false]));
+  }
 
   return Object.fromEntries(
     commits.map((commit) => [

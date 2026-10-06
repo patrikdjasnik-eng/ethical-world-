@@ -45,6 +45,14 @@ export type DesktopGitHubLoginPoll =
 
 export interface EthicalDesktopApi {
   isDesktop: true;
+  gatewayRequest: (request: {
+    path: string;
+    method: "GET" | "POST";
+    headers: Record<string, string>;
+    body?: string;
+  }) => Promise<{ status: number; body: string }>;
+  carrotConfirmSaved: (payload: string, signature: string, publicKey: string) => Promise<boolean>;
+  carrotVerifyHead: (noteId: string, commitHash: string) => Promise<boolean | null>;
   platform: string;
   showContextMenu: (items: DesktopContextMenuItem[]) => Promise<string | null>;
   selectVaultFolder: () => Promise<string | null>;

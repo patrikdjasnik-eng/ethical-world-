@@ -89,3 +89,14 @@ Před zobrazením `podpis ověřen` se znovu počítá:
 4. teprve potom Ed25519 podpis přes Electron bridge.
 
 Samotné zachování starého `snapshotHash` a podpisu tedy nestačí, pokud někdo ručně změní uložený Markdown snapshot.
+
+
+## Hardening 2026-10-06
+
+API vyžaduje neveřejnou runtime capability; výjimkou jsou health challenge a Notion OAuth callback. Owner bootstrap lze použít jednou za běh backendu. Desktop důvěřuje pouze vlastnímu procesu s ověřeným HMAC proof a předává požadavky přes omezené IPC. Web dev/preview používá same-origin proxy s kontrolou Host/Origin. Runtime descriptor patří do uživatelského datového adresáře, nikoli do repozitáře.
+
+Provider proxy ověřuje URL i DNS a připojuje se na ověřenou IP; vzdálené providery musí být HTTPS a v `ETHICAL_WORLD_PROVIDER_HOSTS` (výchozí api.openai.com, api.groq.com, openrouter.ai). Lokální modely musí být na loopbacku. Auth má rate limit, scrypt běží mimo event loop; chat má limit souběhu a požadavky/odpovědi mají velikostní limity.
+
+Carrot ověřuje signer proti identitě uložené pomocí OS safeStorage a potvrzenému checkpointu. Neznámý klíč nebo rollback podepsané historie je chyba. Lokální export odmítá symlinky/junctions a neznámé změny souborů; GitHub export kontroluje importované blob SHA a aktualizuje branch bez force. Notion kontroluje importovaný obsah před zápisem, ale API neposkytuje atomický compare-and-swap.
+
+Účty nejsou oddělené šifrované vaulty. Poznámky sdílí lokální profil zařízení; logout není uzamčení IndexedDB. Kompromitace OS uživatele je mimo tuto hranici důvěry. Notion šifrovací klíč je nadále v datovém adresáři; migrace do OS key store zůstává otevřená. Vzdálené obrázky se načítají až po explicitním kliknutí.

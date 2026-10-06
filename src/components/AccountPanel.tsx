@@ -111,7 +111,7 @@ export const AccountPanel = memo(function AccountPanel({
         <header className="account-heading">
           <span>IDENTITY</span>
           <h1>Ethical World account</h1>
-          <p>Účet je základ pro budoucí sync, team workspaces a E2E messaging.</p>
+          <p>Účet je základ pro budoucí sync a týmové funkce. Lokální vault je společný pro tento profil zařízení; odhlášení jej nešifruje ani nezamyká.</p>
         </header>
 
         {user?.mustChangePassword ? (

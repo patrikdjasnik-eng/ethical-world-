@@ -1,6 +1,6 @@
+import { gatewayFetch } from "./gateway";
 import type { AuthSession, UserProfile } from "../types";
 
-const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:8787";
 const browserSessionKey = "ethical-world-session-token";
 
 export async function getStoredSessionToken(): Promise<string | null> {
@@ -33,7 +33,7 @@ export async function logoutAccount(): Promise<void> {
   const token = await getStoredSessionToken();
 
   if (token) {
-    await fetch(apiUrl + "/api/auth/logout", {
+    await gatewayFetch("/api/auth/logout", {
       method: "POST",
       headers: { Authorization: "Bearer " + token },
       signal: AbortSignal.timeout(5000)
@@ -53,7 +53,7 @@ export async function registerAccount(
   password: string,
   displayName: string
 ): Promise<UserProfile> {
-  const response = await fetch(apiUrl + "/api/auth/register", {
+  const response = await gatewayFetch("/api/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password, displayName })
@@ -64,7 +64,7 @@ export async function registerAccount(
 }
 
 export async function loginAccount(email: string, password: string): Promise<AuthSession> {
-  const response = await fetch(apiUrl + "/api/auth/login", {
+  const response = await gatewayFetch("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password })
@@ -81,22 +81,24 @@ export async function restoreAccount(): Promise<UserProfile | null> {
   const token = await getStoredSessionToken();
   if (!token) return null;
 
-  const response = await fetch(apiUrl + "/api/auth/me", {
+  const response = await gatewayFetch("/api/auth/me", {
     headers: { Authorization: "Bearer " + token },
     signal: AbortSignal.timeout(5000)
   }).catch(() => null);
 
-  if (!response?.ok) {
+  if (!response) throw new Error("Účet nelze ověřit: backend je offline.");
+  if (response.status === 401) {
     await clearStoredSession();
     return null;
   }
+  if (!response.ok) throw new Error(await parseError(response));
 
   return response.json() as Promise<UserProfile>;
 }
 
 
 export async function bootstrapOwnerAccount(): Promise<AuthSession | null> {
-  const response = await fetch(apiUrl + "/api/auth/bootstrap-owner", {
+  const response = await gatewayFetch("/api/auth/bootstrap-owner", {
     method: "POST",
     headers: { "Content-Type": "application/json" }
   });
@@ -113,7 +115,7 @@ export async function changeAccountPassword(newPassword: string): Promise<UserPr
   const token = await getStoredSessionToken();
   if (!token) throw new Error("Chybí aktivní session.");
 
-  const response = await fetch(apiUrl + "/api/auth/change-password", {
+  const response = await gatewayFetch("/api/auth/change-password", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -124,4 +126,15 @@ export async function changeAccountPassword(newPassword: string): Promise<UserPr
 
   if (!response.ok) throw new Error(await parseError(response));
   return response.json() as Promise<UserProfile>;
+}
+
+let identityInitialisation: Promise<UserProfile | null> | null = null;
+
+export function initialiseAccount(): Promise<UserProfile | null> {
+  if (!identityInitialisation) {
+    identityInitialisation = restoreAccount()
+      .then(async (profile) => profile ?? (await bootstrapOwnerAccount())?.user ?? null)
+      .finally(() => { identityInitialisation = null; });
+  }
+  return identityInitialisation;
 }

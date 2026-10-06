@@ -2,6 +2,7 @@ import { isValidElement, memo, useCallback, useEffect, useMemo, useRef, useState
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { InsertMenu } from "./InsertMenu";
+import { RemoteImage } from "./RemoteImage";
 import { MermaidDiagram } from "./MermaidDiagram";
 import { applyMarkdownInsert, type MarkdownInsertRequest } from "../lib/editorInsert";
 import { extractWikiLinks, getBacklinks, normalizeTitle } from "../lib/notes";
@@ -19,6 +20,7 @@ function mermaidSourceFromMarkdownNode(children: ReactNode): string | null {
 }
 
 interface EditorPaneProps {
+  saveState: string;
   note: Note | null;
   notes: Note[];
   folders: VaultFolder[];
@@ -27,6 +29,7 @@ interface EditorPaneProps {
 }
 
 export const EditorPane = memo(function EditorPane({
+  saveState,
   note,
   notes,
   folders,
@@ -177,7 +180,7 @@ export const EditorPane = memo(function EditorPane({
             <option value="">Vault root</option>
             {folders.map((folder) => <option value={folder.path} key={folder.id}>{folder.path}</option>)}
           </select>
-          <span className="save-state">uloženo</span>
+          <span className="save-state" role="status">{saveState}</span>
           <button
             type="button"
             className={"carrot-toggle " + (carrotOpen ? "active" : "")}
@@ -199,7 +202,7 @@ export const EditorPane = memo(function EditorPane({
 
       <div className="document-scroll">
         <div className="document-page">
-          <input className="title-input" value={note.title} onChange={(event) => updateField("title", event.target.value)} placeholder="Název poznámky" />
+          <input className="title-input" aria-label="Název poznámky" value={note.title} onChange={(event) => updateField("title", event.target.value)} placeholder="Název poznámky" />
           <div className="document-meta">
             <span>{note.folder ? `#${note.folder.toLocaleLowerCase("cs-CZ").replaceAll(" ", "-")}` : "#root"}</span>
             <span>•</span><span>{new Date(note.updatedAt).toLocaleDateString("cs-CZ")}</span>
@@ -209,12 +212,15 @@ export const EditorPane = memo(function EditorPane({
           <InsertMenu notes={notes} currentNoteId={note.id} onInsert={insertMarkdown} />
 
           {mode === "edit" ? (
-            <textarea ref={textareaRef} className="note-editor" value={note.content} onChange={(event) => updateField("content", event.target.value)} spellCheck />
+            <textarea ref={textareaRef} className="note-editor" aria-label="Obsah poznámky" value={note.content} onChange={(event) => updateField("content", event.target.value)} spellCheck />
           ) : (
             <article className="markdown-preview">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
+                  img({ src, alt }) {
+                    return <RemoteImage src={src} alt={alt} />;
+                  },
                   pre({ children }) {
                     const source = mermaidSourceFromMarkdownNode(children);
                     return source

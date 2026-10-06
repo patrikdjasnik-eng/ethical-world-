@@ -77,6 +77,12 @@ def _create_session(
     token = secrets.token_urlsafe(48)
     session_id = str(uuid.uuid4())
     created = _utc_now()
+    connection.execute("DELETE FROM sessions WHERE expires_at <= ?", (created.isoformat(),))
+    connection.execute("""
+      DELETE FROM sessions WHERE user_id = ? AND id NOT IN (
+        SELECT id FROM sessions WHERE user_id = ? ORDER BY created_at DESC LIMIT 9
+      )
+    """, (user_id, user_id))
     expires = created + timedelta(days=days)
 
     connection.execute(
@@ -298,6 +304,7 @@ def bootstrap_owner_login() -> tuple[dict[str, Any], str, str] | None:
         if not row:
             return None
 
+        connection.execute("DELETE FROM sessions WHERE user_id = ?", (row["id"],))
         token, expires_at = _create_session(connection, row["id"], days=1)
 
     return _user_dict(row), token, expires_at
@@ -400,6 +407,7 @@ def bootstrap_admin_from_env() -> None:
         return
 
     register_user(email, password, display_name)
+    # Účet z prostředí je běžný účet; privilegovaný owner má oddělený bootstrap.
 
 
 def save_connector_secret(user_id: str, provider: str, encrypted_payload: bytes) -> None:

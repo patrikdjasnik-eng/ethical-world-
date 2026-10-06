@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import multiprocessing
+import os
 
 import uvicorn
 
@@ -12,6 +13,6 @@ if __name__ == "__main__":
     uvicorn.run(
         app,
         host="127.0.0.1",
-        port=8787,
+        port=int(os.getenv("ETHICAL_WORLD_PORT", "8787")),
         log_level="warning",
     )

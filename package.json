@@ -31,35 +31,45 @@
     "desktop:backend:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-backend.ps1",
     "desktop:make:standalone": "npm run desktop:backend:build && npm run desktop:make",
     "desktop:package:standalone": "npm run desktop:backend:build && npm run desktop:package",
-    "test:electron": "node --test tests-electron/*.test.cjs"
+    "test:electron": "node --test tests-electron/*.test.cjs",
+    "test:backend": "python -m unittest discover -s server/tests -v",
+    "verify:full": "npm run verify && npm run test:backend"
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",
+    "mermaid": "^12.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-force-graph-2d": "^1.29.2",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "update-electron-app": "^3.3.0",
-    "mermaid": "^12.1.0"
+    "update-electron-app": "^3.3.0"
   },
   "devDependencies": {
     "@electron-forge/cli": "^8.0.1",
     "@electron-forge/maker-squirrel": "^8.0.1",
     "@electron-forge/maker-zip": "^8.0.1",
     "@electron-forge/publisher-github": "^8.0.1",
+    "@testing-library/react": "^16.3.3",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.2",
     "concurrently": "^10.0.5",
     "electron": "^44.5.1",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^30.1.2",
     "typescript": "^5.9.2",
     "vite": "^7.1.4",
-    "vitest": "^3.2.4",
+    "vitest": "4.1.11",
     "wait-on": "^9.5.1"
   },
   "allowScripts": {
     "electron-winstaller": true,
     "esbuild": true
+  },
+  "overrides": {
+    "shell-quote": "1.11.0",
+    "tinypool": "2.1.2",
+    "katex": "0.18.2"
   }
 }

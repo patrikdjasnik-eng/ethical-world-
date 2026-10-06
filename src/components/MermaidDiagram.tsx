@@ -25,7 +25,8 @@ export const MermaidDiagram = memo(function MermaidDiagram({ source }: MermaidDi
           theme: "dark",
           suppressErrorRendering: true,
           maxTextSize: 50_000,
-          maxEdges: 500
+          maxEdges: 500,
+          flowchart: { htmlLabels: false }
         });
 
         const result = await mermaid.render(renderId, source);

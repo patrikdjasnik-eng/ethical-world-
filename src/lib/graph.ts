@@ -60,15 +60,17 @@ function overlap(left: Set<string>, right: Set<string>): number {
   return shared / Math.min(left.size, right.size);
 }
 
-function relatedScore(left: Note, right: Note): number {
-  const titleScore = overlap(normalizedTokens(left.title), normalizedTokens(right.title));
-  const tagScore = overlap(markdownTags(left.content), markdownTags(right.content));
-  const sameFolder = Boolean(left.folder && right.folder && left.folder === right.folder);
+interface NoteFeatures {
+  titleTokens: Set<string>;
+  tags: Set<string>;
+  folder: string;
+}
 
-  let score = titleScore * 0.82 + tagScore * 0.46;
-  if (sameFolder) score += 0.12;
-
-  return Math.min(1, score);
+function relatedScore(left: NoteFeatures, right: NoteFeatures): number {
+  const titleScore = overlap(left.titleTokens, right.titleTokens);
+  const tagScore = overlap(left.tags, right.tags);
+  const sameFolder = Boolean(left.folder && left.folder === right.folder);
+  return Math.min(1, titleScore * 0.82 + tagScore * 0.46 + (sameFolder ? 0.12 : 0));
 }
 
 export function buildKnowledgeGraph(notes: Note[], includeRelated = true): KnowledgeGraphData {
@@ -101,6 +103,12 @@ export function buildKnowledgeGraph(notes: Note[], includeRelated = true): Knowl
   }
 
   if (includeRelated) {
+    const features = notes.map((note) => ({
+      titleTokens: normalizedTokens(note.title),
+      tags: markdownTags(note.content),
+      folder: note.folder
+    }));
+
     for (let leftIndex = 0; leftIndex < notes.length; leftIndex += 1) {
       for (let rightIndex = leftIndex + 1; rightIndex < notes.length; rightIndex += 1) {
         const left = notes[leftIndex];
@@ -109,7 +117,7 @@ export function buildKnowledgeGraph(notes: Note[], includeRelated = true): Knowl
 
         if (seenLinks.has(edgeKey)) continue;
 
-        const score = relatedScore(left, right);
+        const score = relatedScore(features[leftIndex], features[rightIndex]);
         if (score >= 0.4) addLink(left, right, "related", score);
       }
     }

@@ -23,6 +23,14 @@ interface MarkdownConnection {
 }
 
 export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNotes }: ConnectorPanelProps) {
+  const [exportAll, setExportAll] = useState(false);
+  const selectExportNotes = useCallback((connectionId: string, provider: "local-markdown" | "github") => {
+    return exportAll ? notes : notes.filter((note) => note.source?.provider === provider && note.source.connectionId === connectionId);
+  }, [exportAll, notes]);
+  const confirmExport = useCallback((files: { relativePath: string }[], destination: string) => {
+    if (files.length === 0) throw new Error("Není vybraná žádná poznámka. Pro nové poznámky zapni export celého vaultu.");
+    return window.confirm("Export " + files.length + " poznámek do " + destination + "\n\n" + files.slice(0, 15).map((file) => file.relativePath).join("\n") + (files.length > 15 ? "\n…" : ""));
+  }, []);
   const [connection, setConnection] = useState<MarkdownConnection | null>(null);
   const [localBusy, setLocalBusy] = useState<"connect" | "import" | "export" | null>(null);
   const [localStatus, setLocalStatus] = useState("Vyber lokální workspace nebo složku s Markdown soubory.");
@@ -280,7 +288,8 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
     setLocalBusy("export");
 
     try {
-      const files = notesToMarkdownFiles(notes, connection.id, "local-markdown");
+      const files = notesToMarkdownFiles(selectExportNotes(connection.id, "local-markdown"), connection.id, "local-markdown");
+      if (!confirmExport(files, connection.label)) return;
       const result = await window.ethicalDesktop.writeMarkdownFiles(connection.id, files);
       setLocalStatus("Exportováno " + result.written + " Markdown souborů do " + connection.label + ".");
     } catch (error) {
@@ -288,7 +297,7 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
     } finally {
       setLocalBusy(null);
     }
-  }, [connection, notes]);
+  }, [connection, selectExportNotes, confirmExport]);
 
   const connectGitHub = useCallback(async () => {
     if (!window.ethicalDesktop) return;
@@ -347,7 +356,12 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
 
   const disconnectGitHub = useCallback(async () => {
     if (!window.ethicalDesktop) return;
-    await window.ethicalDesktop.githubDisconnect();
+    try {
+      await window.ethicalDesktop.githubDisconnect();
+    } catch (error) {
+      setGithubStatusText(String(error));
+      return;
+    }
     setGithubLogin(null);
     setGithubRepos([]);
     setGithubRepo("");
@@ -383,7 +397,8 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
 
     try {
       const connectionId = "github:" + selectedGitHubRepo.fullName + ":" + selectedGitHubRepo.defaultBranch;
-      const files = notesToMarkdownFiles(notes, connectionId, "github");
+      const files = notesToMarkdownFiles(selectExportNotes(connectionId, "github"), connectionId, "github");
+      if (!confirmExport(files, selectedGitHubRepo.fullName + (selectedGitHubRepo.private ? " · private" : " · PUBLIC — poznámky budou veřejné"))) return;
       const result = await window.ethicalDesktop.githubWriteMarkdown(
         selectedGitHubRepo.fullName,
         selectedGitHubRepo.defaultBranch,
@@ -397,7 +412,7 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
     } finally {
       setGithubBusy(null);
     }
-  }, [notes, selectedGitHubRepo]);
+  }, [selectExportNotes, confirmExport, selectedGitHubRepo]);
 
   return (
     <main className="connector-pane">
@@ -409,6 +424,11 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
         <p>Synchronizuj znalosti, ne celý projekt.</p>
       </header>
 
+      <label className="connector-export-scope">
+        <input type="checkbox" checked={exportAll} onChange={(event) => setExportAll(event.target.checked)} />
+        Exportovat celý vault včetně poznámek z jiných zdrojů
+      </label>
+      <p>Výchozí export zahrnuje pouze poznámky importované z vybraného zdroje. Před zápisem uvidíš cíl a soubory.</p>
       <div className="connector-grid">
         <section className="connector-card connector-card-ready">
           <div className="connector-card-head">
@@ -432,7 +452,7 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
               {localBusy === "import" ? "Importuju…" : "Import MD"}
             </button>
             <button type="button" onClick={() => void exportLocalMarkdown()} disabled={!connection || localBusy !== null}>
-              {localBusy === "export" ? "Exportuju…" : "Export vaultu"}
+              {localBusy === "export" ? "Exportuju…" : "Export poznámek"}
             </button>
           </div>
 
@@ -483,7 +503,7 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
                   disabled={!selectedGitHubRepo?.canPush || githubBusy !== null}
                   title={selectedGitHubRepo?.canPush ? "Export do repozitáře" : "Pro toto repo nemáš write oprávnění"}
                 >
-                  {githubBusy === "export" ? "Exportuju…" : "Export vaultu"}
+                  {githubBusy === "export" ? "Exportuju…" : "Export poznámek"}
                 </button>
                 <button type="button" onClick={() => void disconnectGitHub()} disabled={githubBusy !== null}>
                   Odpojit

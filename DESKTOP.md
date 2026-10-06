@@ -11,7 +11,7 @@ Ethical World má desktop shell přes Electron. React/Vite renderer zůstává s
 ## Vývoj
 
 ```powershell
-npm install
+npm ci
 npm run desktop:dev
 ```
 
@@ -37,37 +37,11 @@ Výstup je pod `out/`.
 
 ## Auto-update
 
-Nainstalované Windows EXE se aktualizuje přes GitHub Releases.
+Repozitář je private. Veřejný Electron update service neumí autentizovat private Releases, proto je automatická kontrola aktualizací standardně vypnutá. Nový instalační balíček distribuujeme ručně přes přístup k private repozitáři. GitHub token nikdy nevkládáme do rendereru nebo instalátoru.
 
-Flow:
+Pouze při vědomém přechodu na veřejné Releases lze zapnout `ETHICAL_WORLD_PUBLIC_UPDATES=1`. Nastavení CI/CD nebo placeného plánu není podmínkou lokálního ověření a sestavení.
 
-```text
-nový kód v repu
-   ↓
-zvýšení package version
-   ↓
-lokální build + publish
-   ↓
-GitHub Release
-   ↓
-update.electronjs.org
-   ↓
-Ethical World EXE
-   ↓
-download na pozadí
-   ↓
-restart / install update
-```
-
-Updater běží pouze v packaged buildu. Dev režim `npm run desktop:dev` update nekontroluje.
-
-Aplikace používá `update-electron-app` a veřejný Electron update service pro repozitář:
-
-```text
-patrikdjasnik-eng/ethical-world-
-```
-
-Update check proběhne při startu a poté pravidelně.
+Desktop na portu 8787 spouští vlastní backend s náhodnou runtime capability a ověřuje challenge proof. Obsazený port nepřebírá. Renderer používá validované IPC místo `file://` fetch/CORS. Notion OAuth callback používá výchozí port 8787; změna `ETHICAL_WORLD_DESKTOP_PORT` vyžaduje odpovídající OAuth redirect konfiguraci.
 
 ### Vydání nové patch verze
 

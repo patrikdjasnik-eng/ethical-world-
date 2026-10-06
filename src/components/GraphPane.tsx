@@ -167,8 +167,9 @@ export const GraphPane = memo(function GraphPane({
         {
           nodes: graphData.nodes,
           links: graphData.links.map((link) => ({
-            source: link.source,
-            target: link.target
+            ...link,
+            source: linkEndpointId(link.source),
+            target: linkEndpointId(link.target)
           }))
         },
         hoveredNodeId

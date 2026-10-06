@@ -1574,3 +1574,37 @@ Deep audit doplnil ještě dvě backend priority:
 - expired sessions sice už nejsou platné, ale SQLite rows je vhodné průběžně čistit a omezit počet sessions per user/device.
 
 Obě věci jsou přidané do navrženého FastAPI security test balíku.
+
+## 2026-10-06 — opravy hlubokého auditu
+
+Scope: stabilizace existujícího MVP a bezpečnostních hranic. Ověření proběhlo lokálně; na GitHub Actions nečekáme. Private repo nevyžaduje premium plán pro tyto opravy.
+
+### Dokončené opravy
+
+- Build: opravený typ graph links; Vitest a Node testy mají oddělené discovery. Přidán npm lockfile, Python runtime lock a `verify:full`. Instalace používají `npm ci` a uzamčené backend dependencies; aktualizované závislosti a cílené overrides odstraňují nalezené advisories.
+- Persistence: změny poznámky se okamžitě řadí do serializované write queue; switch poznámky je neruší. Editor zobrazuje průběh a chybu uložení. Load failure neotevře prázdný zapisovatelný vault. Import/rename ukládají workspace v jedné IndexedDB transakci. Agentní batch pracuje s aktuálními refs, takže note vidí složku vytvořenou předchozí akcí.
+- Runtime: desktop spouští vlastní backend s náhodnou capability a challenge proof; cizí proces na 8787 se nepřebírá. Renderer používá omezené IPC, web dev/preview ověřenou same-origin Vite proxy. Jedna desktop instance. Owner bootstrap pouze jednou za runtime; frontend bootstrap je single-flight i ve StrictMode.
+- Auth/API: omezení auth pokusů, scrypt mimo event loop, úklid expired sessions a limit sessions/user. Limity body/response a souběhu chatu. Provider URL/DNS policy, ověřená IP, zákaz redirectů a implicitních env proxy. OAuth states mají expiraci a omezený počet.
+- Carrot: atomicky uložená OS-encrypted signer identity, single-flight key creation, serializované podpisy, enrolled key verification a checkpoint potvrzený až po zápisu historie. Neznámý signer a rollback nejsou validní historie; po selhání potvrzení lze dokončit checkpoint z uloženého parent commitu.
+- Konektory: case-sensitive GitHub source paths, importovaný baseline a odmítnutí konfliktů. Root Markdown export nemá umělý Untitled adresář. Lokální writer kontroluje symlinky/junctions, preflight konfliktů, serializaci a zálohy. GitHub kontroluje blob SHA a branch posouvá bez force. Notion porovnává aktuální obsah před zápisem. Výchozí export je omezený na daný source; celý vault vyžaduje explicitní volbu a potvrzení seznamu cest.
+- UI/web: omezené AI history/context payloady, CSP, vzdálené obrázky až po kliknutí, no-referrer. Graph parsuje vlastnosti poznámky jednou. Service worker má versioned cache všech build assets, nenechává API v cache a neposílá HTML místo chybějícího JS. Manifest a relativní asset paths.
+- Private releases: veřejný Electron updater je standardně vypnutý; vědomý opt-in pouze přes `ETHICAL_WORLD_PUBLIC_UPDATES=1`. Private instalátor distribuce zůstává manuální.
+
+### Lokální validace
+
+- Čisté `npm ci --ignore-scripts` a `npm run verify`: 46 frontend testů + 9 Electron/main helper testů, TypeScript a produkční Vite build prošly.
+- Python 3.12: 11 backend security testů prošlo. Testy používají izolovaná dočasná data a stub providery.
+- Live HTTP smoke: skutečné Vite → FastAPI → loopback provider volání, owner bootstrap/session/me/logout, druhý bootstrap 409, odmítnutí cross-origin proxy a direct API bez capability. Prošlo; provider je fixture, nikoli skutečný placený model.
+- npm audit: 0 známých vulnerabilities. pip-audit v ověřeném prostředí: žádná známá vulnerability. Jde o stav databází advisory v době kontroly.
+- `git diff --check` prošel. CI workflow upravený pro reproducible install a backend testy; vzdálené CI výsledky nejsou podmínkou tohoto předání.
+
+### Otevřené položky / hranice výsledku
+
+1. Před release ověřit Windows packaged Electron, safeStorage, junctions, instalátor a Notion OAuth s reálným účtem. Linux helper testy nejsou Windows/Electron E2E. Playwright browser download v tomto prostředí vracel poškozený archiv; skutečný browser E2E nebyl proveden. UI integrační testy jsou jsdom + fake IndexedDB.
+2. Účty používají společný device-local vault. Oddělené a šifrované vaulty, OS key store pro Notion klíč a úplný logout lock jsou budoucí změna bezpečnostního modelu; UI to nyní výslovně uvádí.
+3. Notion API nemá atomický compare-and-swap: vzdálená změna mezi kontrolou a PATCH je stále možná. Lokální filesystem preflight není kernel-level ochrana před aktivním procesem měnícím adresáře; více souborů nemá atomickou batch transakci. Zachovávané backups vyžadují případné ruční obnovení.
+4. Graph má rychlejší předzpracování, ale stále párovou O(n²) část. Worker/inverted index a velké Mermaid chunks zůstávají výkonový backlog. Chat používá omezené posuvné okno bez sumarizace starší historie.
+5. Write queue chrání rychlé edit/switch; násilné ukončení procesu před dokončením IndexedDB zápisu není garantované flush. Běžné manuální workspace operace potřebují další fault-injection ověření rollbacků. Runtime capability nechrání před kompromitovaným OS uživatelem.
+6. Carrot rotation/revocation a přenos důvěry mezi zařízeními nejsou implementované. Bootstrap po restartu je vědomé lokální device-owner chování, nikoli vzdálená autentizace identity.
+
+Původní `AUDIT.md` zůstává historický nález; tento zápis popisuje aktuální remediation a přiznaný backlog. Žádný Windows installer ani release nebyl tímto předáním publikován.

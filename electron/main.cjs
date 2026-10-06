@@ -3,6 +3,8 @@ const path = require("node:path");
 const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const crypto = require("node:crypto");
+const { createSecureStore, createSigner } = require("./secure-store.cjs");
+const { verifyBackend, gatewayRequest } = require("./backend-runtime.cjs");
 const { spawn } = require("node:child_process");
 const { isAllowedExternalUrl, isTrustedRendererUrl } = require("./security.cjs");
 
@@ -11,23 +13,40 @@ const { updateElectronApp, UpdateSourceType } = require("update-electron-app");
 
 let mainWindow = null;
 const markdownRoots = new Map();
+const markdownBaselines = new Map();
+const githubBaselines = new Map();
+const connectorQueues = new Map();
+const { contentHash, writeMarkdownBatch } = require("./markdown-writer.cjs");
+function serialConnector(id, operation) {
+  const task = (connectorQueues.get(id) ?? Promise.resolve()).catch(() => undefined).then(operation);
+  connectorQueues.set(id, task);
+  void task.finally(() => { if (connectorQueues.get(id) === task) connectorQueues.delete(id); }).catch(() => undefined);
+  return task;
+}
 const ignoredMarkdownDirs = new Set([".git", "node_modules", ".venv", "venv", "dist", "out", "build"]);
 const githubDeviceSessions = new Map();
 const githubClientId = String(
   process.env.ETHICAL_GITHUB_CLIENT_ID ?? "Ov23liJffFw6fPudRTQ1"
 ).trim();
 const githubApiVersion = "2026-03-10";
-const backendHealthUrl = "http://127.0.0.1:8787/health";
+let backendBaseUrl = "";
+const backendToken = crypto.randomBytes(48).toString("base64url");
+let backendPort = 0;
+let secureStore = null;
+let carrotSigner = null;
+function secretsStore() {
+  if (!secureStore) secureStore = createSecureStore(secretFilePath(), safeStorage);
+  return secureStore;
+}
+function signerStore() {
+  if (!carrotSigner) carrotSigner = createSigner(secretsStore());
+  return carrotSigner;
+}
 let backendProcess = null;
 let backendRuntimeSource = "external";
 
 async function backendHealthy() {
-  try {
-    const response = await fetch(backendHealthUrl, { signal: AbortSignal.timeout(900) });
-    return response.ok;
-  } catch {
-    return false;
-  }
+  return Boolean(backendBaseUrl) && verifyBackend(backendBaseUrl, backendToken);
 }
 
 function backendCandidates() {
@@ -40,29 +59,31 @@ function backendCandidates() {
     }
     candidates.push({
       source: "python", command: "python",
-      args: ["-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", "8787"],
+      args: ["-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", String(backendPort)],
       cwd: process.resourcesPath
     });
     candidates.push({
       source: "py", command: "py",
-      args: ["-3", "-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", "8787"],
+      args: ["-3", "-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", String(backendPort)],
       cwd: process.resourcesPath
     });
     return candidates;
   }
 
   const projectRoot = path.resolve(__dirname, "..");
-  const venvPython = path.join(projectRoot, ".venv", "Scripts", "python.exe");
+  const venvPython = process.platform === "win32"
+    ? path.join(projectRoot, ".venv", "Scripts", "python.exe")
+    : path.join(projectRoot, ".venv", "bin", "python");
   if (fsSync.existsSync(venvPython)) {
     candidates.push({
       source: "venv", command: venvPython,
-      args: ["-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", "8787"],
+      args: ["-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", String(backendPort)],
       cwd: projectRoot
     });
   }
   candidates.push({
     source: "python", command: "python",
-    args: ["-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", "8787"],
+    args: ["-m", "uvicorn", "server.main:app", "--host", "127.0.0.1", "--port", String(backendPort)],
     cwd: projectRoot
   });
   return candidates;
@@ -84,7 +105,7 @@ async function startBackendCandidate(candidate) {
       cwd: candidate.cwd,
       windowsHide: true,
       stdio: app.isPackaged ? "ignore" : "inherit",
-      env: { ...process.env, PYTHONUNBUFFERED: "1" }
+      env: { ...process.env, PYTHONUNBUFFERED: "1", ETHICAL_WORLD_PORT: String(backendPort), ETHICAL_WORLD_RUNTIME_TOKEN: backendToken }
     });
     const finish = (value) => {
       if (settled) return;
@@ -97,10 +118,9 @@ async function startBackendCandidate(candidate) {
 }
 
 async function ensureBackendRuntime() {
-  if (await backendHealthy()) {
-    backendRuntimeSource = "external";
-    return true;
-  }
+  backendPort = Number(process.env.ETHICAL_WORLD_DESKTOP_PORT ?? 8787);
+  if (!Number.isInteger(backendPort) || backendPort < 1 || backendPort > 65535) throw new Error("Invalid backend port.");
+  backendBaseUrl = "http://127.0.0.1:" + backendPort;
   for (const candidate of backendCandidates()) {
     const child = await startBackendCandidate(candidate);
     if (!child) continue;
@@ -152,100 +172,24 @@ function secretFilePath() {
   return path.join(app.getPath("userData"), "secrets.json");
 }
 
-async function readSecretFile() {
-  try {
-    const raw = await fs.readFile(secretFilePath(), "utf8");
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
 async function saveSecret(name, value) {
-  if (!safeStorage.isEncryptionAvailable()) {
-    throw new Error("OS secure storage is not available.");
-  }
-
-  const data = await readSecretFile();
-  data[name] = safeStorage.encryptString(String(value)).toString("base64");
-  await fs.writeFile(secretFilePath(), JSON.stringify(data), "utf8");
+  return secretsStore().save(name, value);
 }
 
 async function loadSecret(name) {
-  const data = await readSecretFile();
-  const encoded = data[name];
-  if (!encoded || !safeStorage.isEncryptionAvailable()) return null;
-
-  try {
-    return safeStorage.decryptString(Buffer.from(encoded, "base64"));
-  } catch {
-    return null;
-  }
+  return secretsStore().load(name);
 }
 
 async function deleteSecret(name) {
-  const data = await readSecretFile();
-  if (!(name in data)) return;
-  delete data[name];
-  await fs.writeFile(secretFilePath(), JSON.stringify(data), "utf8");
+  return secretsStore().delete(name);
 }
 
-async function loadOrCreateCarrotIdentity() {
-  let privateKey = await loadSecret("carrot.ed25519.private");
-  let publicKey = await loadSecret("carrot.ed25519.public");
-
-  if (!privateKey || !publicKey) {
-    const pair = crypto.generateKeyPairSync("ed25519");
-    privateKey = pair.privateKey.export({ type: "pkcs8", format: "pem" }).toString();
-    publicKey = pair.publicKey.export({ type: "spki", format: "pem" }).toString();
-
-    await saveSecret("carrot.ed25519.private", privateKey);
-    await saveSecret("carrot.ed25519.public", publicKey);
-  }
-
-  const keyId = crypto.createHash("sha256").update(publicKey).digest("hex").slice(0, 16);
-  return { privateKey, publicKey, keyId };
+async function carrotSignPayload(payload) {
+  return signerStore().sign(payload);
 }
 
-async function carrotSignPayload(rawPayload) {
-  const payload = String(rawPayload ?? "");
-  if (!payload || Buffer.byteLength(payload, "utf8") > 128 * 1024) {
-    throw new Error("Invalid Carrot signing payload.");
-  }
-
-  const identity = await loadOrCreateCarrotIdentity();
-  const signature = crypto.sign(
-    null,
-    Buffer.from(payload, "utf8"),
-    identity.privateKey
-  ).toString("base64");
-
-  return {
-    signature,
-    publicKey: identity.publicKey,
-    keyId: identity.keyId
-  };
-}
-
-function carrotVerifyPayload(rawPayload, rawSignature, rawPublicKey) {
-  const payload = String(rawPayload ?? "");
-  const signature = String(rawSignature ?? "");
-  const publicKey = String(rawPublicKey ?? "");
-
-  if (!payload || !signature || !publicKey) return false;
-  if (Buffer.byteLength(payload, "utf8") > 128 * 1024) return false;
-
-  try {
-    return crypto.verify(
-      null,
-      Buffer.from(payload, "utf8"),
-      publicKey,
-      Buffer.from(signature, "base64")
-    );
-  } catch {
-    return false;
-  }
+async function carrotVerifyPayload(payload, signature, publicKey) {
+  return signerStore().verify(payload, signature, publicKey);
 }
 
 async function githubRequest(apiPath, options = {}) {
@@ -254,6 +198,7 @@ async function githubRequest(apiPath, options = {}) {
 
   const response = await fetch("https://api.github.com" + apiPath, {
     ...options,
+    signal: AbortSignal.timeout(30000),
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: "Bearer " + token,
@@ -322,6 +267,7 @@ async function githubMarkdownFiles(repoFullName, branchName) {
     });
   }
 
+  githubBaselines.set(githubConnectionId(safeRepo, branch), new Map(blobs.map((entry) => [entry.path, entry.sha])));
   return {
     files,
     repoFullName: safeRepo,
@@ -344,7 +290,20 @@ async function githubWriteMarkdown(repoFullName, branchName, rawFiles) {
   const baseTreeSha = parentCommit?.tree?.sha;
   if (!baseTreeSha) throw new Error("Nepodařilo se načíst GitHub tree.");
 
-  const files = Array.isArray(rawFiles) ? rawFiles.slice(0, 500) : [];
+  if (!Array.isArray(rawFiles) || rawFiles.length > 500) throw new Error("GitHub export je omezený na 500 souborů; vyber menší sadu.");
+  const files = rawFiles;
+  const currentTree = await githubRequest("/repos/" + safeRepo + "/git/trees/" + baseTreeSha + "?recursive=1");
+  if (currentTree.truncated) throw new Error("GitHub tree je příliš velký pro bezpečnou kontrolu konfliktů.");
+  const currentShas = new Map((currentTree.tree ?? []).filter((entry) => entry.type === "blob").map((entry) => [entry.path, entry.sha]));
+  const baseline = githubBaselines.get(githubConnectionId(safeRepo, branch)) ?? new Map();
+  const paths = new Set();
+  for (const file of files) {
+    const relativePath = String(file?.relativePath ?? "");
+    if (!/\.(md|mdx)$/i.test(relativePath) || relativePath.split("/").some((part) => !part || part === "." || part === "..") || relativePath.includes("\\")) throw new Error("Invalid GitHub Markdown path.");
+    if (typeof file.content !== "string" || Buffer.byteLength(file.content) > 2 * 1024 * 1024 || paths.has(relativePath)) throw new Error("Invalid GitHub export content.");
+    paths.add(relativePath);
+    if ((currentShas.get(relativePath) ?? null) !== (baseline.get(relativePath) ?? null)) throw new Error("Konflikt: „" + relativePath + "“ se v GitHubu změnil nebo nebyl importovaný.");
+  }
   const treeEntries = [];
 
   for (const file of files) {
@@ -395,6 +354,8 @@ async function githubWriteMarkdown(repoFullName, branchName, rawFiles) {
     body: JSON.stringify({ sha: commit.sha, force: false })
   });
 
+  for (const entry of treeEntries) baseline.set(entry.path, entry.sha);
+  githubBaselines.set(githubConnectionId(safeRepo, branch), baseline);
   return { written: treeEntries.length, branch, commitSha: commit.sha };
 }
 
@@ -462,12 +423,13 @@ async function collectMarkdownFiles(root) {
   return { files, truncated: files.length >= maxFiles };
 }
 
-if (!squirrelStartup) {
+if (!squirrelStartup && app.requestSingleInstanceLock()) {
   if (process.platform === "win32") {
     app.setAppUserModelId("com.squirrel.ethical_world.EthicalWorld");
   }
 
-  if (app.isPackaged) {
+  // Public update service cannot authenticate private GitHub releases.
+  if (app.isPackaged && process.env.ETHICAL_WORLD_PUBLIC_UPDATES === "1") {
     updateElectronApp({
       updateSource: {
         type: UpdateSourceType.ElectronPublicUpdateService,
@@ -577,32 +539,21 @@ if (!squirrelStartup) {
     });
 
     if (result.canceled || result.filePaths.length === 0) return null;
-    return registerMarkdownRoot(result.filePaths[0]);
+    return registerMarkdownRoot(await fs.realpath(result.filePaths[0]));
   });
 
   handleTrusted("desktop:read-markdown-files", async (_event, connectionId) => {
-    return collectMarkdownFiles(getMarkdownRoot(connectionId));
+    return serialConnector(connectionId, async () => {
+      const result = await collectMarkdownFiles(getMarkdownRoot(connectionId));
+      markdownBaselines.set(connectionId, new Map(result.files.map((file) => [file.relativePath, contentHash(file.content)])));
+      return result;
+    });
   });
 
-  handleTrusted("desktop:write-markdown-files", async (_event, connectionId, rawFiles) => {
-    const root = getMarkdownRoot(connectionId);
-    const files = Array.isArray(rawFiles) ? rawFiles.slice(0, 2000) : [];
-    let written = 0;
-
-    for (const file of files) {
-      const relativePath = String(file?.relativePath ?? "");
-      if (!/\.(md|mdx)$/i.test(relativePath)) continue;
-
-      const target = resolveInsideRoot(root, relativePath);
-      const content = String(file?.content ?? "");
-      if (Buffer.byteLength(content, "utf8") > 2 * 1024 * 1024) continue;
-
-      await fs.mkdir(path.dirname(target), { recursive: true });
-      await fs.writeFile(target, content, "utf8");
-      written += 1;
-    }
-
-    return { written };
+  handleTrusted("desktop:write-markdown-files", async (_event, connectionId, files) => {
+    return serialConnector(connectionId, () => writeMarkdownBatch(
+      getMarkdownRoot(connectionId), files, markdownBaselines.get(connectionId) ?? new Map()
+    ));
   });
 
   handleTrusted("desktop:github-status", async () => {
@@ -725,11 +676,11 @@ if (!squirrelStartup) {
   });
 
   handleTrusted("desktop:github-read-markdown", async (_event, repoFullName, branch) => {
-    return githubMarkdownFiles(repoFullName, branch);
+    return serialConnector(githubConnectionId(repoFullName, branch), () => githubMarkdownFiles(repoFullName, branch));
   });
 
   handleTrusted("desktop:github-write-markdown", async (_event, repoFullName, branch, files) => {
-    return githubWriteMarkdown(repoFullName, branch, files);
+    return serialConnector(githubConnectionId(repoFullName, branch), () => githubWriteMarkdown(repoFullName, branch, files));
   });
 
   handleTrusted("desktop:auth-load-session-token", async () => {
@@ -756,11 +707,29 @@ if (!squirrelStartup) {
     return carrotVerifyPayload(payload, signature, publicKey);
   });
 
+  handleTrusted("desktop:gateway-request", async (_event, request) => {
+    return gatewayRequest(backendBaseUrl, backendToken, request);
+  });
+
+  handleTrusted("desktop:carrot-confirm-saved", async (_event, payload, signature, publicKey) => {
+    return signerStore().confirm(payload, signature, publicKey);
+  });
+
+  handleTrusted("desktop:carrot-verify-head", async (_event, noteId, commitHash) => {
+    return signerStore().verifyHead(String(noteId), String(commitHash));
+  });
+
   handleTrusted("desktop:runtime-status", async () => ({
     backendOnline: await backendHealthy(),
     backendSource: backendRuntimeSource,
     githubClientConfigured: Boolean(githubClientId)
   }));
+
+  app.on("second-instance", () => {
+    if (mainWindow?.isMinimized()) mainWindow.restore();
+    mainWindow?.show();
+    mainWindow?.focus();
+  });
 
   app.whenReady().then(async () => {
     await ensureBackendRuntime();
@@ -783,3 +752,5 @@ if (!squirrelStartup) {
     }
   });
 }
+
+if (!squirrelStartup && !app.hasSingleInstanceLock()) app.quit();

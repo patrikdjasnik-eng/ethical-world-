@@ -1,6 +1,6 @@
+import { gatewayFetch } from "./gateway";
 import { getStoredSessionToken } from "./auth";
 
-const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:8787";
 
 export interface NotionStatus {
   configured: boolean;
@@ -37,7 +37,7 @@ async function parseError(response: Response): Promise<string> {
 }
 
 async function post<T>(path: string, body?: unknown): Promise<T> {
-  const response = await fetch(apiUrl + path, {
+  const response = await gatewayFetch(path, {
     method: "POST",
     headers: await authHeaders(),
     body: body === undefined ? undefined : JSON.stringify(body)
