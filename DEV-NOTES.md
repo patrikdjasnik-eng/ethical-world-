@@ -1627,28 +1627,28 @@ Výsledek lokálního ověření tohoto bloku: 54 frontend testů, 9 Electron he
 
 ## 2026-10-06 — upgrade nainstalovaného EXE
 
-Uživatel chce aktualizovat stávající desktop instalaci, nikoli pouze spustit nové zdroje přes desktop:dev.
+Lokální upgrade nainstalované Windows aplikace ze zdrojové větve `dev/first-runnable`.
 
 - Package version 0.1.1 v package.json i npm lockfile, navazující na původní 0.1.0. Bez automatického tagu, publikace Release nebo CI čekání.
-- Přidán `npm run desktop:update`: Windows-only lokální install/verify, nové sestavení bundled backendu a Squirrel installeru, kontrola čerstvého výstupu, upgrade a launch přes shortcut. Běžící aplikaci nenásilně zastaví až uživatel; skript při otevřené aplikaci odmítne pokračovat. UserData nemaže.
+- Přidán `npm run desktop:update`: Windows-only lokální install/verify, nové sestavení bundled backendu a Squirrel installeru, kontrola čerstvého výstupu, upgrade a launch přes shortcut. Před upgradem je nutné aplikaci zavřít; skript při otevřené aplikaci odmítne pokračovat. UserData nemaže.
 - Installer verification nyní kontroluje exit code Setup.exe, očekávanou ProductVersion, bundled backend a cestu skutečně spuštěného EXE; samotný starý shortcut už nestačí jako důkaz upgradu.
 - DESKTOP.md rozlišuje lokální upgrade private repozitáře od automatického GitHub updateru. Veřejný update service zůstává vypnutý pro private releases.
-- Ověření zde: konzistence verze/lockfile, npm testy a Node helper testy. Windows make/Setup/upgrade se provede na uživatelově stroji; úspěšný upgrade ještě netvrdíme. Skript vyžaduje funkční Windows packaging toolchain a Python, již použité při předchozím installeru.
+- Ověření zde: konzistence verze/lockfile, npm testy a Node helper testy. Windows make/Setup/upgrade vyžaduje samostatný Windows retest. Skript vyžaduje funkční Windows packaging toolchain a Python, již použité při předchozím installeru.
 
 ## 2026-10-06 — backend tests blokují Windows upgrade
 
-Uživatel hlásí `FAILED (errors=6)` při backend gate v desktop:update. Poslal pouze konec výpisu, bez prvního tracebacku: konkrétní příčinu všech šesti chyb zatím nelze potvrdit.
+Backend gate v `desktop:update` skončil s `FAILED (errors=6)`. Dostupný výpis neobsahuje první traceback; příčinu všech šesti chyb nelze zpětně potvrdit.
 
 - Kontrola odhalila prokazatelný leak SQLite spojení: původní `with _connect()` řídil transakci, ale nezavíral Connection. Windows může následně odmítnout odstranění dočasné databáze/WAL; Linux dovoluje unlink otevřeného souboru, takže původní test suite problém skrývala.
 - `_connect` nyní vlastní celý lifecycle: PRAGMA konfigurace, transakční commit/rollback a `close()` ve finally i při chybě konfigurace. Žádný test ani bezpečnostní gate se nepřeskakuje.
 - Tři regression testy drží reference na Connection a ověřují zavření bez spoléhání na garbage collection. Před opravou všechny tři selhaly; po opravě procházejí. Ověřen také commit a rollback.
 - Nový `python -m server.test_runner` ukládá úplný UTF-8 výpis testů a tracebacky do `out/diagnostics/backend-tests.log`, včetně Python/platform/SQLite verzí. Nepíše obsah prostředí ani reálné tokeny. ASCII console encoding nesmí zamaskovat původní chybu; to ověřuje fault-path test.
 - `desktop:update` a npm test:backend používají runner; při selhání updater odkáže na log a zastaví před instalací. Dočasný import fixture se explicitně uklízí při ukončení.
-- Výsledek lokální validace: 17 backend testů prošlo na Python 3.12/Linux, včetně původních security testů. Windows retest a přesná diagnóza původních šesti chyb čekají na běh u uživatele; samotný nalezený leak nevydáváme za potvrzení neviděného tracebacku.
+- Výsledek lokální validace: 17 backend testů prošlo na Python 3.12/Linux, včetně původních security testů. Windows retest a přesná diagnóza původních šesti chyb zůstávají otevřené; nalezený leak není potvrzením chybějícího tracebacku.
 
 ## 2026-10-06 — EBUSY při packagingu a neplatný desktop shortcut
 
-Uživatel hlásí EBUSY při rmdir `out/Ethical World-win32-x64/resources/backend`, následně dialog Windows o chybějícím cílovém EthicalWorld.exe. Konkrétní držitel zámku nebyl identifikovaný; chyba potvrzuje uzamčený předchozí výstup. Zástupce sám o sobě neznamená ztrátu vault dat.
+Windows packaging skončil s EBUSY při rmdir `out/Ethical World-win32-x64/resources/backend`, následně dialog Windows o chybějícím cílovém EthicalWorld.exe. Konkrétní držitel zámku nebyl identifikovaný; chyba potvrzuje uzamčený předchozí výstup. Zástupce sám o sobě neznamená ztrátu vault dat.
 
 - Updater nyní používá pro každý build vlastní `out/updates/<guid>` přes Forge outDir. Starý výstup se nemaže ani znovu nepoužívá. InstallerPath se předává explicitně, takže upgrade nevybere jiný starý Setup.exe podle globálního timestampu.
 - Forge ignoruje out, .venv, resources kopii, .git a .env při balení app obsahu. Backend se přidává přes extraResource. Staré buildy ani runtime secrets se nesmí rekurzivně zabalit do nové aplikace.
@@ -1656,7 +1656,7 @@ Uživatel hlásí EBUSY při rmdir `out/Ethical World-win32-x64/resources/backen
 - Nový backend dostává vlastní stdin pipe. EOF při zavření nebo pádu Electron parenta spustí graceful uvicorn shutdown. Electron při quit čeká na backend; Windows fallback cílí pouze PID vlastního ChildProcess a jeho potomky. To řeší i onefile parent/child lifecycle, kde původní kill samotného bootloader parenta mohl ponechat child.
 - Installer test ověří instalaci v LocalAppData/ethical_world, verzi a bundled backend a opraví canonical desktop shortcut i rozpoznané existující EXE shortcuty na stabilní Update.exe --processStart EthicalWorld.exe. Zástupce tedy neodkazuje na cestu jednorázového packaging výstupu nebo starého app-version adresáře.
 - Validace: 54 frontend testů, 13 Electron/helper testů, 20 backend testů (87 celkem). Nové testy ověřují výstupní izolaci/ignore policy, graceful pipe close, pouze scoped PID fallback, již ukončený proces a skutečný Python subprocess health → EOF → exit 0. Node syntax a git diff --check prošly.
-- Windows Squirrel make/COM shortcuts/bootloader upgrade zde nelze provést: finální ověření proběhne u uživatele po pullu. Legacy backend při nuceném ukončení může zanechat PyInstaller temp cache; updater ji plošně nemaže. Staré out buildy zůstávají pro ruční úklid po úspěšném upgradu.
+- Windows Squirrel make/COM shortcuts/bootloader upgrade zde nelze provést: finální ověření vyžaduje Windows retest. Legacy backend při nuceném ukončení může zanechat PyInstaller temp cache; updater ji plošně nemaže. Staré out buildy zůstávají pro ruční úklid po úspěšném upgradu.
 
 ## 2026-10-06 — NullArrayIndex před spuštěním instalátoru
 
