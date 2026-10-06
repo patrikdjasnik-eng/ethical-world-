@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("ethicalDesktop", {
   writeMarkdownFiles: (connectionId, files) => ipcRenderer.invoke("desktop:write-markdown-files", connectionId, files),
   githubStatus: () => ipcRenderer.invoke("desktop:github-status"),
   githubStartLogin: () => ipcRenderer.invoke("desktop:github-start-login"),
+  githubConnectToken: () => ipcRenderer.invoke("desktop:github-connect-token"),
   githubPollLogin: (sessionId) => ipcRenderer.invoke("desktop:github-poll-login", sessionId),
   githubDisconnect: () => ipcRenderer.invoke("desktop:github-disconnect"),
   githubListRepos: () => ipcRenderer.invoke("desktop:github-list-repos"),

@@ -8,11 +8,13 @@ const { verifyBackend, gatewayRequest } = require("./backend-runtime.cjs");
 const { spawn } = require("node:child_process");
 const { stopBackendProcess } = require("./backend-process.cjs");
 const { isAllowedExternalUrl, isTrustedRendererUrl } = require("./security.cjs");
+const { startDeviceLogin, deviceRequest, verifyGitHubToken, createTokenPrompt } = require("./github-auth.cjs");
 
 const squirrelStartup = require("electron-squirrel-startup");
 const { updateElectronApp, UpdateSourceType } = require("update-electron-app");
 
 let mainWindow = null;
+const requestGitHubToken = createTokenPrompt({ BrowserWindow, ipcMain, owner: () => mainWindow, directory: __dirname });
 const markdownRoots = new Map();
 const markdownBaselines = new Map();
 const githubBaselines = new Map();
@@ -560,18 +562,14 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
   });
 
   handleTrusted("desktop:github-status", async () => {
-    if (!githubClientId) {
-      return { configured: false, connected: false, login: null };
-    }
-
     const token = await loadSecret("github.oauth");
-    if (!token) return { configured: true, connected: false, login: null };
+    if (!token) return { configured: Boolean(githubClientId), connected: false, login: null };
 
     try {
       const user = await githubRequest("/user");
-      return { configured: true, connected: true, login: user.login ?? null };
+      return { configured: Boolean(githubClientId), connected: true, login: user.login ?? null };
     } catch {
-      return { configured: true, connected: false, login: null };
+      return { configured: Boolean(githubClientId), connected: false, login: null };
     }
   });
 
@@ -580,28 +578,19 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
       return { configured: false };
     }
 
-    const response = await fetch("https://github.com/login/device/code", {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: new URLSearchParams({
-        client_id: githubClientId,
-        scope: "repo read:user"
-      })
-    });
-
-    if (!response.ok) throw new Error("GitHub Device OAuth se nepodařilo spustit.");
-    const payload = await response.json();
+    let payload;
+    try { payload = await startDeviceLogin(githubClientId); }
+    catch (error) { return { configured: true, error: error.message }; }
     const sessionId = crypto.randomUUID();
     const interval = Math.max(Number(payload.interval ?? 5), 5);
     const expiresAt = Date.now() + Number(payload.expires_in ?? 900) * 1000;
 
+    githubDeviceSessions.clear();
     githubDeviceSessions.set(sessionId, {
       deviceCode: payload.device_code,
       interval,
-      expiresAt
+      expiresAt,
+      nextPollAt: Date.now() + interval * 1000
     });
 
     if (payload.verification_uri) {
@@ -618,6 +607,17 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
     };
   });
 
+  handleTrusted("desktop:github-connect-token", async () => {
+    try {
+      const rawToken = await requestGitHubToken();
+      if (rawToken === null) return { connected: false, login: null };
+      const verified = await verifyGitHubToken(rawToken);
+      await saveSecret("github.oauth", verified.token);
+      githubDeviceSessions.clear();
+      return { connected: true, login: verified.login };
+    } catch (error) { return { connected: false, login: null, error: error.message }; }
+  });
+
   handleTrusted("desktop:github-poll-login", async (_event, sessionId) => {
     const session = githubDeviceSessions.get(String(sessionId ?? ""));
     if (!session) return { status: "expired" };
@@ -626,24 +626,23 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
       return { status: "expired" };
     }
 
-    const response = await fetch("https://github.com/login/oauth/access_token", {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: new URLSearchParams({
-        client_id: githubClientId,
-        device_code: session.deviceCode,
+    if (Date.now() < session.nextPollAt) return { status: "pending", intervalSeconds: session.interval };
+    session.nextPollAt = Date.now() + session.interval * 1000;
+    let payload;
+    try {
+      payload = await deviceRequest("oauth/access_token", {
+        client_id: githubClientId, device_code: session.deviceCode,
         grant_type: "urn:ietf:params:oauth:grant-type:device_code"
-      })
-    });
-
-    const payload = await response.json();
+      });
+    } catch (error) {
+      githubDeviceSessions.delete(String(sessionId));
+      return { status: "error", error: error.message };
+    }
 
     if (payload.error === "authorization_pending") return { status: "pending" };
     if (payload.error === "slow_down") {
       session.interval += 5;
+      session.nextPollAt = Date.now() + session.interval * 1000;
       return { status: "pending", intervalSeconds: session.interval };
     }
     if (payload.error) {

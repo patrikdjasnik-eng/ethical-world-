@@ -1,5 +1,10 @@
 [CmdletBinding()]
-param()
+param(
+  [switch]$noLaunch,
+  [string]$packageVersion = "",
+  [string]$expectedCommit = "",
+  [string]$receiptPath = ""
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -37,8 +42,18 @@ function Invoke-Checked {
   }
 }
 
-$package = Get-Content -LiteralPath "package.json" -Raw | ConvertFrom-Json
-$targetVersion = [string]$package.version
+$sourceCommit = & git rev-parse HEAD
+if ($LASTEXITCODE -ne 0) { throw "Unable to read the source Git commit." }
+if ($expectedCommit -and $sourceCommit -ne $expectedCommit) { throw "Source commit changed before the build." }
+if ($expectedCommit) {
+  $treeStatus = & git status --porcelain --untracked-files=normal
+  if ($LASTEXITCODE -ne 0 -or $treeStatus) { throw "Source tree has local changes or cannot be verified." }
+}
+$targetVersion = $packageVersion
+if (-not $targetVersion) {
+  $targetVersion = & node (Join-Path $PSScriptRoot "launcher-core.cjs") --package-version $projectRoot
+  if ($LASTEXITCODE -ne 0) { throw "Unable to derive a desktop version from Git." }
+}
 if ($targetVersion -notmatch '^\d+\.\d+\.\d+$') {
   throw "Desktop update requires a stable semantic package version."
 }
@@ -62,7 +77,9 @@ Invoke-Checked -Executable "npm.cmd" -CommandArguments @("run", "desktop:backend
 $buildId = [guid]::NewGuid().ToString("N")
 $buildOutput = Join-Path $projectRoot "out\updates\$buildId"
 $previousBuildDir = $env:ETHICAL_WORLD_BUILD_DIR
+$previousPackageVersion = $env:ETHICAL_WORLD_PACKAGE_VERSION
 $env:ETHICAL_WORLD_BUILD_DIR = $buildOutput
+$env:ETHICAL_WORLD_PACKAGE_VERSION = $targetVersion
 $makeStarted = (Get-Date).ToUniversalTime()
 try {
   Invoke-Checked -Executable "npm.cmd" -CommandArguments @("exec", "--", "electron-forge", "make", "--targets", "@electron-forge/maker-squirrel")
@@ -72,6 +89,11 @@ try {
   } else {
     $env:ETHICAL_WORLD_BUILD_DIR = $previousBuildDir
   }
+  if ($null -eq $previousPackageVersion) {
+    Remove-Item Env:ETHICAL_WORLD_PACKAGE_VERSION -ErrorAction SilentlyContinue
+  } else {
+    $env:ETHICAL_WORLD_PACKAGE_VERSION = $previousPackageVersion
+  }
 }
 $setup = Get-ChildItem -Path (Join-Path $buildOutput "make") -Filter "EthicalWorldSetup.exe" -File -Recurse |
   Sort-Object LastWriteTimeUtc -Descending |
@@ -80,5 +102,18 @@ if (-not $setup -or $setup.LastWriteTimeUtc -lt $makeStarted.AddSeconds(-2)) {
   throw "No fresh installer was produced. Existing installation was not touched."
 }
 
-& (Join-Path $PSScriptRoot "test-desktop-install.ps1") -SkipMake -Launch -ExpectedVersion $targetVersion -RequireBundledBackend -InstallerPath $setup.FullName
-Write-Host "Installed Ethical World $targetVersion updated and launched." -ForegroundColor Green
+$finalCommit = & git rev-parse HEAD
+if ($LASTEXITCODE -ne 0 -or $finalCommit -ne $sourceCommit) { throw "Source commit changed during the build. Installation was not started." }
+if ($expectedCommit) {
+  $treeStatus = & git status --porcelain --untracked-files=normal
+  if ($LASTEXITCODE -ne 0 -or $treeStatus) { throw "Source tree changed or cannot be verified. Installation was not started." }
+}
+& (Join-Path $PSScriptRoot "test-desktop-install.ps1") -SkipMake -Launch:(-not $noLaunch) -ExpectedVersion $targetVersion -RequireBundledBackend -InstallerPath $setup.FullName
+if ($receiptPath) {
+  $installReceipt = @{ commit = $sourceCommit; version = $targetVersion; installedAt = (Get-Date).ToUniversalTime().ToString("o") }
+  [IO.File]::WriteAllText($receiptPath, ($installReceipt | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
+}
+if ($env:ETHICAL_WORLD_LAUNCHER_DIR) {
+  & (Join-Path $PSScriptRoot "install-desktop-launcher.ps1") -LauncherDirectory $env:ETHICAL_WORLD_LAUNCHER_DIR
+}
+Write-Host "Installed Ethical World $targetVersion updated successfully." -ForegroundColor Green

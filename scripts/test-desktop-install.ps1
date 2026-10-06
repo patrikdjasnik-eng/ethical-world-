@@ -60,6 +60,17 @@ function Get-EthicalWorldShortcuts {
   return $foundShortcuts
 }
 
+function Get-EthicalWorldDesktopShortcut {
+  param([object[]]$Shortcuts, [string]$DesktopPath, [string]$ExpectedUpdater = "")
+  if (-not $DesktopPath) { return $null }
+  $desktopPrefix = $DesktopPath.TrimEnd([char[]]@('\', '/')) + [IO.Path]::DirectorySeparatorChar
+  return $Shortcuts | Where-Object {
+    $_.Path -and $_.Path.StartsWith($desktopPrefix, [StringComparison]::OrdinalIgnoreCase) -and
+      (($_.TargetPath -match '(?i)[\\/](EthicalWorld|Update)\.exe$') -or ($_.Arguments -match '(?i)EthicalWorld\.exe')) -and
+      (-not $ExpectedUpdater -or $_.TargetPath -eq $ExpectedUpdater)
+  } | Select-Object -First 1
+}
+
 Write-Host ""
 Write-Host "Ethical World desktop installer test" -ForegroundColor Cyan
 
@@ -178,9 +189,9 @@ if ($shortcuts.Count -eq 0) {
 }
 
 $desktopPath = [Environment]::GetFolderPath("Desktop")
-$desktopShortcut = $shortcuts |
-  Where-Object { $_.Path.StartsWith($desktopPath, [System.StringComparison]::OrdinalIgnoreCase) -and (-not $ExpectedVersion -or $_.TargetPath -eq $updateExe) } |
-  Select-Object -First 1
+$expectedUpdater = ""
+if ($ExpectedVersion) { $expectedUpdater = $updateExe }
+$desktopShortcut = Get-EthicalWorldDesktopShortcut -Shortcuts $shortcuts -DesktopPath $desktopPath -ExpectedUpdater $expectedUpdater
 
 if (-not $desktopShortcut) {
   throw "Ethical World shortcut exists, but no shortcut was found on the current user's Desktop: $desktopPath"

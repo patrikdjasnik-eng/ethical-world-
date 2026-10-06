@@ -34,7 +34,8 @@
     "test:electron": "node --test tests-electron/*.test.cjs",
     "test:backend": "python -m server.test_runner",
     "verify:full": "npm run verify && npm run test:backend",
-    "desktop:update": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/update-desktop.ps1"
+    "desktop:update": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/update-desktop.ps1",
+    "desktop:launcher:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-desktop-launcher.ps1"
   },
   "dependencies": {
     "electron-squirrel-startup": "^1.0.1",

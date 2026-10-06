@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Připojit GitHub tokenem</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #101116; color: #e9e9ef; }
+    body { margin: 28px; }
+    h1 { font-size: 23px; }
+    p { color: #b6b8c4; line-height: 1.6; font-size: 14px; }
+    label { display: block; margin: 22px 0 8px; }
+    input { box-sizing: border-box; width: 100%; padding: 12px; border: 1px solid #444856; border-radius: 7px; background: #181b23; color: inherit; }
+    .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+    button { padding: 10px 16px; border: 1px solid #535969; border-radius: 7px; color: inherit; background: #252c3b; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: wait; }
+    #error { color: #f6c177; }
+  </style>
+</head>
+<body>
+  <h1>Připojit GitHub tokenem</h1>
+  <p>Na GitHubu otevři Settings → Developer settings → Personal access tokens. Pro fine-grained token vyber potřebné repozitáře a oprávnění Contents: Read and write; Metadata: Read.</p>
+  <p>Token se ověří u GitHubu a uloží přes OS secure storage. Hlavní workspace ho nedostane.</p>
+  <form id="token-form">
+    <label for="token">GitHub personal access token</label>
+    <input id="token" type="password" autocomplete="off" spellcheck="false" autofocus required maxlength="255">
+    <p id="error" role="alert"></p>
+    <div class="actions">
+      <button id="cancel" type="button">Zrušit</button>
+      <button id="connect" type="submit">Připojit</button>
+    </div>
+  </form>
+  <script src="github-token.js"></script>
+</body>
+</html>

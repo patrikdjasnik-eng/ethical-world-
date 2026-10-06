@@ -1,6 +1,7 @@
 node_modules/
 dist/
 out/
+resources/backend/
 .venv/
 __pycache__/
 *.pyc

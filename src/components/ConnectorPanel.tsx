@@ -99,11 +99,11 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
       setGithubConfigured(status.configured);
       setGithubLogin(status.connected ? status.login : null);
 
-      if (!status.configured) {
-        setGithubStatusText("Chybí ETHICAL_GITHUB_CLIENT_ID.");
-      } else if (status.connected) {
+      if (status.connected) {
         setGithubStatusText("Připojeno" + (status.login ? " jako @" + status.login : "") + ".");
         void loadGitHubRepos();
+      } else if (!status.configured) {
+        setGithubStatusText("Device OAuth není nakonfigurovaný. GitHub lze připojit tokenem.");
       } else {
         setGithubStatusText("GitHub je připravený k přihlášení.");
       }
@@ -299,6 +299,22 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
     }
   }, [connection, selectExportNotes, confirmExport]);
 
+  const connectGitHubToken = useCallback(async () => {
+    if (!window.ethicalDesktop) return;
+    setGithubBusy("login");
+    setGithubUserCode(null);
+    try {
+      const connected = await window.ethicalDesktop.githubConnectToken();
+      if (connected.error) { setGithubStatusText(connected.error); return; }
+      if (!connected.connected) { setGithubStatusText("Připojení tokenem zrušeno."); return; }
+      setGithubLogin(connected.login);
+      setGithubStatusText("GitHub připojený přes OS secure storage.");
+      await loadGitHubRepos();
+    } catch (error) {
+      setGithubStatusText(error instanceof Error ? error.message : "GitHub přihlášení tokenem selhalo.");
+    } finally { setGithubBusy(null); }
+  }, [loadGitHubRepos]);
+
   const connectGitHub = useCallback(async () => {
     if (!window.ethicalDesktop) return;
     setGithubBusy("login");
@@ -306,6 +322,7 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
 
     try {
       const started = await window.ethicalDesktop.githubStartLogin();
+      if (started.error) { setGithubStatusText(started.error); return; }
 
       if (!started.configured || !started.sessionId) {
         setGithubConfigured(false);
@@ -464,7 +481,7 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
             <div className="connector-icon">GH</div>
             <div>
               <strong>GitHub</strong>
-              <span>{githubLogin ? "Připojeno · @" + githubLogin : "Device OAuth · Markdown-only sync"}</span>
+              <span>{githubLogin ? "Připojeno · @" + githubLogin : "Device OAuth / token · Markdown-only sync"}</span>
             </div>
           </div>
 
@@ -477,6 +494,9 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
             <div className="connector-actions">
               <button type="button" onClick={() => void connectGitHub()} disabled={!githubConfigured || githubBusy !== null}>
                 {githubBusy === "login" ? "Čekám na GitHub…" : "Připojit GitHub"}
+              </button>
+              <button type="button" onClick={() => void connectGitHubToken()} disabled={githubBusy !== null}>
+                Připojit tokenem
               </button>
               {githubUserCode && <code className="connector-code">{githubUserCode}</code>}
             </div>

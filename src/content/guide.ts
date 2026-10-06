@@ -72,7 +72,7 @@ export const guideSections: Record<GuideLanguage, GuideSection[]> = {
       title: "Connectors",
       paragraphs: [
         "Local / VS Code connector importuje a exportuje pouze .md a .mdx. Projektové soubory, node_modules, .git a build výstupy ignoruje.",
-        "GitHub connector používá Device OAuth a synchronizuje Markdown přes API bez klonování celého repozitáře. Notion connector používá server-side OAuth a enhanced Markdown API pro import i zápis zpět."
+        "GitHub connector používá Device OAuth, pokud je zapnutý v registraci GitHub aplikace, nebo token uložený přes OS secure storage. Synchronizuje Markdown přes API bez klonování repozitáře. Notion connector používá server-side OAuth a enhanced Markdown API pro import i zápis zpět."
       ]
     },
     {
@@ -141,7 +141,7 @@ export const guideSections: Record<GuideLanguage, GuideSection[]> = {
       title: "Connectors",
       paragraphs: [
         "The Local / VS Code connector imports and exports only .md and .mdx files. Project sources, node_modules, .git and build outputs are ignored.",
-        "The GitHub connector uses Device OAuth and synchronizes Markdown through the API without cloning the whole repository. The Notion connector uses server-side OAuth and the enhanced Markdown API for import and write-back."
+        "The GitHub connector uses Device OAuth when enabled in the GitHub app registration, or a token stored through OS secure storage. It synchronizes Markdown through the API without cloning the repository. The Notion connector uses server-side OAuth and the enhanced Markdown API for import and write-back."
       ]
     },
     {

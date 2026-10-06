@@ -171,7 +171,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-desktop-install
 
 Po `git pull --ff-only origin dev/first-runnable` zavři Ethical World a spusť `npm run desktop:update` v kořeni repozitáře na Windows. Skript obnoví uzamčené závislosti, spustí lokální kontroly, nově sestaví bundled Python backend a Squirrel installer a provede upgrade stejné aplikace. Potom ověří ProductVersion nainstalovaného EXE, přítomnost backendu a spuštění přes existující desktop shortcut. Uživatelský datový adresář nemaže.
 
-Verze balíčku je nyní 0.1.1, aby instalátor rozlišil novou sestavu od původní 0.1.0. Nejde o automatické stažení z GitHub Releases: instalátor se sestavuje na vlastním Windows stroji a nevyžaduje veřejný repozitář, GitHub token uvnitř aplikace ani Actions. Skript vyžaduje již dostupné Node/npm a Python; při chybě před instalací skončí bez změny nainstalovaného EXE. Git konflikty řešíme před buildem; update skript nepoužívá reset/clean ani nemění Git větve.
+Základní verze ve zdrojích je 0.1.1. Lokální desktop build přičítá počet commitů plné Git historie k patch části verze. Nový commit tak dostane vyšší Squirrel verzi i bez ruční změny package.json; při změně major/minor verze se použije nový základ. Forge upravuje pouze metadata a staging kopii aplikace, nikoli zdrojový package.json/lockfile. Shallow clone je odmítnutý. Nejde o stažení z GitHub Releases: instalátor se sestavuje na vlastním Windows stroji a nevyžaduje veřejný repozitář, GitHub token uvnitř instalátoru ani Actions. Skript vyžaduje již dostupné Node/npm a Python; při chybě před instalací skončí bez změny nainstalovaného EXE. Git konflikty řešíme před buildem; update skript nepoužívá reset/clean ani nemění Git větve.
 
 Pokud backend test gate selže, úplný výpis je v `out/diagnostics/backend-tests.log`. Samostatná diagnostika: `.\.venv\Scripts\python.exe -m server.test_runner`. Hlásit první `ERROR` a navazující traceback, nikoli pouze poslední PowerShell `Update stopped`. Instalátor se při této chybě ještě nespustil.
 
@@ -185,10 +185,44 @@ Pokud make dokončil instalátor a následná kontrola spadla před `[2/4] Runni
 $setup = Get-ChildItem .\out\updates -Filter EthicalWorldSetup.exe -Recurse -File |
   Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
 if (-not $setup) { throw "Hotovy instalator nebyl nalezen. Spust npm run desktop:update." }
-$version = (Get-Content .\package.json -Raw | ConvertFrom-Json).version
+$packageFile = Get-ChildItem $setup.DirectoryName -Filter "ethical_world-*-full.nupkg" -File | Select-Object -First 1
+$version = [regex]::Match($packageFile.Name, '^ethical_world-(\d+\.\d+\.\d+)-full\.nupkg$').Groups[1].Value
+if (-not $version) { throw "Verzi hotoveho instalatoru nelze zjistit." }
 & .\scripts\test-desktop-install.ps1 -SkipMake -Launch -ExpectedVersion $version -RequireBundledBackend -InstallerPath $setup.FullName
 ```
 
 Tento postup předpokládá, že poslední hotový instalátor odpovídá právě dokončenému buildu. Skript po instalaci kontroluje verzi, bundled backend a spuštěné EXE. Změny aplikačního kódu provedené až po sestavení vyžadují nový build.
 
 Regresní test PowerShell skriptů je součástí `npm run test:electron`: na Windows používá Windows PowerShell 5.1, případně PowerShell 7; jinde PowerShell 7, pokud je dostupný. Lze jej spustit i samostatně pomocí `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-desktop-scripts.ps1`. Používá dočasné fixture soubory a náhradu COM rozhraní; instalátor nespouští ani neupravuje skutečné zástupce.
+
+## Launcher s automatickou aktualizací z Gitu
+
+Jednorázová aktivace v existujícím checkoutu:
+
+```powershell
+git pull --ff-only origin dev/first-runnable
+if ($LASTEXITCODE -ne 0) { throw "Git pull selhal." }
+npm run desktop:launcher:install
+```
+
+Na ploše a v nabídce Start vznikne **Ethical World Launcher**. Otevírá malé tmavé okno bez PowerShell konzole. Konfigurace, stabilní launcher, ikona a log jsou v `%LOCALAPPDATA%\EthicalWorldLauncher`; ikona nezávisí na dočasném out nebo konkrétní app-version složce. Zdrojový checkout musí zůstat na svém místě.
+
+Při každém kliknutí:
+
+1. Pokud Ethical World už běží, launcher otevře/fokusuje existující aplikaci a upgrade odloží na další start po zavření.
+2. Ověří `origin` tohoto repozitáře, větev `dev/first-runnable` a čistý working tree. Používá Git Credential Manager nebo SSH agent nastavený pro Git na PC; token konektoru uvnitř aplikace s tímto přístupem nesdílí.
+3. Provede fetch a pouze fast-forward merge. Lokální změny, vlastní commity, jiná větev nebo rozcházející se historie update zastaví. Žádný reset, clean, stash ani automatické přepínání větve.
+4. Pokud je daný commit už potvrzený jako nainstalovaný, otevře EXE bez opakování testů/buildu. První spuštění launcheru sestaví ověřenou verzi, protože původní instalace nemá potvrzení zdrojového commitu.
+5. Nový commit projde lokálním verify, backend testy, standalone buildem a instalací. Launcher zůstává během práce viditelný a nabízí živý log; okno nelze zavřít uprostřed instalace. Po otevření aplikačního okna uloží potvrzený commit a zavře se.
+
+Při offline síti, chybě Gitu nebo selhání buildu launcher otevře předchozí dostupnou instalaci a zobrazí důvod. Při selhání samotné instalace je návrat možný jen pokud předchozí EXE zůstalo dostupné; nejde o transakční rollback Squirrel. Potvrzení commitu se neposune po chybě buildu, neplatném instalačním receipt nebo neúspěšném spuštění. Log posledního pokusu je `launcher.log`. Původní ikona **Ethical World** zůstává přímým spuštěním bez Git kontroly.
+
+Současné předpoklady: Windows, Git s přístupem k repozitáři, Node/npm, Python a již použitý Windows packaging toolchain. První nový build může trvat několik minut. Launcher nepřidává CI/CD, publikaci Release ani placenou službu. WinForms/COM/Squirrel vyžadují ověření na skutečných Windows; lokální Git a helper testy toto ověření nenahrazují.
+
+## GitHub přihlášení v konektoru
+
+GitHub pro zabudovaný Client ID aktuálně vrací `device_flow_disabled` (HTTP 400). Device OAuth musí být zapnutý v registraci dané GitHub aplikace; změna kódu toto nastavení na GitHubu nezapne. Konektor nyní ukazuje konkrétní důvod namísto obecné IPC výjimky.
+
+Alternativa **Připojit tokenem** otevře samostatné izolované okno. Fine-grained PAT vytvoř v GitHub Settings → Developer settings → Personal access tokens, vyber potřebné repozitáře a oprávnění Contents: Read and write, Metadata: Read. Token se nejprve ověří přes `/user`, pak se uloží přes existující OS secure storage. Hlavní workspace dostane pouze stav a login, token se do něj nevrací. Zrušení nebo neplatný token existující připojení nepřepíše. OAuth varianta zůstává dostupná pro vlastní `ETHICAL_GITHUB_CLIENT_ID` s aktivním Device Flow.
+
+Dokumentace GitHubu: [Device Flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow) a [Personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).

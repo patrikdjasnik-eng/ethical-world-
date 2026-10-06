@@ -30,6 +30,7 @@ export interface DesktopGitHubRepo {
 
 export interface DesktopGitHubLoginStart {
   configured: boolean;
+  error?: string;
   sessionId?: string;
   userCode?: string;
   verificationUri?: string;
@@ -61,6 +62,7 @@ export interface EthicalDesktopApi {
   writeMarkdownFiles: (connectionId: string, files: DesktopMarkdownFile[]) => Promise<{ written: number }>;
   githubStatus: () => Promise<DesktopGitHubStatus>;
   githubStartLogin: () => Promise<DesktopGitHubLoginStart>;
+  githubConnectToken: () => Promise<{ connected: boolean; login: string | null; error?: string }>;
   githubPollLogin: (sessionId: string) => Promise<DesktopGitHubLoginPoll>;
   githubDisconnect: () => Promise<{ connected: false }>;
   githubListRepos: () => Promise<DesktopGitHubRepo[]>;

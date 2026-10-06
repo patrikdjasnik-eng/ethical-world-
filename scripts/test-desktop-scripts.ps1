@@ -20,6 +20,12 @@ $discoveryFunction = $installerAst.Find({
 }, $true)
 Assert-True ($null -ne $discoveryFunction) "Shortcut discovery function was not found."
 . ([scriptblock]::Create($discoveryFunction.Extent.Text))
+$selectionFunction = $installerAst.Find({
+  param($node)
+  $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq "Get-EthicalWorldDesktopShortcut"
+}, $true)
+Assert-True ($null -ne $selectionFunction) "Desktop shortcut selection function was not found."
+. ([scriptblock]::Create($selectionFunction.Extent.Text))
 
 $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ("ethical-world-shortcuts-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $fixtureRoot | Out-Null
@@ -61,6 +67,11 @@ try {
   }
   Assert-True ($snapshot.Count -eq 3) "Shortcut records must be usable as non-null snapshot keys before installation."
   Assert-True ($snapshot.ContainsKey($namedPath) -and $snapshot.ContainsKey($targetPath) -and $snapshot.ContainsKey($argumentPath)) "Snapshot must contain the expected shortcut paths."
+  $launcherRecord = [PSCustomObject]@{ Path = (Join-Path $fixtureRoot "Ethical World Launcher.lnk"); TargetPath = "C:\Windows\powershell.exe"; Arguments = '-File "C:\EthicalWorldLauncher\desktop-launcher.ps1"' }
+  $selection = Get-EthicalWorldDesktopShortcut -Shortcuts (@($launcherRecord) + $multipleResult) -DesktopPath $fixtureRoot
+  Assert-True ($selection.Path -ne $launcherRecord.Path) "Installer smoke must select the app shortcut, not recursively start the update launcher."
+  $updaterSelection = Get-EthicalWorldDesktopShortcut -Shortcuts (@($launcherRecord) + $multipleResult) -DesktopPath $fixtureRoot -ExpectedUpdater "C:\app\Update.exe"
+  Assert-True ($updaterSelection.Path -eq $argumentPath) "Versioned smoke must select the installed Squirrel updater."
   Write-Host "[PASS] Shortcut discovery: empty, single, multiple, unreadable and snapshot indexing."
 } finally {
   Remove-Item -LiteralPath $fixtureRoot -Recurse -Force
