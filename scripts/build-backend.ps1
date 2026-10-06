@@ -12,7 +12,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $outDir = Join-Path $root "resources\backend"
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
-$args = @(
+$buildArguments = @(
   "-m", "PyInstaller",
   "--noconfirm",
   "--clean",
@@ -26,7 +26,7 @@ $args = @(
   "--collect-all", "fastapi",
   "server\desktop_entry.py"
 )
-& $python @args
+& $python @buildArguments
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "[OK] Bundled backend: $outDir\EthicalWorldBackend.exe"

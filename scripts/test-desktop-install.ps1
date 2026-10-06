@@ -18,24 +18,32 @@ if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
 }
 
 function Get-EthicalWorldShortcuts {
-  $shell = New-Object -ComObject WScript.Shell
-  $locations = @(
-    [Environment]::GetFolderPath("Desktop"),
-    [Environment]::GetFolderPath("Programs")
-  ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
+  param([object]$ShortcutShell, [string[]]$ShortcutLocations)
 
-  $matches = @()
+  if ($null -eq $ShortcutShell) {
+    $ShortcutShell = New-Object -ComObject WScript.Shell
+  }
+  if ($null -eq $ShortcutLocations) {
+    $ShortcutLocations = @(
+      [Environment]::GetFolderPath("Desktop"),
+      [Environment]::GetFolderPath("Programs")
+    )
+  }
+  $locations = $ShortcutLocations | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Unique
+
+  # -match overwrites the automatic $Matches variable (names are case-insensitive).
+  $foundShortcuts = @()
 
   foreach ($location in $locations) {
     $links = Get-ChildItem -Path $location -Filter "*.lnk" -File -Recurse -ErrorAction SilentlyContinue
 
     foreach ($link in $links) {
       try {
-        $shortcut = $shell.CreateShortcut($link.FullName)
+        $shortcut = $ShortcutShell.CreateShortcut($link.FullName)
         $fingerprint = "$($link.BaseName)|$($shortcut.TargetPath)|$($shortcut.Arguments)"
 
         if ($fingerprint -match "(?i)Ethical\s*World|EthicalWorld|ethical_world") {
-          $matches += [PSCustomObject]@{
+          $foundShortcuts += [PSCustomObject]@{
             Path = $link.FullName
             TargetPath = $shortcut.TargetPath
             Arguments = $shortcut.Arguments
@@ -49,7 +57,7 @@ function Get-EthicalWorldShortcuts {
     }
   }
 
-  return $matches
+  return $foundShortcuts
 }
 
 Write-Host ""

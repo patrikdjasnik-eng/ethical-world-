@@ -176,3 +176,19 @@ Verze balíčku je nyní 0.1.1, aby instalátor rozlišil novou sestavu od půvo
 Pokud backend test gate selže, úplný výpis je v `out/diagnostics/backend-tests.log`. Samostatná diagnostika: `.\.venv\Scripts\python.exe -m server.test_runner`. Hlásit první `ERROR` a navazující traceback, nikoli pouze poslední PowerShell `Update stopped`. Instalátor se při této chybě ještě nespustil.
 
 Při EBUSY v předchozím packaging výstupu updater nově balí do unikátního `out/updates/<guid>`. Instalátor používá přesnou cestu aktuálního buildu a po instalaci obnoví desktop shortcut přes nainstalované `Update.exe`, nikoli EXE ve složce out. Staré buildy můžeš uklidit až po ověření nové instalace; aktualizační skript je nemaže. Zbylé backend procesy se ukončují pouze podle konkrétního názvu a ověřené cesty tohoto projektu/instalace.
+
+### Dokončení instalace po chybě kontrolního skriptu
+
+Pokud make dokončil instalátor a následná kontrola spadla před `[2/4] Running installer`, není nutné opakovat build. Po stažení opravy skriptu zavři Ethical World a použij hotový instalátor z posledního pokusu:
+
+```powershell
+$setup = Get-ChildItem .\out\updates -Filter EthicalWorldSetup.exe -Recurse -File |
+  Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+if (-not $setup) { throw "Hotovy instalator nebyl nalezen. Spust npm run desktop:update." }
+$version = (Get-Content .\package.json -Raw | ConvertFrom-Json).version
+& .\scripts\test-desktop-install.ps1 -SkipMake -Launch -ExpectedVersion $version -RequireBundledBackend -InstallerPath $setup.FullName
+```
+
+Tento postup předpokládá, že poslední hotový instalátor odpovídá právě dokončenému buildu. Skript po instalaci kontroluje verzi, bundled backend a spuštěné EXE. Změny aplikačního kódu provedené až po sestavení vyžadují nový build.
+
+Regresní test PowerShell skriptů je součástí `npm run test:electron`: na Windows používá Windows PowerShell 5.1, případně PowerShell 7; jinde PowerShell 7, pokud je dostupný. Lze jej spustit i samostatně pomocí `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-desktop-scripts.ps1`. Používá dočasné fixture soubory a náhradu COM rozhraní; instalátor nespouští ani neupravuje skutečné zástupce.
