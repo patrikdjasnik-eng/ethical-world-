@@ -193,7 +193,7 @@ if (-not $version) { throw "Verzi hotoveho instalatoru nelze zjistit." }
 
 Tento postup předpokládá, že poslední hotový instalátor odpovídá právě dokončenému buildu. Skript po instalaci kontroluje verzi, bundled backend a spuštěné EXE. Změny aplikačního kódu provedené až po sestavení vyžadují nový build.
 
-Regresní test PowerShell skriptů je součástí `npm run test:electron`: na Windows používá Windows PowerShell 5.1, případně PowerShell 7; jinde PowerShell 7, pokud je dostupný. Lze jej spustit i samostatně pomocí `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-desktop-scripts.ps1`. Používá dočasné fixture soubory a náhradu COM rozhraní; instalátor nespouští ani neupravuje skutečné zástupce.
+Regresní test PowerShell skriptů je součástí `npm run test:electron`: na Windows používá Windows PowerShell 5.1, případně PowerShell 7; jinde PowerShell 7, pokud je dostupný. Lze jej spustit i samostatně pomocí `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-desktop-scripts.ps1`. Používá dočasné fixture soubory a náhradu COM rozhraní; instalátor nespouští ani neupravuje skutečné zástupce. Cestu k instalátoru odvozuje až v těle skriptu: Windows PowerShell 5.1 nemusí naplnit `$PSScriptRoot` při vyhodnocování výchozího script parametru. Runner ověřuje výchozí cestu i explicitní `-InstallerScript`, včetně spuštění mimo kořen projektu; AST kontrola hlídá návrat této nekompatibility v parametrech desktop skriptů.
 
 ## Launcher s automatickou aktualizací z Gitu
 

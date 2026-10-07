@@ -1,8 +1,14 @@
 [CmdletBinding()]
-param([string]$InstallerScript = (Join-Path $PSScriptRoot "test-desktop-install.ps1"))
+param([string]$InstallerScript = "")
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+$scriptsDirectory = $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($InstallerScript)) {
+  # Windows PowerShell 5.1 naplní cestu skriptu až po vyhodnocení výchozích parametrů.
+  $InstallerScript = Join-Path $scriptsDirectory "test-desktop-install.ps1"
+}
 
 function Assert-True {
   param([bool]$Condition, [string]$Message)
@@ -77,9 +83,21 @@ try {
   Remove-Item -LiteralPath $fixtureRoot -Recurse -Force
 }
 
-foreach ($scriptFile in (Get-ChildItem -LiteralPath $PSScriptRoot -Filter "*.ps1" -File)) {
+foreach ($scriptFile in (Get-ChildItem -LiteralPath $scriptsDirectory -Filter "*.ps1" -File)) {
   $scriptAst = [Management.Automation.Language.Parser]::ParseFile($scriptFile.FullName, [ref]$parseTokens, [ref]$parseErrors)
   Assert-True ($parseErrors.Count -eq 0) "PowerShell parse error in $($scriptFile.Name)."
+  $unsafePathDefaults = @($scriptAst.FindAll({
+    param($node)
+    $node -is [Management.Automation.Language.ParameterAst] -and
+      $node.Parent.Parent -eq $scriptAst -and
+      $null -ne $node.DefaultValue -and
+      $null -ne $node.DefaultValue.Find({
+        param($defaultNode)
+        $defaultNode -is [Management.Automation.Language.VariableExpressionAst] -and
+          $defaultNode.VariablePath.UserPath -in @("PSScriptRoot", "PSCommandPath")
+      }, $true)
+  }, $true))
+  Assert-True ($unsafePathDefaults.Count -eq 0) "Resolve script paths after parameter binding for Windows PowerShell 5.1 compatibility: $($scriptFile.Name)."
   $automaticAssignments = @($scriptAst.FindAll({
     param($node)
     $node -is [Management.Automation.Language.AssignmentStatementAst] -and
