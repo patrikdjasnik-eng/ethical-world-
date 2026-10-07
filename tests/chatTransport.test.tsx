@@ -14,7 +14,7 @@ const { gatewayRequest, gatewayStreamRequest } = require("../electron/backend-ru
   gatewayStreamRequest: (baseUrl: string, token: string, request: { path: string; method: "POST"; body: string }, onEvent: (event: unknown) => void, signal: AbortSignal) => Promise<unknown>;
 };
 const capability = "test-runtime-capability";
-let server: Server;
+let server: Server | undefined;
 let requests: { messages: { role: string; content: string }[]; model: string; responseStyle: string; vaultContext: { id: string; complete: boolean; content: string }[]; vaultIndex: { id: string }[] }[];
 let rejectChat = false;
 let releaseStream: (() => void) | null;
@@ -23,6 +23,7 @@ let gatewayBaseUrl: string;
 const streamControllers = new Map<string, AbortController>();
 
 beforeEach(async () => {
+  server = undefined;
   localStorage.clear();
   Element.prototype.scrollIntoView = vi.fn();
   requests = [];
@@ -61,8 +62,9 @@ beforeEach(async () => {
     }
     response.end(JSON.stringify({ online: true, provider: "ollama", model: "fixture", models: ["fixture"], baseUrl: "http://localhost:11434" }));
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
+  const fixtureServer = server;
+  await new Promise<void>((resolve) => fixtureServer.listen(0, "127.0.0.1", resolve));
+  const address = fixtureServer.address();
   if (!address || typeof address === "string") throw new Error("Fixture did not bind a TCP port");
   const baseUrl = `http://127.0.0.1:${address.port}`;
   gatewayBaseUrl = baseUrl;
@@ -75,8 +77,12 @@ afterEach(async () => {
   for (const controller of streamControllers.values()) controller.abort();
   streamControllers.clear();
   delete window.ethicalDesktop;
-  server.closeAllConnections();
-  await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  const activeServer = server;
+  server = undefined;
+  if (activeServer) {
+    activeServer.closeAllConnections();
+    await new Promise<void>((resolve, reject) => activeServer.close((error) => error ? reject(error) : resolve()));
+  }
 });
 
 function enableStreaming() {

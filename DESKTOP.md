@@ -219,6 +219,8 @@ Kontrola lokálního repozitáře a fetch mají společný limit 8 sekund. Při 
 
 Při offline síti, chybě Gitu nebo selhání buildu launcher otevře předchozí dostupnou instalaci a zobrazí důvod. Při selhání samotné instalace je návrat možný jen pokud předchozí EXE zůstalo dostupné; nejde o transakční rollback Squirrel. Potvrzení commitu se neposune po chybě buildu, neplatném instalačním receipt nebo neúspěšném spuštění. Log posledního pokusu je `launcher.log`. Původní ikona **Ethical World** zůstává přímým spuštěním bez Git kontroly.
 
+Pokud starší checkout zastaví `npm test` na `localStorage.clear()` s nedostupným úložištěm nebo hláškou o `--localstorage-file`, stáhni opravu větve a launcher spusť znovu po zavření aplikace otevřené fallbackem. DOM testy používají úložiště aktuální instance jsdom přes společný `tests/setup.ts`; nepřidávej diskový `--localstorage-file` a nepřeskakuj testy. Úspěšný pull sám nainstalované EXE neaktualizuje, nový pokus musí dokončit build a instalaci.
+
 Současné předpoklady: Windows, Git s přístupem k repozitáři, Node/npm, Python a již použitý Windows packaging toolchain. První nový build může trvat několik minut. Launcher nepřidává CI/CD, publikaci Release ani placenou službu. WinForms/COM/Squirrel vyžadují ověření na skutečných Windows; lokální Git a helper testy toto ověření nenahrazují.
 
 ## Lokální model Máši na Windows
