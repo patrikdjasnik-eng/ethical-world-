@@ -1696,3 +1696,45 @@ Validace obou bloků: 57 frontend testů, 29 desktop/helper testů a 20 backend 
 - DESKTOP.md obsahuje postup spuštění modelového serveru Ollama a odlišuje jej od automatického FastAPI backendu desktopu. Další úkol: spouštění modelového serveru z launcheru bez ručního PowerShellu; zatím není implementované.
 
 Validace: 66 frontend testů, 30 desktop/helper testů a 20 backend testů prošlo (116 celkem), včetně PowerShell 7.4.7 kontroly skriptů (bez skipů). TypeScript + produkční Vite build a git diff --check prošly. Live smoke ověřil desktop gateway → skutečný FastAPI subprocess → loopback Ollama HTTP fixture → odpověď HTTP 200 a ukončení backendu přes parent EOF. Fixture negeneruje odpověď skutečným LLM. Reálný Windows launcher, jeho časování a zadávání do nainstalovaného Electron okna vyžadují retest na Windows; testované slabiny samy nepotvrzují příčinu konkrétní instalace. CI/CD není podmínkou předání.
+
+## Questy na zítra — Máša runtime, výkon a skutečné akce
+
+Stav: plán pro další pracovní blok; následující funkce zatím nejsou implementované. Priorita: bez ručního spouštění modelového backendu, rychlý běžný chat, spolehlivé změny vaultu a přímo viditelný benchmark.
+
+### 1. Máša si připraví backend a model sama
+
+- Navázat na automatický FastAPI backend desktopu a doplnit spuštění zvoleného modelového serveru Ollama nebo llama-server. Ověřit běžící službu; existující funkční instanci znovu nespouštět.
+- Spouštět jen zvolený dostupný model, případně jej předehřát a rozumně držet v paměti. Zachovat explicitní výběr modelu včetně tagu `masa-cyber:latest`, aby automatická detekce nepřepínala na jiný nebo větší model.
+- Zobrazit stav spouštění, připravenost, timeout i důvod selhání. Chybějící model řešit srozumitelně; stažení až po potvrzení.
+- Řídit jen procesy spuštěné aplikací. Zopakované otevření nesmí vytvářet duplicitní backendy ani ukončovat jinou Ollamu, Python nebo Electron.
+- Hotovo až po Windows ověření: zavřený modelový server → launcher → připravená Máša → první odpověď, opakovaný start a obnova po pádu bez ručního PowerShellu.
+
+### 2. Zrychlit každou zprávu a změřit příčinu
+
+- Výchozí problém: `masa-cyber` je pomalá při každé zprávě, nejen při prvním načtení. Aktuální klient přibaluje až 20 poznámek a 40 zpráv historie. Backend přidává až 30 000 znaků poznámkového kontextu a 14 000 znaků vault indexu; i běžná odpověď má limit 2 048 výstupních tokenů. Jde o nalezené zatížení v kódu, nikoli o potvrzený bottleneck konkrétního PC.
+- Nejdřív zaznamenat baseline pro krátký chat, navazující dotaz, práci s poznámkou a tvorbu více dokumentů. Rozdělit čekání na načtení modelu, zpracování promptu a generování; ověřit GPU/CPU využití a skutečný název modelu.
+- Běžnému chatu přidělit menší rozpočet historie a kontextu, vyhledávat cíleně a neposílat celý nedávný vault na každý dotaz. Stabilní části promptu uspořádat pro opětovné využití kontextu.
+- Oddělit stručný chat od tvorby dokumentů; běžná odpověď nemá automaticky generovat dlouhou přednášku. Nastavení délky musí zachovat možnost podrobné odpovědi a úplného dokumentu.
+- Přidat průběžné zobrazování odpovědi od prvního tokenu. Neúplné akční bloky se nesmějí provádět během streamu; zápis přijde až po dokončení, validaci a potřebném potvrzení.
+- Zachovat ochranu proti přepsání poznámky z částečného kontextu. Zrychlení nesmí zahodit požadované části dokumentu ani obcházet oprávnění.
+- Hotovo až po porovnání stejného modelu a stejných úloh před/po na skutečných Windows; zapsat naměřená zlepšení a zbývající hardwarová omezení.
+
+### 3. Markdown a skripty směrovat do poznámek
+
+- Požadavek na vytvoření, doplnění nebo úpravu poznámky převést na konkrétní vault akci. Markdown, Mermaid a požadované skripty patří do výsledného dokumentu; chat má ukázat stručný stav, náhled k potvrzení a výsledek provedení.
+- Dotaženě propojit směrování zadání, modelovou odpověď, parser, validaci, oprávnění, zápis a potvrzený výsledek. Volný výpis dokumentu v chatu nesmí být považovaný za splnění úkolu.
+- Podporovat více samostatných poznámek, navazující úpravy a přesné cílové IDs. Otevřít výslednou poznámku nebo nabídnout přímý odkaz. Původní obsah a nevyřízené návrhy zachovat při chybě.
+- ASSIST před zápisem vyžaduje potvrzení; AGENT automaticky vytváří pouze ve schválené složce, READ nezapisuje. Hlášku „uloženo“ zobrazit až po úspěšném zápisu; chybný či neúplný modelový návrh dostane konkrétní chybu.
+- Hotovo až po integračních scénářích: vytvořit poznámku se skriptem → potvrdit → otevřít uložený obsah; doplnit existující poznámku; vytvořit tři dokumenty; odmítnout neplatnou nebo neoprávněnou akci bez ztráty dat.
+
+### 4. Počítadlo tokenů a benchmark přímo v chatu
+
+- U každé odpovědi zobrazit vstupní a výstupní tokeny, součet, celkový čas a rychlost generování v tokenech za sekundu. Doplnit souhrn za konverzaci a aktuální model/provider.
+- Počty brát ze skutečných metadat providera. U Ollamy zachovat `prompt_eval_count`, `eval_count`, `load_duration`, `prompt_eval_duration` a `eval_duration`, které současný provider wrapper při vrácení samotného content zahazuje.
+- Odděleně zobrazit načítání modelu, zpracování vstupu a generování; čas do prvního tokenu měřit při streamování. Ollama uvádí duration v nanosekundách: správně převádět jednotky a rychlost počítat z eval_count / eval_duration, nikoli z celkového času včetně načítání.
+- Případný odhad tokenů před odesláním jasně označit jako odhad. Chybějící metadata zobrazit jako nedostupná; nesmí vzniknout smyšlená nula, NaN ani Infinity. Prompt, obsah poznámek a klíče nelogovat do benchmark metadat.
+- Hotovo až po ověření proti skutečným provider metadatům, včetně cold/warm běhu, nulové délky měření, chyby požadavku a providera bez usage statistik.
+
+Reference pro implementaci metrik a lifecycle: [Ollama Chat API](https://docs.ollama.com/api/chat), [Ollama FAQ](https://docs.ollama.com/faq).
+
+Tento zápis doplňuje backlog a kritéria dokončení. Aplikační kód se v tomto bloku nemění; kontrola dokumentace: `git diff --check`.
