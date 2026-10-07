@@ -33,6 +33,7 @@ export interface AiMetrics {
   firstTokenMs?: number | null;
   firstVisibleMs?: number;
   roundTripMs?: number;
+  preparationMs?: number;
   promptChars: number;
   historyMessages: number;
   contextNotes: number;

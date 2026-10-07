@@ -174,6 +174,17 @@ export const AiPanel = memo(function AiPanel({
     try {
       setConnection((current) => ({ ...current, checking: true }));
 
+      if ((allowAutoDetect || prepareLocal) && window.ethicalDesktop?.ensureBackendRuntime) {
+        setRuntimeMessage("Spouštím backend aplikace…");
+        const runtime = await window.ethicalDesktop.ensureBackendRuntime();
+        if (!sameConnection(settingsRef.current, settings)) return;
+        if (runtime.state !== "ready") {
+          setRuntimeMessage(runtime.message);
+          setConnection({ backendOnline: false, modelOnline: false, checking: false });
+          return;
+        }
+        setRuntimeMessage(null);
+      }
       const backendOnline = await checkGatewayHealth();
       if (!sameConnection(settingsRef.current, settings)) return;
 
@@ -185,8 +196,8 @@ export const AiPanel = memo(function AiPanel({
 
       let checkedSettings = settings;
       if ((allowAutoDetect || prepareLocal) && settings.provider === "ollama" && window.ethicalDesktop?.ensureLocalModel) {
-        setRuntimeMessage("Spouštím Ollamu a načítám model…");
-        const runtime = await window.ethicalDesktop.ensureLocalModel({ model: settings.model, baseUrl: settings.baseUrl });
+        setRuntimeMessage("Spouštím Ollamu a kontroluji vybraný model…");
+        const runtime = await window.ethicalDesktop.ensureLocalModel({ model: settings.model, baseUrl: settings.baseUrl, warmup: false });
         if (!sameConnection(settingsRef.current, settings)) return;
         setRuntimeMessage(runtime.state === "ready" || runtime.state === "unsupported" ? null : runtime.message);
         if (runtime.state === "missing" || runtime.state === "error") {
@@ -297,6 +308,7 @@ export const AiPanel = memo(function AiPanel({
     const controller = new AbortController();
     requestController.current = controller;
     let firstVisibleMs: number | undefined;
+    let preparationMs = 0;
     const requestStarted = performance.now();
     setError(null);
 
@@ -314,13 +326,21 @@ export const AiPanel = memo(function AiPanel({
             : "answer"
       );
       let requestSettings = settings;
+      if (window.ethicalDesktop?.ensureBackendRuntime) {
+        setRuntimeMessage("Spouštím backend aplikace…");
+        const runtime = await waitUntilReady(window.ethicalDesktop.ensureBackendRuntime(), controller.signal);
+        if (runtime.state !== "ready") throw new Error(runtime.message);
+        setConnection((current) => ({ ...current, backendOnline: true }));
+        setRuntimeMessage(null);
+      }
       if (!connection.modelOnline && settings.provider === "ollama" && window.ethicalDesktop?.ensureLocalModel) {
-        setRuntimeMessage("Spouštím Ollamu a načítám model…");
-        const runtime = await waitUntilReady(window.ethicalDesktop.ensureLocalModel({ model: settings.model, baseUrl: settings.baseUrl }), controller.signal);
+        setRuntimeMessage("Spouštím Ollamu a kontroluji vybraný model…");
+        const runtime = await waitUntilReady(window.ethicalDesktop.ensureLocalModel({ model: settings.model, baseUrl: settings.baseUrl, warmup: false }), controller.signal);
         if (runtime.state === "missing" || runtime.state === "error") throw new Error(runtime.message);
         if (runtime.model) requestSettings = { ...settings, model: runtime.model };
         setRuntimeMessage(null);
       }
+      preparationMs = performance.now() - requestStarted;
       const response = await sendAiMessage({
         settings: requestSettings,
         messages: nextMessages,
@@ -361,7 +381,7 @@ export const AiPanel = memo(function AiPanel({
         id: createId(), role: "assistant",
         content: missingDocument ? "Dokument nemá dokončený návrh změny. Nic se neuložilo." : hasDocument ? `Připravila jsem ${parsed.actions.length} ${parsed.actions.length === 1 ? "návrh" : parsed.actions.length < 5 ? "návrhy" : "návrhů"}. Obsah je v náhledu změn níže.` : parsed.content,
         model: response.model, provider: requestSettings.provider,
-        ...(response.metrics ? { metrics: { ...response.metrics, roundTripMs: performance.now() - requestStarted, firstVisibleMs } } : {})
+        ...(response.metrics ? { metrics: { ...response.metrics, roundTripMs: performance.now() - requestStarted, firstVisibleMs, preparationMs } } : {})
       };
       setMessages((current) => [...current, assistantMessage]);
       responseAdded = true;
@@ -541,14 +561,18 @@ export const AiPanel = memo(function AiPanel({
         </div>
       )}
 
+      {connection.checking && runtimeMessage && (
+        <div className="ai-offline-banner" role="status">{runtimeMessage}</div>
+      )}
+
       {!connection.modelOnline && !connection.checking && (
         <div className="ai-offline-banner">
-          <strong>Máša čeká na model.</strong>
+          <strong>{connection.backendOnline ? "Máša čeká na model." : "Máša čeká na backend aplikace."}</strong>
           <span>
             {runtimeMessage ?? (connection.backendOnline
               ? "Ollama není připravená. Zkontroluj instalaci a model v nastavení; jiný server můžeš spustit ručně."
               : window.ethicalDesktop
-                ? "Desktop runtime backend se nepodařilo spustit. Zkus aplikaci restartovat."
+                ? "Backend aplikace není připravený. Zkontrolovat znovu jej zkusí automaticky spustit."
                 : "Spusť FastAPI backend na portu 8787.")}
           </span>
           <button type="button" onClick={() => void refreshConnection(true)}>Zkontrolovat znovu</button>
@@ -588,7 +612,8 @@ export const AiPanel = memo(function AiPanel({
               </summary>
               <span>{message.provider} · {message.model}</span>
               <span>Model: {metricSeconds(message.metrics.loadMs)} s načtení · {metricSeconds(message.metrics.promptMs)} s prompt · {metricSeconds(message.metrics.generationMs)} s generování</span>
-              <span>První token modelu: {metricSeconds(message.metrics.firstTokenMs)} s · první text v chatu: {metricSeconds(message.metrics.firstVisibleMs)} s</span>
+              <span>Příprava služeb: {metricSeconds(message.metrics.preparationMs)} s · požadavek backendu: {metricSeconds(message.metrics.elapsedMs)} s</span>
+              <span>První token v backendu: {metricSeconds(message.metrics.firstTokenMs)} s · první text v chatu: {metricSeconds(message.metrics.firstVisibleMs)} s</span>
               <span>Prompt {metricNumber(message.metrics.promptChars)} znaků · {message.metrics.contextNotes} poznámek · {message.metrics.historyMessages} zpráv historie</span>
               <span>Tokeny a rychlost vrací provider; — znamená nedostupné měření.</span>
             </details>}

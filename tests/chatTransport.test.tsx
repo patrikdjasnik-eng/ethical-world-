@@ -106,7 +106,7 @@ it("displays a partial reply before completion through the verified desktop stre
   releaseStream?.();
   await screen.findByText("První část odpovědi a dokončení");
   expect(requests).toHaveLength(1);
-  expect(screen.getByText(/První token modelu: 0,1 s/)).toBeTruthy();
+  expect(screen.getByText(/První token v backendu: 0,1 s/)).toBeTruthy();
   expect(screen.getByLabelText("Tokeny konverzace").textContent).toContain("160");
 });
 

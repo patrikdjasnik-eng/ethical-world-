@@ -48,7 +48,12 @@ export interface EthicalDesktopApi {
   isDesktop: true;
   gatewayStreamRequest?: (id: string, request: { path: string; method: "POST"; body: string }, onEvent: (event: unknown) => void) => Promise<unknown>;
   cancelGatewayStream?: (id: string) => Promise<void>;
-  ensureLocalModel?: (request: { model: string; baseUrl: string }) => Promise<{
+  ensureBackendRuntime?: () => Promise<{
+    state: "ready" | "error";
+    source: "bundled" | "venv" | "python" | "py" | "offline";
+    message: string;
+  }>;
+  ensureLocalModel?: (request: { model: string; baseUrl: string; warmup?: boolean }) => Promise<{
     state: "ready" | "missing" | "unsupported" | "error";
     message: string;
     model?: string;
@@ -101,6 +106,8 @@ export interface EthicalDesktopApi {
   runtimeStatus: () => Promise<{
     backendOnline: boolean;
     backendSource: "external" | "bundled" | "venv" | "python" | "py" | "offline";
+    backendMessage?: string;
+    backendLogPath?: string;
     githubClientConfigured: boolean;
   }>;
 }

@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("ethicalDesktop", {
   },
   cancelGatewayStream: (id) => ipcRenderer.invoke("desktop:gateway-stream-cancel", id),
   ensureLocalModel: (request) => ipcRenderer.invoke("desktop:ensure-local-model", request),
+  ensureBackendRuntime: () => ipcRenderer.invoke("desktop:ensure-backend"),
   carrotConfirmSaved: (payload, signature, publicKey) => ipcRenderer.invoke("desktop:carrot-confirm-saved", payload, signature, publicKey),
   carrotVerifyHead: (noteId, commitHash) => ipcRenderer.invoke("desktop:carrot-verify-head", noteId, commitHash),
   platform: process.platform,

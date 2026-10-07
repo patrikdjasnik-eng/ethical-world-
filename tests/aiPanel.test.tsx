@@ -3,7 +3,7 @@ import "fake-indexeddb/auto";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import AiPanel from "../src/components/AiPanel";
-import { autoDetectLocalProvider, checkProviderStatus, sendAiMessage } from "../src/lib/ai";
+import { autoDetectLocalProvider, checkGatewayHealth, checkProviderStatus, sendAiMessage } from "../src/lib/ai";
 import { listAgentAudit } from "../src/lib/storage";
 import type { AgentAction, Note } from "../src/types";
 import type { EthicalDesktopApi } from "../src/types/desktop";
@@ -34,6 +34,37 @@ function send() {
   fireEvent.click(screen.getByRole("button", { name: "Send" }));
 }
 
+it("retries the application backend from the offline banner before checking the model", async () => {
+  const ensure = vi.fn()
+    .mockResolvedValueOnce({ state: "error", source: "offline", message: "Backend se nepodařilo načíst." })
+    .mockResolvedValue({ state: "ready", source: "bundled", message: "ready" });
+  window.ethicalDesktop = { ensureBackendRuntime: ensure } as unknown as EthicalDesktopApi;
+  render(<AiPanel notes={[]} activeNote={null} folders={[]} visible onRequestHide={() => {}} onApplyAgentAction={apply} />);
+  await screen.findByText("Backend se nepodařilo načíst.");
+  expect(checkGatewayHealth).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Zkontrolovat znovu" }));
+  await screen.findByText(/Online · fixture/);
+  expect(ensure).toHaveBeenCalledTimes(2);
+});
+
+it("preserves the draft when backend preparation fails and retries it before sending", async () => {
+  const ensure = vi.fn()
+    .mockResolvedValueOnce({ state: "ready", source: "bundled", message: "ready" })
+    .mockResolvedValueOnce({ state: "error", source: "offline", message: "Backend není připravený." })
+    .mockResolvedValue({ state: "ready", source: "bundled", message: "ready" });
+  window.ethicalDesktop = { ensureBackendRuntime: ensure } as unknown as EthicalDesktopApi;
+  vi.mocked(sendAiMessage).mockResolvedValue({ content: "Hotovo", provider: "ollama", model: "fixture", completeNoteIds: [] });
+  await setup();
+  send();
+  await screen.findByText("Backend není připravený.");
+  const input = screen.getByPlaceholderText("Řekni Máše, co má v Ethical World udělat…") as HTMLTextAreaElement;
+  expect(input.value).toBe("udělej poznámku");
+  expect(sendAiMessage).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await waitFor(() => expect(sendAiMessage).toHaveBeenCalledTimes(1));
+  expect(ensure).toHaveBeenCalledTimes(3);
+});
+
 it("prepares the saved local model on reopening without switching to a probe's default model", async () => {
   saveAiSettings({ provider: "ollama", model: "chosen", baseUrl: "http://localhost:11434", apiKey: "", responseStyle: "balanced" });
   const ensure = vi.fn(async () => ({ state: "ready" as const, model: "chosen:latest", message: "ready" }));
@@ -41,8 +72,36 @@ it("prepares the saved local model on reopening without switching to a probe's d
   vi.mocked(checkProviderStatus).mockResolvedValueOnce({ online: true, provider: "ollama", models: ["fixture", "chosen:latest"], model: "fixture", baseUrl: "http://localhost:11434" });
   render(<AiPanel notes={[]} activeNote={null} folders={[]} visible onRequestHide={() => {}} onApplyAgentAction={apply} />);
   await screen.findByText(/Online · chosen:latest/);
-  expect(ensure).toHaveBeenCalledWith({ model: "chosen", baseUrl: "http://localhost:11434" });
+  expect(ensure).toHaveBeenCalledWith({ model: "chosen", baseUrl: "http://localhost:11434", warmup: false });
   expect(autoDetectLocalProvider).not.toHaveBeenCalled();
+});
+
+it("sends after service validation without warmup and measures preparation separately from provider time", async () => {
+  let clock = 0;
+  vi.spyOn(performance, "now").mockImplementation(() => clock);
+  const backend = vi.fn()
+    .mockResolvedValueOnce({ state: "ready", source: "bundled", message: "ready" })
+    .mockImplementation(async () => { clock = 5000; return { state: "ready", source: "bundled", message: "ready" }; });
+  const model = vi.fn()
+    .mockResolvedValueOnce({ state: "error", message: "Ollama čeká na start." })
+    .mockResolvedValue({ state: "ready", model: "fixture", message: "ready" });
+  window.ethicalDesktop = { ensureBackendRuntime: backend, ensureLocalModel: model } as unknown as EthicalDesktopApi;
+  vi.mocked(sendAiMessage).mockImplementationOnce(async (input) => {
+    expect(backend).toHaveBeenCalledTimes(2);
+    expect(model).toHaveBeenLastCalledWith(expect.objectContaining({ warmup: false }));
+    clock = 5600;
+    input.onProgress?.({ content: "Rychlá odpověď", workload: "chat" });
+    clock = 5700;
+    return { content: "Rychlá odpověď", provider: "ollama", model: "fixture", completeNoteIds: [], metrics: { elapsedMs: 700, firstTokenMs: 600, inputTokens: 120, outputTokens: 18, tokensPerSecond: 28.5, loadMs: 100, promptMs: 500, generationMs: 100, promptChars: 1500, contextNotes: 0, historyMessages: 1, workload: "chat" } };
+  });
+  render(<AiPanel notes={[]} activeNote={null} folders={[]} visible onRequestHide={() => {}} onApplyAgentAction={apply} />);
+  await screen.findByText("Ollama čeká na start.");
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "Ahoj Mášo" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await screen.findByText("Příprava služeb: 5 s · požadavek backendu: 0,7 s");
+  expect(screen.getByText("První token v backendu: 0,6 s · první text v chatu: 5,6 s")).toBeTruthy();
+  expect(screen.getByText(/Tokeny vstup 120 · výstup 18 · Σ 138 · 5,7 s · 28,5 tok\/s/)).toBeTruthy();
+  expect(model).toHaveBeenCalledTimes(2);
 });
 
 it("keeps document content in the proposal preview and uses a short chat acknowledgement", async () => {
@@ -55,7 +114,7 @@ it("keeps document content in the proposal preview and uses a short chat acknowl
   expect(apply).not.toHaveBeenCalled();
 });
 
-it("does not replace a model selected while an earlier warmup is pending", async () => {
+it("does not replace a model selected while an earlier service check is pending", async () => {
   let ready!: (value: { state: "ready"; model: string; message: string }) => void;
   const ensure = vi.fn(() => new Promise<{ state: "ready"; model: string; message: string }>((resolve) => { ready = resolve; }));
   window.ethicalDesktop = { ensureLocalModel: ensure } as unknown as EthicalDesktopApi;

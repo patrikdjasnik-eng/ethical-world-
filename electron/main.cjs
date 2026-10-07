@@ -4,10 +4,9 @@ const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const crypto = require("node:crypto");
 const { createSecureStore, createSigner } = require("./secure-store.cjs");
-const { verifyBackend, gatewayRequest, gatewayStreamRequest } = require("./backend-runtime.cjs");
+const { gatewayRequest, gatewayStreamRequest } = require("./backend-runtime.cjs");
 const chatStreams = new Map();
-const { spawn } = require("node:child_process");
-const { stopBackendProcess } = require("./backend-process.cjs");
+const { createBackendManager } = require("./backend-manager.cjs");
 const { createModelRuntime } = require("./model-runtime.cjs");
 const modelRuntime = createModelRuntime();
 const { isAllowedExternalUrl, isTrustedRendererUrl } = require("./security.cjs");
@@ -35,9 +34,7 @@ const githubClientId = String(
   process.env.ETHICAL_GITHUB_CLIENT_ID ?? "Ov23liJffFw6fPudRTQ1"
 ).trim();
 const githubApiVersion = "2026-03-10";
-let backendBaseUrl = "";
 const backendToken = crypto.randomBytes(48).toString("base64url");
-let backendPort = 0;
 let secureStore = null;
 let carrotSigner = null;
 function secretsStore() {
@@ -48,13 +45,6 @@ function signerStore() {
   if (!carrotSigner) carrotSigner = createSigner(secretsStore());
   return carrotSigner;
 }
-let backendProcess = null;
-let backendRuntimeSource = "external";
-
-async function backendHealthy() {
-  return Boolean(backendBaseUrl) && verifyBackend(backendBaseUrl, backendToken);
-}
-
 function backendCandidates() {
   const candidates = [];
 
@@ -95,58 +85,20 @@ function backendCandidates() {
   return candidates;
 }
 
-async function waitForBackend(timeoutMs = 9000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await backendHealthy()) return true;
-    await new Promise((resolve) => setTimeout(resolve, 250));
+function backendLogPath() {
+  return path.join(app.getPath("userData"), "logs", "backend-startup.log");
+}
+
+const backendRuntime = createBackendManager({
+  getCandidates: backendCandidates, token: backendToken,
+  port: process.env.ETHICAL_WORLD_DESKTOP_PORT ?? 8787,
+  startupMs: app.isPackaged ? 45000 : 15000,
+  writeLog: async (events) => {
+    const logfile = backendLogPath();
+    await fs.mkdir(path.dirname(logfile), { recursive: true });
+    await fs.writeFile(logfile, JSON.stringify(events, null, 2), "utf8");
   }
-  return false;
-}
-
-async function startBackendCandidate(candidate) {
-  return new Promise((resolve) => {
-    let settled = false;
-    const child = spawn(candidate.command, candidate.args, {
-      cwd: candidate.cwd,
-      windowsHide: true,
-      stdio: ["pipe", app.isPackaged ? "ignore" : "inherit", app.isPackaged ? "ignore" : "inherit"],
-      env: { ...process.env, PYTHONUNBUFFERED: "1", ETHICAL_WORLD_PORT: String(backendPort), ETHICAL_WORLD_RUNTIME_TOKEN: backendToken, ETHICAL_WORLD_PARENT_PIPE: "1" }
-    });
-    const finish = (value) => {
-      if (settled) return;
-      settled = true;
-      resolve(value);
-    };
-    child.stdin?.on("error", () => { /* Backend may close its pipe while exiting. */ });
-    child.once("error", () => finish(null));
-    child.once("spawn", () => finish(child));
-  });
-}
-
-async function ensureBackendRuntime() {
-  backendPort = Number(process.env.ETHICAL_WORLD_DESKTOP_PORT ?? 8787);
-  if (!Number.isInteger(backendPort) || backendPort < 1 || backendPort > 65535) throw new Error("Invalid backend port.");
-  backendBaseUrl = "http://127.0.0.1:" + backendPort;
-  for (const candidate of backendCandidates()) {
-    const child = await startBackendCandidate(candidate);
-    if (!child) continue;
-    backendProcess = child;
-    backendRuntimeSource = candidate.source;
-    if (await waitForBackend()) return true;
-    await stopBackendProcess(child);
-    backendProcess = null;
-  }
-  backendRuntimeSource = "offline";
-  return false;
-}
-
-async function stopOwnedBackend() {
-  if (!backendProcess) return;
-  const child = backendProcess;
-  await stopBackendProcess(child);
-  if (backendProcess === child) backendProcess = null;
-}
+});
 
 function trustedRendererUrl(rawUrl) {
   return isTrustedRendererUrl(rawUrl, {
@@ -713,7 +665,11 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
   });
 
   handleTrusted("desktop:gateway-request", async (_event, request) => {
-    return gatewayRequest(backendBaseUrl, backendToken, request);
+    if (request?.path !== "/health") {
+      const runtime = await backendRuntime.ensure();
+      if (runtime.state !== "ready") throw new Error(runtime.message);
+    }
+    return gatewayRequest(backendRuntime.baseUrl, backendToken, request);
   });
 
   handleTrusted("desktop:gateway-stream", async (event, id, request) => {
@@ -723,7 +679,10 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
     const destroyed = () => controller.abort();
     event.sender.once("destroyed", destroyed);
     try {
-      return await gatewayStreamRequest(backendBaseUrl, backendToken, request, (data) => {
+      const runtime = await backendRuntime.ensure();
+      if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+      if (runtime.state !== "ready") throw new Error(runtime.message);
+      return await gatewayStreamRequest(backendRuntime.baseUrl, backendToken, request, (data) => {
         if (!event.sender.isDestroyed()) event.sender.send("desktop:gateway-stream-event", id, data);
       }, controller.signal);
     } finally {
@@ -737,6 +696,7 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
   });
 
   handleTrusted("desktop:ensure-local-model", async (_event, request) => modelRuntime.ensure(request ?? {}));
+  handleTrusted("desktop:ensure-backend", async () => backendRuntime.ensure());
 
   handleTrusted("desktop:carrot-confirm-saved", async (_event, payload, signature, publicKey) => {
     return signerStore().confirm(payload, signature, publicKey);
@@ -747,8 +707,8 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
   });
 
   handleTrusted("desktop:runtime-status", async () => ({
-    backendOnline: await backendHealthy(),
-    backendSource: backendRuntimeSource,
+    ...await backendRuntime.status(),
+    backendLogPath: backendLogPath(),
     githubClientConfigured: Boolean(githubClientId)
   }));
 
@@ -758,8 +718,8 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
     mainWindow?.focus();
   });
 
-  app.whenReady().then(async () => {
-    await ensureBackendRuntime();
+  app.whenReady().then(() => {
+    void backendRuntime.ensure();
     createWindow();
 
     app.on("activate", () => {
@@ -777,7 +737,7 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
     if (backendStopping) return;
     backendStopping = true;
     for (const controller of chatStreams.values()) controller.abort();
-    void Promise.all([stopOwnedBackend(), modelRuntime.stop()]).then(() => {
+    void Promise.all([backendRuntime.stop(), modelRuntime.stop()]).then(() => {
       backendStopped = true;
       app.quit();
     }).catch((error) => {

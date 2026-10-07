@@ -109,19 +109,19 @@ function createModelRuntime({ platform = process.platform, env = process.env, fe
     finally { serverFlight = null; }
   }
 
-  async function ensure({ model, baseUrl: requestedUrl }) {
+  async function ensure({ model, baseUrl: requestedUrl, warmup = true }) {
     if (!localOllamaUrl(requestedUrl)) return { state: "unsupported", message: "Automatický start podporuje lokální Ollamu na portu 11434." };
     if (typeof model !== "string" || !model.trim() || model.length > 200) return { state: "error", message: "Neplatný název modelu." };
     if (closing) return { state: "error", message: "Aplikace se ukončuje." };
-    const key = model.endsWith(":latest") ? model.slice(0, -7) : model;
-    if (flights.has(key)) return flights.get(key);
-    if (flights.size) return { state: "error", message: "Právě načítám jiný model. Zkus kontrolu po jeho dokončení." };
-    const task = (async () => {
+    const prepare = async () => {
       try {
         const models = await ensureServer();
         if (closing) throw new Error("Aplikace se ukončuje.");
         const selected = models.find((name) => name === model || (!model.includes(":") && name === model + ":latest"));
         if (!selected) return { state: "missing", message: `Model „${model}“ není v Ollamě nainstalovaný. Vyber existující model v nastavení.` };
+        // Foreground checks start the service and validate the selection. The real chat
+        // request loads the model, without queuing behind a separate empty generation.
+        if (warmup === false) return { state: "ready", message: "Ollama je dostupná a vybraný model je nainstalovaný.", model: selected };
         if ((warmed.get(selected) ?? 0) < Date.now() - 5 * 60 * 1000) {
           const started = Date.now();
           // An empty generate request loads the model without generating a reply.
@@ -134,7 +134,12 @@ function createModelRuntime({ platform = process.platform, env = process.env, fe
       } catch (error) {
         return { state: "error", message: error?.name === "AbortError" ? "Načítání modelu překročilo časový limit. Zkus kontrolu znovu." : error?.message === "Ollama není nainstalovaná nebo není dostupná v PATH." ? error.message : "Ollama nebo model nejsou připravené. Zkontroluj instalaci a nastavení modelu." };
       }
-    })();
+    };
+    if (warmup === false) return prepare();
+    const key = model.endsWith(":latest") ? model.slice(0, -7) : model;
+    if (flights.has(key)) return flights.get(key);
+    if (flights.size) return { state: "error", message: "Právě načítám jiný model. Zkus kontrolu po jeho dokončení." };
+    const task = prepare();
     flights.set(key, task);
     try { return await task; }
     finally { flights.delete(key); }

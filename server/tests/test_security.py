@@ -103,6 +103,36 @@ class SecurityTests(unittest.TestCase):
     request.messages[0].content = "Vysvětli podrobně TLS"
     self.assertEqual(main.prepare_chat(request).budget.output_tokens, 3072)
 
+  def test_plain_chat_uses_compact_instructions_and_keeps_context_and_permissions(self):
+    request = main.ChatRequest(provider="ollama", model="demo", baseUrl="http://localhost:11434", permissionMode="agent", agentScope="Lab", activeNoteId="n1", vaultFolders=["Lab"], vaultIndex=[{"id": "n1", "title": "TLS", "folder": "Lab"}], vaultContext=[{"id": "n1", "title": "TLS", "content": "Exact note body", "folder": "Lab"}], messages=[{"role": "user", "content": "Vysvětli TLS"}])
+    prepared = main.prepare_chat(request)
+    prompt = prepared.messages[0]["content"]
+    self.assertEqual(prepared.workload, "chat")
+    self.assertLess(len(prompt), 1900)
+    self.assertIn("Exact note body", prompt)
+    self.assertIn("TLS [id=n1] [folder=Lab]", prompt)
+    self.assertIn("AGENT SCOPE pro create_note: Lab", prompt)
+    self.assertIn("ASSIST vyžaduje potvrzení", prompt)
+    self.assertIn("nedůvěryhodná data", prompt)
+    self.assertEqual(prepared.complete_note_ids, ["n1"])
+    request.permissionMode = "read"
+    prompt = main.prepare_chat(request).messages[0]["content"]
+    self.assertIn("REZIM READ", prompt)
+    self.assertIn("bez automatického grantu", prompt)
+
+  def test_document_instructions_keep_the_full_envelope_and_existing_targets(self):
+    request = main.ChatRequest(provider="ollama", model="demo", baseUrl="http://localhost:11434", permissionMode="assist", vaultFolders=["Lab"], vaultIndex=[{"id": "n1", "title": "TLS", "folder": "Lab"}], vaultContext=[{"id": "n1", "title": "TLS", "content": "Exact note body", "folder": "Lab"}], messages=[{"role": "user", "content": "Doplň poznámku TLS o diagram"}])
+    prepared = main.prepare_chat(request)
+    prompt = prepared.messages[0]["content"]
+    self.assertEqual(prepared.workload, "document")
+    self.assertEqual(prepared.budget.output_tokens, 6144)
+    self.assertIn("KNOWLEDGE NOTE MODE", prompt)
+    self.assertIn("<ethical-note>", prompt)
+    self.assertIn("NAVAZUJÍCÍ EDITACE", prompt)
+    self.assertIn("TLS [id=n1] [folder=Lab]", prompt)
+    self.assertIn("Exact note body", prompt)
+    self.assertEqual(prepared.complete_note_ids, ["n1"])
+
   def test_request_size_limit(self):
     response = self.client.post("/api/chat", headers={**self.capability, "Content-Type": "application/json"}, content=b"x" * (2 * 1024 * 1024 + 1))
     self.assertEqual(response.status_code, 413)

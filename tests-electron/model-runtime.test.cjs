@@ -64,6 +64,55 @@ test("an offline server is started once with loopback binding; only its PID is s
   assert.equal(values().kills, 1);
 });
 
+test("foreground preparation starts one server and validates the model without empty generation", async () => {
+  const { runtime, values } = fixture({ initiallyOnline: false, failWarm: true });
+  try {
+    const results = await Promise.all([runtime.ensure({ ...request, warmup: false }), runtime.ensure({ ...request, model: "masa-cyber:latest", warmup: false })]);
+    assert.ok(results.every((result) => result.state === "ready" && result.model === "masa-cyber:latest"));
+    assert.equal(values().spawns, 1);
+    assert.equal(values().warms, 0);
+  } finally { await runtime.stop(); }
+});
+
+test("a foreground check does not wait for an explicit warmup already in flight", async () => {
+  let release;
+  let started;
+  const waiting = new Promise((resolve) => { started = resolve; });
+  const gate = new Promise((resolve) => { release = resolve; });
+  let warmCalls = 0;
+  const runtime = createModelRuntime({ fetcher: async (url) => {
+    if (url.endsWith("/api/tags")) return Response.json({ models: [{ name: "masa-cyber:latest" }] });
+    warmCalls++;
+    started();
+    await gate;
+    return Response.json({ done: true });
+  } });
+  const warm = runtime.ensure(request);
+  let deadline;
+  try {
+    await waiting;
+    const result = await Promise.race([
+      runtime.ensure({ ...request, warmup: false }),
+      new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error("Foreground check waited for warmup")), 500); })
+    ]);
+    assert.equal(result.state, "ready");
+    assert.equal(warmCalls, 1);
+  } finally {
+    clearTimeout(deadline);
+    release();
+    await warm;
+    await runtime.stop();
+  }
+});
+
+test("foreground preparation still rejects a missing selected model", async () => {
+  const { runtime, values } = fixture({ missing: true });
+  try {
+    assert.equal((await runtime.ensure({ ...request, warmup: false })).state, "missing");
+    assert.equal(values().warms, 0);
+  } finally { await runtime.stop(); }
+});
+
 test("a missing model is reported without downloading or substituting a model", async () => {
   const { runtime, values } = fixture({ missing: true });
   assert.equal((await runtime.ensure(request)).state, "missing");
