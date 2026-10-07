@@ -8,6 +8,7 @@ import os
 import socket
 from typing import Any
 from collections.abc import AsyncIterator
+from contextlib import aclosing
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -192,21 +193,22 @@ async def provider_json_lines(base_url: str, suffix: str, body: dict) -> AsyncIt
 
 
 async def stream_ollama(base_url: str, model: str, messages: list[dict[str, str]], max_output_tokens: int) -> AsyncIterator[dict]:
-  async for payload in provider_json_lines(base_url, "/api/chat", {
+  async with aclosing(provider_json_lines(base_url, "/api/chat", {
     "model": model, "messages": messages, "stream": True, "keep_alive": "15m", "truncate": False, "shift": False,
     "options": {"temperature": 0.25, "num_predict": max_output_tokens}
-  }):
-    if payload.get("error"):
-      raise ProviderError("Ollama nedokončila odpověď.")
-    message = payload.get("message")
-    content = message.get("content") if isinstance(message, dict) else None
-    if content is not None and not isinstance(content, str):
-      raise ProviderError("Ollama vrátila neplatný text odpovědi.")
-    if content:
-      yield {"type": "delta", "content": content}
-    if payload.get("done") is True:
-      yield {"type": "done", "metrics": ollama_metrics(payload)}
-      return
+  })) as lines:
+    async for payload in lines:
+      if payload.get("error"):
+        raise ProviderError("Ollama nedokončila odpověď.")
+      message = payload.get("message")
+      content = message.get("content") if isinstance(message, dict) else None
+      if content is not None and not isinstance(content, str):
+        raise ProviderError("Ollama vrátila neplatný text odpovědi.")
+      if content:
+        yield {"type": "delta", "content": content}
+      if payload.get("done") is True:
+        yield {"type": "done", "metrics": ollama_metrics(payload)}
+        return
   raise ProviderError("Spojení skončilo před dokončením odpovědi. Nic se neprovedlo.")
 
 

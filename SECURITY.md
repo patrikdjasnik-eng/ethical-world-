@@ -20,7 +20,22 @@ Nikdy necommituj `.env`, tokeny nebo API klíče.
 
 ## Prompt injection
 
-Poznámky jsou nedůvěryhodný obsah. AI nesmí interpretovat text uvnitř poznámky jako systémové oprávnění k mazání nebo změně dat. Tool permissions musí být kontrolované aplikací.
+Poznámky, importované názvy/IDs/složky a předchozí odpovědi modelu jsou nedůvěryhodný obsah. Pravidla jsou v systémové zprávě; vault data jsou JSON v oddělené user zprávě. JSON escapování a neutralizace známých ChatML/Llama/INST tokenů brání vložení surových hranic rolí do modelové šablony. Nezaručují, že model neposlechne podvržený přirozený text.
+
+Oprávnění proto rozhoduje aplikace mimo model:
+
+- READ nepřijímá žádné akce; ASSIST vyžaduje potvrzení konkrétního návrhu.
+- AGENT smí automaticky pouze `create_note` v přesné složce z UI grantu při prvním zadání bez existujících poznámek, aktivní poznámky a konverzační historie. Takovému požadavku se nepřidávají nesouvisející složky. S vaultem či historií čekají všechny změny na potvrzení, i když model tvrdí, že souhlas už dostal.
+- Režim, platnost grantu, přesná cílová složka a typ akce se znovu kontrolují bezprostředně před automatickým provedením. Modelové příznaky typu `user_confirmed` práva neudělují. Parser přijímá jen podporované akce a omezené argumenty; shell, mazání a konektorové/síťové operace nejsou LLM tools.
+- Existující notes mají snapshot kontrolu; úplný přepis navíc vyžaduje celý vstupní obsah. Akce mají lokální audit.
+
+Backend zastavuje doslovný opis alespoň 20 souvislých normalizovaných slov svého aktuálního pravidlového promptu; neporovnává obsah vaultu. Kontrola platí pro dokončené odpovědi i Ollama stream, který při chybě uzavře. Neprovádí další modelový request ani automatický retry. Úvod připomínající pravidla může být krátce zadržen; opis po jiném úvodu může být částečně vidět před chybou. Odmítnutá odpověď se neuloží do chatu a nepředá akce k provedení. Toto je omezená kontrola kvality/úniku instrukcí, nikoli bezpečnostní hranice oprávnění nebo obrana proti všem parafrázím, kódování či adaptivním útokům. Systémový prompt není úložiště secretů.
+
+Markdown nemá vykonávat HTML nebo skripty. Vzdálené obrázky vyžadují kliknutí pro konkrétní HTTPS URL včetně query; změna URL vyžaduje nový souhlas. Kliknutí stále odešle URL vzdálenému serveru — před načtením zvaž její obsah. Lokální Ollama nezpřístupňuje modelu shell ani konektory aplikace. U zvoleného vzdáleného providera odchází vybraný kontext a historie na tento endpoint; citlivé údaje ve vlastních poznámkách se automaticky nezbavují citlivosti.
+
+Regrese testují podvržení rolí v těle i metadatech, falešné souhlasy a scope, poisoned history, nepodporované tools, opis po malých stream chunkech, uzavření provideru a změnu URL obrázku. Jde o vybraný regresní soubor, ne o měření procentuální odolnosti LLM. Reálnou kvalitu a odolnost konkrétního `masa-cyber` je třeba ověřit na jeho nainstalované šabloně/modelu. Přístup OS uživatele nebo kompromitace rendereru je mimo tuto ochranu proti modelovým výstupům.
+
+Návrh vychází z principů [OWASP Prompt Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html) a [OWASP AI Agent Security](https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html): oddělení dat a instrukcí, minimální oprávnění a autorizace v prováděcí vrstvě.
 
 ## CORS
 

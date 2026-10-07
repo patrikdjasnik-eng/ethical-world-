@@ -57,7 +57,8 @@ class SecurityTests(unittest.TestCase):
       self.assertEqual(response.json()["completeNoteIds"], ["full"])
       prompt = model.call_args.args[2][0]["content"]
       self.assertIn("KNOWLEDGE NOTE MODE", prompt)
-      self.assertIn("ČÁSTEČNÝ OBSAH", prompt)
+      data = json.loads(model.call_args.args[2][1]["content"].split("\n", 1)[1])
+      self.assertIn("ČÁSTEČNÝ OBSAH", data["notes"][1]["content"])
 
     payload["messages"] = [{"role": "user", "content": "presun"}]
     with patch.object(main, "chat_ollama", AsyncMock(return_value="demo")) as model:
@@ -92,7 +93,8 @@ class SecurityTests(unittest.TestCase):
     self.assertEqual(prepared.messages[-1], latest)
     self.assertLess(sum(len(item["content"]) for item in prepared.messages), 10000)
     self.assertEqual(prepared.complete_note_ids, [])
-    self.assertIn("ČÁSTEČNÝ OBSAH", prepared.messages[0]["content"])
+    data = json.loads(prepared.messages[1]["content"].split("\n", 1)[1])
+    self.assertIn("ČÁSTEČNÝ OBSAH", data["notes"][0]["content"])
     self.assertLessEqual(len(prepared.messages), 9)
 
   def test_document_budget_keeps_three_complete_notes_and_respects_depth_request(self):
@@ -109,9 +111,11 @@ class SecurityTests(unittest.TestCase):
     prompt = prepared.messages[0]["content"]
     self.assertEqual(prepared.workload, "chat")
     self.assertLess(len(prompt), 1900)
-    self.assertIn("Exact note body", prompt)
-    self.assertIn("TLS [id=n1] [folder=Lab]", prompt)
-    self.assertIn("AGENT SCOPE pro create_note: Lab", prompt)
+    data = json.loads(prepared.messages[1]["content"].split("\n", 1)[1])
+    self.assertEqual(data["notes"][0]["content"], "Exact note body")
+    self.assertEqual(data["index"][0]["id"], "n1")
+    self.assertNotIn("Exact note body", prompt)
+    self.assertIn('AGENT SCOPE pro create_note (JSON): "Lab"', prompt)
     self.assertIn("ASSIST vyžaduje potvrzení", prompt)
     self.assertIn("nedůvěryhodná data", prompt)
     self.assertEqual(prepared.complete_note_ids, ["n1"])
@@ -129,8 +133,9 @@ class SecurityTests(unittest.TestCase):
     self.assertIn("KNOWLEDGE NOTE MODE", prompt)
     self.assertIn("<ethical-note>", prompt)
     self.assertIn("NAVAZUJÍCÍ EDITACE", prompt)
-    self.assertIn("TLS [id=n1] [folder=Lab]", prompt)
-    self.assertIn("Exact note body", prompt)
+    data = json.loads(prepared.messages[1]["content"].split("\n", 1)[1])
+    self.assertEqual(data["index"][0]["title"], "TLS")
+    self.assertEqual(data["notes"][0]["content"], "Exact note body")
     self.assertEqual(prepared.complete_note_ids, ["n1"])
 
   def test_request_size_limit(self):

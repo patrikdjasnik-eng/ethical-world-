@@ -9,6 +9,7 @@ import {
   sendAiMessage
 } from "../lib/ai";
 import { describeAgentAction, parseAgentResponse } from "../lib/agentTools";
+import { automaticCreationGrant, canAutomaticallyCreate, type AutomaticCreationGrant } from "../lib/agentPolicy";
 import type {
   AgentAction,
   AiMessage,
@@ -117,12 +118,17 @@ export const AiPanel = memo(function AiPanel({
     scopeRef.current = null;
     setAgentScope(null);
   };
-  const executeAction = useCallback(async (action: AgentAction): Promise<string> => {
-    if (permissionRef.current === "read") throw new Error("READ režim nemůže měnit vault.");
+  const executeAction = useCallback(async (action: AgentAction, automaticGrant?: AutomaticCreationGrant): Promise<string> => {
+    const checkPermission = () => {
+      if (permissionRef.current === "read") throw new Error("READ režim nemůže měnit vault.");
+      if (automaticGrant && !canAutomaticallyCreate(action, automaticGrant, permissionRef.current, scopeRef.current)) throw new Error("Automatický zápis nemá platný grant pro tuto akci.");
+    };
+    checkPermission();
     const id = createId();
     const entry = { id, createdAt: new Date().toISOString(), actionType: action.type, ...("noteId" in action ? { noteId: action.noteId } : {}), result: "started" };
     await saveAgentAudit(entry);
     try {
+      checkPermission();
       const result = await onApplyAgentAction(action);
       try { await saveAgentAudit({ ...entry, result }); }
       catch { return result + " Změna proběhla, ale auditní výsledek se nepodařilo uložit."; }
@@ -316,6 +322,8 @@ export const AiPanel = memo(function AiPanel({
       const userMessage: AiMessage = { id: createId(), role: "user", content: trimmedInput };
       submittedId = userMessage.id;
       const nextMessages = [...messages, userMessage];
+      const providerMessages = nextMessages.filter((message) => message.id !== initialMessage.id);
+      const grant = automaticCreationGrant(permissionMode, scopeRef.current, notes, activeNote, providerMessages);
       setMessages(nextMessages);
       setInput("");
       setSendingMode(
@@ -343,12 +351,12 @@ export const AiPanel = memo(function AiPanel({
       preparationMs = performance.now() - requestStarted;
       const response = await sendAiMessage({
         settings: requestSettings,
-        messages: nextMessages,
+        messages: providerMessages,
         notes,
         folders,
         activeNote,
         permissionMode,
-        agentScope: scopeRef.current,
+        agentScope: grant.scope,
         signal: controller.signal,
         onProgress: (progress) => {
           if (progress.content.trim() && firstVisibleMs === undefined) firstVisibleMs = performance.now() - requestStarted;
@@ -389,10 +397,10 @@ export const AiPanel = memo(function AiPanel({
       if (permissionRef.current !== "read" && permissionRef.current === permissionMode && parsed.actions.length > 0) {
         const pending: PendingAction[] = [];
         for (const [index, action] of parsed.actions.entries()) {
-          const allowed = permissionMode === "agent" && scopeRef.current !== null && action.type === "create_note" && (action.folder ?? "") === scopeRef.current;
+          const allowed = canAutomaticallyCreate(action, grant, permissionRef.current, scopeRef.current);
           if (allowed) {
             try {
-              const result = await executeAction(action);
+              const result = await executeAction(action, grant);
               const actionMessage: AiMessage = { id: createId(), role: "assistant", content: "✓ " + result };
               setMessages((current) => [...current, actionMessage]);
             } catch (error) {
@@ -498,7 +506,7 @@ export const AiPanel = memo(function AiPanel({
           </label>
 
           {permissionMode === "agent" && <label>
-            Automatické vytváření pouze v této složce (ostatní změny vyžadují potvrzení)
+            Automatické vytváření v této složce pouze bez vaultu a historie; jinak potvrzení
             <select aria-label="Agent scope" disabled={isSending || applyingActionId !== null} value={agentScope ?? "__none"} onChange={(event) => {
               const scope = event.target.value === "__none" ? null : event.target.value;
               scopeRef.current = scope;

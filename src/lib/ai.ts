@@ -1,5 +1,6 @@
 import { searchNotes, findRelatedNotes } from "./vaultTools";
 import { gatewayFetch, gatewayStream } from "./gateway";
+import { automaticCreationGrant } from "./agentPolicy";
 import type { AiMessage, AiMetrics, AiPermissionMode, AiProvider, AiSettings, Note, VaultFolder } from "../types";
 
 interface SendAiMessageInput {
@@ -123,6 +124,8 @@ export async function sendAiMessage(input: SendAiMessageInput): Promise<ChatResp
     return true;
   }).slice(0, 500).map(({ id, title, folder }) => ({ id, title, folder }));
 
+  const grant = automaticCreationGrant(input.permissionMode, input.agentScope ?? null, input.notes, input.activeNote, input.messages);
+  const isolatedAgent = grant.mode === "agent" && grant.scope !== null && grant.isolated;
   const body = JSON.stringify({
       provider: input.settings.provider,
       model: input.settings.model,
@@ -132,7 +135,9 @@ export async function sendAiMessage(input: SendAiMessageInput): Promise<ChatResp
       permissionMode: input.permissionMode,
       responseStyle: input.settings.responseStyle ?? "fast",
       agentScope: input.agentScope ?? null,
-      vaultFolders: input.folders.slice(0, 200).map((folder) => folder.path),
+      // An isolated creation needs only the explicitly selected scope from UI.
+      // Do not add unrelated, potentially imported folder names to that request.
+      vaultFolders: isolatedAgent ? [] : input.folders.slice(0, 200).map((folder) => folder.path),
       vaultIndex,
       vaultContext,
       messages: input.messages.slice(-20).map(({ role, content }) => {

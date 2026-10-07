@@ -84,7 +84,7 @@ Režimy:
 
 - `READ` – pouze čtení vaultu a odpovědi.
 - `ASSIST` – Máša připraví návrh změny a diff.
-- `AGENT` – nové poznámky ve složce explicitně povolené pro session; ostatní akce se potvrzují.
+- `AGENT` – automaticky pouze nová poznámka v explicitně povolené složce při prvním zadání bez vaultu a historie. Jakmile odpověď může čerpat z existujících dat nebo konverzace, všechny změny vyžadují potvrzení.
 
 Mazání, hromadné přesuny a větší přepisy musí mít preview nebo explicitní potvrzení.
 
@@ -162,7 +162,7 @@ Aktuálně dostupné akce:
 - propojit existující poznámky wiki odkazem;
 - přidat Markdown úkol.
 
-Model nikdy nezapisuje přímo do IndexedDB. Vrací omezený `ethical-actions` JSON blok, renderer ho validuje a ASSIST vyžaduje potvrzení tlačítkem `Použít`. V AGENT režimu se create_note ve schválené složce provede automaticky; jiné operace čekají na potvrzení. READ režim žádné tool akce nepřijímá.
+Model nikdy nezapisuje přímo do IndexedDB. Vrací omezený `ethical-actions` JSON blok, renderer ho validuje a ASSIST vyžaduje potvrzení tlačítkem `Použít`. V AGENT režimu se create_note ve schválené složce provede automaticky pouze při prvním zadání bez vaultu a historie; s kontextem i ostatní operace čekají na potvrzení. READ režim žádné tool akce nepřijímá.
 
 Mazání není dostupné. Přejmenování a přesuny jednotlivých poznámek mají náhled a potvrzení; hromadný návrh je omezený na 8 akcí.
 
@@ -218,9 +218,17 @@ Konkrétní hranice implementace a způsob provedení:
 | summarizeVault / createCyberReport / coding assistant | Generování textu nebo Markdown poznámky připojeným modelem. Shrnutí pokrývá omezený vyhledaný kontext; report neznamená provedení síťového skenu nebo spuštění kódu. |
 | READ | Žádné návrhy se nezařazují k provedení. |
 | ASSIST | Každá akce čeká na potvrzení, obsah a změna cesty mají rozbalitelný náhled. |
-| AGENT | Uživatel musí pro tuto session zvolit konkrétní složku. Automaticky lze pouze vytvořit nové poznámky v ní, maximálně 8 akcí v jedné odpovědi. Ostatní operace čekají na potvrzení. Změna režimu zruší čekající návrhy i grant. |
+| AGENT | Uživatel musí pro tuto session zvolit konkrétní složku. Automaticky lze pouze vytvořit nové poznámky v ní při prvním zadání bez existujících poznámek, aktivní poznámky a historie, maximálně 8 akcí v jedné odpovědi. S vaultem nebo historií i ostatní operace čekají na potvrzení. Změna režimu zruší čekající návrhy i grant. |
 | Audit log | IndexedDB agentAudit: zahájení, výsledek nebo chyba; export JSON v AI nastavení. Neobsahuje API klíče ani celé poznámky. |
 
 Přepisy existující poznámky jsou chráněné snapshot baseline z okamžiku návrhu. Změněná poznámka vyžaduje nový návrh. Backend vrací completeNoteIds: celkový kontext má budget 30 000 znaků, každý vstup maximálně 10 000. Návrh nahrazení obsahu je odmítnut, pokud model neměl celý cílový dokument. Přidání tasku nebo odkazu zachovává původní obsah deterministicky. Pro velké dokumenty pracuj po menších poznámkách.
 
 AGENT grant se neukládá mezi sessions; shell, mazání, externí zápisy a neomezená autonomie nejsou dostupné. Modelové výstupy mají stále závislost na schopnostech zvoleného LLM. Aplikace zaručuje validaci a permission gate, nikoli faktickou správnost libovolného generovaného textu. Starší chat paměť je posuvné okno posledních 40 zpráv, nikoli trvalá dlouhodobá modelová paměť.
+
+## Hranice instrukcí a dat
+
+Systémová zpráva obsahuje pravidla a protokol. Vybraný vault, index i složky se předávají jako nedůvěryhodný JSON v samostatné user zprávě před konverzací; poslední zpráva musí být aktuální user zadání. Známé řídicí tokeny šablon v datech a historii se převádějí na doslovný text. Uvítání z UI se neposílá modelu jako předchozí odpověď.
+
+Běžný chat má odpovídat na dotaz bez automatického představování a opisu instrukcí. Backend odmítá delší doslovné kopie svého aktuálního pravidlového promptu v obou providerech. Ollama stream může krátce bufferovat začátek připomínající opis; při detekci zavře provider stream a nevrátí dokončenou odpověď ani akce. Normální text pokračuje průběžně. Přerušené zadání zůstává rozepsané a odmítnutý text se nepřidává do historie.
+
+Tato kontrola není detektor všech prompt injection: nepokrývá parafráze a kódované kopie a může odmítnout dlouhou legitimní citaci interních pravidel. Práva se proto ověřují nezávisle na modelu z lokálního UI grantu a konkrétní akce. Viz [SECURITY.md](SECURITY.md#prompt-injection).
