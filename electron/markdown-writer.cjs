@@ -54,24 +54,31 @@ async function writeMarkdownBatch(root, files, baselines) {
     if (actual !== expected && actual !== contentHash(file.content)) throw new Error("Konflikt: „" + file.relativePath + "“ se od importu změnil nebo nebyl importovaný.");
     plan.push({ ...file, target, actual });
   }
-  for (const file of plan) {
-    await safeTarget(root, file.relativePath, true);
-    const temporary = file.target + "." + crypto.randomUUID() + ".tmp";
-    try {
-      await fs.writeFile(temporary, file.content, { flag: "wx", mode: 0o600 });
-      await safeTarget(root, file.relativePath);
-      if (await currentHash(file.target) !== file.actual) throw new Error("Soubor se změnil během exportu.");
-      if (file.actual !== null) {
-        const backup = file.target + "." + crypto.randomUUID() + ".bak";
-        await fs.copyFile(file.target, backup, require("node:fs").constants.COPYFILE_EXCL);
+  const paths = [];
+  try {
+    for (const file of plan) {
+      await safeTarget(root, file.relativePath, true);
+      const temporary = file.target + "." + crypto.randomUUID() + ".tmp";
+      try {
+        await fs.writeFile(temporary, file.content, { flag: "wx", mode: 0o600 });
+        await safeTarget(root, file.relativePath);
+        if (await currentHash(file.target) !== file.actual) throw new Error("Soubor se změnil během exportu.");
+        if (file.actual !== null) {
+          const backup = file.target + "." + crypto.randomUUID() + ".bak";
+          await fs.copyFile(file.target, backup, require("node:fs").constants.COPYFILE_EXCL);
+        }
+        await fs.rename(temporary, file.target);
+        baselines.set(file.relativePath, contentHash(file.content));
+        paths.push(file.relativePath);
+      } finally {
+        await fs.rm(temporary, { force: true });
       }
-      await fs.rename(temporary, file.target);
-      baselines.set(file.relativePath, contentHash(file.content));
-    } finally {
-      await fs.rm(temporary, { force: true });
     }
+  } catch (error) {
+    if (paths.length === 0) throw error;
+    return { written: paths.length, paths, error: String(error.message ?? error) };
   }
-  return { written: plan.length };
+  return { written: plan.length, paths };
 }
 
 module.exports = { safeTarget, contentHash, writeMarkdownBatch };

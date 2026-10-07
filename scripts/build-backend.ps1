@@ -18,6 +18,7 @@ $buildArguments = @(
   "--clean",
   "--onefile",
   "--name", "EthicalWorldBackend",
+  "--icon", (Join-Path $root "assets\icons\EthicalWorld.ico"),
   "--distpath", $outDir,
   "--workpath", (Join-Path $root "out\backend-build"),
   "--specpath", (Join-Path $root "out\backend-spec"),

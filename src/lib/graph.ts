@@ -109,16 +109,45 @@ export function buildKnowledgeGraph(notes: Note[], includeRelated = true): Knowl
       folder: note.folder
     }));
 
-    for (let leftIndex = 0; leftIndex < notes.length; leftIndex += 1) {
-      for (let rightIndex = leftIndex + 1; rightIndex < notes.length; rightIndex += 1) {
+    const index = new Map<string, number[]>();
+    features.forEach((feature, noteIndex) => {
+      for (const key of [...feature.titleTokens].map((token) => "title:" + token).concat([...feature.tags].map((tag) => "tag:" + tag))) {
+        const posting = index.get(key) ?? [];
+        posting.push(noteIndex);
+        index.set(key, posting);
+      }
+    });
+    const relatedDegree = new Map<string, number>();
+    const maxRelatedLinks = Math.min(6000, notes.length * 4);
+    let relatedLinks = 0;
+    for (let leftIndex = 0; leftIndex < notes.length && relatedLinks < maxRelatedLinks; leftIndex += 1) {
+      const feature = features[leftIndex];
+      const candidates = new Set<number>();
+      const keys = [...feature.titleTokens].map((token) => "title:" + token).concat([...feature.tags].map((tag) => "tag:" + tag));
+      for (const key of keys) {
+        const posting = index.get(key) ?? [];
+        // Broad tags describe the vault, not a useful relationship between every note.
+        if (posting.length > 64 || (key.startsWith("tag:") && posting.length > Math.max(3, notes.length * 0.2))) continue;
+        for (const rightIndex of posting) {
+          if (rightIndex > leftIndex) candidates.add(rightIndex);
+          if (candidates.size >= 128) break;
+        }
+        if (candidates.size >= 128) break;
+      }
+      const ranked = [...candidates].map((rightIndex) => ({ rightIndex, score: relatedScore(feature, features[rightIndex]) }))
+        .filter((candidate) => candidate.score >= 0.4)
+        .sort((a, b) => b.score - a.score || a.rightIndex - b.rightIndex).slice(0, 6);
+      for (const { rightIndex, score } of ranked) {
         const left = notes[leftIndex];
         const right = notes[rightIndex];
-        const edgeKey = [left.id, right.id].sort().join("::");
-
-        if (seenLinks.has(edgeKey)) continue;
-
-        const score = relatedScore(features[leftIndex], features[rightIndex]);
-        if (score >= 0.4) addLink(left, right, "related", score);
+        if (relatedLinks >= maxRelatedLinks || (relatedDegree.get(left.id) ?? 0) >= 8 || (relatedDegree.get(right.id) ?? 0) >= 8) continue;
+        const count = links.length;
+        addLink(left, right, "related", score);
+        if (links.length > count) {
+          relatedLinks += 1;
+          relatedDegree.set(left.id, (relatedDegree.get(left.id) ?? 0) + 1);
+          relatedDegree.set(right.id, (relatedDegree.get(right.id) ?? 0) + 1);
+        }
       }
     }
   }

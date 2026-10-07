@@ -19,7 +19,10 @@ self.addEventListener("fetch", (event) => {
   event.respondWith((async () => {
     try {
       const response = await fetch(request);
-      if (response.ok) event.waitUntil(caches.open(cacheName).then((cache) => cache.put(request, response.clone())));
+      if (response.ok) {
+        const copy = response.clone();
+        event.waitUntil(caches.open(cacheName).then((cache) => cache.put(request, copy)).catch(() => undefined));
+      }
       return response;
     } catch {
       const cached = await caches.match(request);

@@ -21,6 +21,9 @@ from .auth_store import (
 
 NOTION_VERSION = "2026-03-11"
 _oauth_states: dict[str, tuple[str, float]] = {}
+_oauth_generations: dict[str, int] = {}
+_oauth_state_generations: dict[str, int] = {}
+_oauth_lock = Lock()
 _key_lock = Lock()
 _notion_baselines: dict[tuple[str, str], str] = {}
 _notion_write_locks: dict[tuple[str, str], asyncio.Lock] = {}
@@ -85,14 +88,19 @@ def start_oauth(user_id: str) -> str:
     if not settings["configured"]:
         raise NotionConnectorError("Notion OAuth není nakonfigurovaný.")
 
-    now = time.monotonic()
-    for pending, (_, created) in list(_oauth_states.items()):
-        if created < now - 600:
-            _oauth_states.pop(pending, None)
-    if sum(owner == user_id for owner, _ in _oauth_states.values()) >= 5:
-        raise NotionConnectorError("Příliš mnoho otevřených Notion autorizací.")
-    state = secrets.token_urlsafe(32)
-    _oauth_states[state] = (user_id, now)
+    with _oauth_lock:
+        now = time.monotonic()
+        for pending, (owner, created) in list(_oauth_states.items()):
+            if owner == user_id or created < now - 600:
+                _oauth_states.pop(pending, None)
+                _oauth_state_generations.pop(pending, None)
+        if sum(owner == user_id for owner, _ in _oauth_states.values()) >= 5:
+            raise NotionConnectorError("Příliš mnoho otevřených Notion autorizací.")
+        state = secrets.token_urlsafe(32)
+        generation = _oauth_generations.get(user_id, 0) + 1
+        _oauth_generations[user_id] = generation
+        _oauth_states[state] = (user_id, now)
+        _oauth_state_generations[state] = generation
     query = urlencode({
         "client_id": settings["client_id"],
         "response_type": "code",
@@ -104,10 +112,15 @@ def start_oauth(user_id: str) -> str:
 
 
 async def finish_oauth(code: str, state: str) -> dict[str, str | None]:
-    pending = _oauth_states.pop(state, None)
+    with _oauth_lock:
+        pending = _oauth_states.pop(state, None)
+        generation = _oauth_state_generations.pop(state, None)
     if not pending or pending[1] < time.monotonic() - 600:
         raise NotionConnectorError("Neplatný nebo expirovaný OAuth state.")
     user_id = pending[0]
+    with _oauth_lock:
+        if generation is None or _oauth_generations.get(user_id) != generation:
+            raise NotionConnectorError("Notion autorizace byla zrušená nebo nahrazená.")
 
     settings = config()
     basic = base64.b64encode(
@@ -133,11 +146,13 @@ async def finish_oauth(code: str, state: str) -> dict[str, str | None]:
         raise NotionConnectorError("Notion OAuth token exchange selhal.")
 
     payload = response.json()
-    save_connector_secret(
-        user_id,
-        "notion",
-        _fernet().encrypt(json.dumps(payload).encode("utf-8")),
-    )
+    if not isinstance(payload.get("access_token"), str) or not payload["access_token"]:
+        raise NotionConnectorError("Notion nevrátil platný access token.")
+    encrypted = _fernet().encrypt(json.dumps(payload).encode("utf-8"))
+    with _oauth_lock:
+        if generation is None or _oauth_generations.get(user_id) != generation:
+            raise NotionConnectorError("Notion autorizace byla zrušená nebo nahrazená.")
+        save_connector_secret(user_id, "notion", encrypted)
     return {
         "workspaceId": payload.get("workspace_id"),
         "workspaceName": payload.get("workspace_name"),
@@ -171,7 +186,16 @@ def status(user_id: str) -> dict:
 
 
 def disconnect(user_id: str) -> None:
-    delete_connector_secret(user_id, "notion")
+    with _oauth_lock:
+        _oauth_generations[user_id] = _oauth_generations.get(user_id, 0) + 1
+        for state, (owner, _) in list(_oauth_states.items()):
+            if owner == user_id:
+                _oauth_states.pop(state, None)
+                _oauth_state_generations.pop(state, None)
+        delete_connector_secret(user_id, "notion")
+        for key in list(_notion_baselines):
+            if key[0] == user_id:
+                _notion_baselines.pop(key, None)
 
 
 async def _request(

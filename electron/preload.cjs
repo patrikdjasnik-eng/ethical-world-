@@ -2,7 +2,13 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("ethicalDesktop", {
   isDesktop: true,
+  researchStart: (urls) => ipcRenderer.invoke("desktop:research-start", urls),
+  researchList: () => ipcRenderer.invoke("desktop:research-list"),
+  researchRead: (id) => ipcRenderer.invoke("desktop:research-read", id),
+  researchCancel: (id) => ipcRenderer.invoke("desktop:research-cancel", id),
+  researchRemove: (id) => ipcRenderer.invoke("desktop:research-remove", id),
   gatewayRequest: (request) => ipcRenderer.invoke("desktop:gateway-request", request),
+  cancelGatewayRequest: (id) => ipcRenderer.invoke("desktop:gateway-request-cancel", id),
   gatewayStreamRequest: async (id, request, onEvent) => {
     const listener = (_event, streamId, data) => { if (streamId === id) onEvent(data); };
     ipcRenderer.on("desktop:gateway-stream-event", listener);

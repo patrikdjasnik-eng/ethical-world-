@@ -112,7 +112,7 @@ export async function sendAiMessage(input: SendAiMessageInput): Promise<ChatResp
       title: note.title,
       folder: note.folder,
       content: note.content.slice(0, 10000),
-      complete: note.content.length <= 10000
+      complete: !note.source?.incomplete && note.content.length <= 10000
     }));
 
   // Metadata preserves discovery without injecting unrelated note bodies into every prompt.

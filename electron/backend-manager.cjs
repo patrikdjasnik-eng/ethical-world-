@@ -3,13 +3,14 @@ const { verifyBackend } = require("./backend-runtime.cjs");
 const { stopBackendProcess } = require("./backend-process.cjs");
 
 function createBackendManager({ getCandidates, token, port = 8787, env = process.env,
+  getEnv = async () => ({}),
   spawnProcess = spawn, verify = verifyBackend, stopProcess = stopBackendProcess,
   writeLog = async () => {}, startupMs = 45000, pollMs = 250,
   now = Date.now, pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }) {
   const backendPort = Number(port);
   if (!Number.isInteger(backendPort) || backendPort < 1 || backendPort > 65535) throw new Error("Invalid backend port.");
   const baseUrl = "http://127.0.0.1:" + backendPort;
-  const secrets = [token, ...Object.entries(env).filter(([key]) => /TOKEN|SECRET|PASSWORD|API_KEY/i.test(key)).map(([, value]) => value)]
+  const secrets = [token, ...Object.entries(env).filter(([key]) => /TOKEN|SECRET|PASSWORD|KEY/i.test(key)).map(([, value]) => value)]
     .filter((value) => typeof value === "string" && value.length > 0);
   const redact = (value) => {
     let text = String(value ?? "");
@@ -50,9 +51,14 @@ function createBackendManager({ getCandidates, token, port = 8787, env = process
     let stderr = "";
     let spawnError = null;
     try {
+      const extraEnv = await getEnv();
+      if (closing) throw new Error("Aplikace se ukončuje.");
+      for (const [key, value] of Object.entries(extraEnv)) {
+        if (/TOKEN|SECRET|PASSWORD|KEY/i.test(key) && typeof value === "string") secrets.push(value);
+      }
       child = spawnProcess(candidate.command, candidate.args, {
         cwd: candidate.cwd, windowsHide: true, stdio: ["pipe", "ignore", "pipe"],
-        env: { ...env, PYTHONUNBUFFERED: "1", ETHICAL_WORLD_PORT: String(backendPort),
+        env: { ...env, ...extraEnv, PYTHONUNBUFFERED: "1", ETHICAL_WORLD_PORT: String(backendPort),
           ETHICAL_WORLD_RUNTIME_TOKEN: token, ETHICAL_WORLD_PARENT_PIPE: "1" }
       });
       owned = child;

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { markdownFilesToNotes, notesToMarkdownFiles } from "../lib/markdownConnector";
+import { markdownFilesToNotes, notesToMarkdownFiles, type ExportReceipt } from "../lib/markdownConnector";
 import {
   disconnectNotion,
   getNotionStatus,
@@ -10,11 +10,13 @@ import {
   type NotionPageSummary
 } from "../lib/notionConnector";
 import type { DesktopGitHubRepo } from "../types/desktop";
+import { ResearchPanel } from "./ResearchPanel";
 import type { Note } from "../types";
 
 interface ConnectorPanelProps {
   notes: Note[];
-  onImportNotes: (notes: Note[]) => Promise<void>;
+  onImportNotes: (notes: Note[], expectedNotes?: Note[]) => Promise<void>;
+  onExportReceipts?: (receipts: ExportReceipt[]) => Promise<void>;
 }
 
 interface MarkdownConnection {
@@ -36,7 +38,7 @@ function waitForLoginPoll(signal: AbortSignal, milliseconds: number): Promise<bo
   });
 }
 
-export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNotes }: ConnectorPanelProps) {
+export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNotes, onExportReceipts }: ConnectorPanelProps) {
   const [exportAll, setExportAll] = useState(false);
   const selectExportNotes = useCallback((connectionId: string, provider: "local-markdown" | "github") => {
     return exportAll ? notes : notes.filter((note) => note.source?.provider === provider && note.source.connectionId === connectionId);
@@ -239,13 +241,14 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
       const imported = markdownFilesToNotes(
         [{
           relativePath: (result.title || "Notion page").replace(/[\\/:*?"<>|]/g, " ") + ".md",
-          content: result.markdown
+          content: result.markdown,
+          incomplete: result.truncated
         }],
         connectionId,
         notes,
         "notion"
       );
-      await onImportNotes(imported);
+      await onImportNotes(imported, notes);
       setNotionStatusText(
         "Importována stránka „" + result.title + "“" +
         (result.truncated ? " (Notion označil výstup jako zkrácený)." : ".")
@@ -262,14 +265,16 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
     setNotionBusy("export");
 
     try {
+      if (mappedNotionNote.source?.incomplete) throw new Error("Neúplný Notion import nelze exportovat jako celou stránku.");
       await writeNotionMarkdown(selectedNotionPage.id, mappedNotionNote.content);
+      await onExportReceipts?.([{ note: mappedNotionNote, provider: "notion", connectionId: "notion:" + selectedNotionPage.id, relativePath: mappedNotionNote.source?.relativePath ?? selectedNotionPage.title + ".md" }]);
       setNotionStatusText("Aktualizována Notion stránka „" + selectedNotionPage.title + "“.");
     } catch (error) {
       setNotionStatusText(error instanceof Error ? error.message : "Notion export selhal.");
     } finally {
       setNotionBusy(null);
     }
-  }, [mappedNotionNote, selectedNotionPage]);
+  }, [mappedNotionNote, selectedNotionPage, onExportReceipts]);
 
   const connectLocal = useCallback(async () => {
     if (!window.ethicalDesktop) {
@@ -300,7 +305,7 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
     try {
       const result = await window.ethicalDesktop.readMarkdownFiles(connection.id);
       const imported = markdownFilesToNotes(result.files, connection.id, notes, "local-markdown");
-      await onImportNotes(imported);
+      await onImportNotes(imported, notes);
       setLocalStatus(
         "Importováno " + imported.length + " Markdown souborů" +
         (result.truncated ? " (dosažen bezpečnostní limit)." : ".")
@@ -317,16 +322,19 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
     setLocalBusy("export");
 
     try {
-      const files = notesToMarkdownFiles(selectExportNotes(connection.id, "local-markdown"), connection.id, "local-markdown");
+      const exportedNotes = selectExportNotes(connection.id, "local-markdown");
+      const files = notesToMarkdownFiles(exportedNotes, connection.id, "local-markdown");
       if (!confirmExport(files, connection.label)) return;
       const result = await window.ethicalDesktop.writeMarkdownFiles(connection.id, files);
+      await onExportReceipts?.(files.filter((file) => !result.paths || result.paths.includes(file.relativePath)).map((file) => ({ note: exportedNotes[files.indexOf(file)], provider: "local-markdown", connectionId: connection.id, relativePath: file.relativePath })));
+      if (result.error) throw new Error(result.error + " Úspěšně zapsáno: " + result.written + ".");
       setLocalStatus("Exportováno " + result.written + " Markdown souborů do " + connection.label + ".");
     } catch (error) {
       setLocalStatus(error instanceof Error ? error.message : "Export Markdownu selhal.");
     } finally {
       setLocalBusy(null);
     }
-  }, [connection, selectExportNotes, confirmExport]);
+  }, [connection, selectExportNotes, confirmExport, onExportReceipts]);
 
   const connectGitHubToken = useCallback(async () => {
     const desktop = window.ethicalDesktop;
@@ -432,7 +440,7 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
         selectedGitHubRepo.defaultBranch
       );
       const imported = markdownFilesToNotes(result.files, result.connectionId, notes, "github");
-      await onImportNotes(imported);
+      await onImportNotes(imported, notes);
       setGithubStatusText(
         "Importováno " + imported.length + " Markdown souborů z " + result.repoFullName + "/" + result.branch +
         (result.truncated ? " (výsledek byl omezen)." : ".")
@@ -450,13 +458,15 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
 
     try {
       const connectionId = "github:" + selectedGitHubRepo.fullName + ":" + selectedGitHubRepo.defaultBranch;
-      const files = notesToMarkdownFiles(selectExportNotes(connectionId, "github"), connectionId, "github");
+      const exportedNotes = selectExportNotes(connectionId, "github");
+      const files = notesToMarkdownFiles(exportedNotes, connectionId, "github");
       if (!confirmExport(files, selectedGitHubRepo.fullName + (selectedGitHubRepo.private ? " · private" : " · PUBLIC — poznámky budou veřejné"))) return;
       const result = await window.ethicalDesktop.githubWriteMarkdown(
         selectedGitHubRepo.fullName,
         selectedGitHubRepo.defaultBranch,
         files
       );
+      await onExportReceipts?.(files.map((file, index) => ({ note: exportedNotes[index], provider: "github", connectionId, relativePath: file.relativePath })));
       setGithubStatusText(
         "Zapsáno " + result.written + " Markdown souborů. Commit " + result.commitSha.slice(0, 8) + "."
       );
@@ -465,7 +475,7 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
     } finally {
       setGithubBusy(null);
     }
-  }, [selectExportNotes, confirmExport, selectedGitHubRepo]);
+  }, [selectExportNotes, confirmExport, selectedGitHubRepo, onExportReceipts]);
 
   return (
     <main className="connector-pane">
@@ -483,6 +493,7 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
       </label>
       <p>Výchozí export zahrnuje pouze poznámky importované z vybraného zdroje. Před zápisem uvidíš cíl a soubory.</p>
       <div className="connector-grid">
+        <ResearchPanel notes={notes} onImportNotes={onImportNotes} />
         <section className="connector-card connector-card-ready">
           <div className="connector-card-head">
             <div className="connector-icon">VS</div>
