@@ -3,6 +3,14 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("ethicalDesktop", {
   isDesktop: true,
   gatewayRequest: (request) => ipcRenderer.invoke("desktop:gateway-request", request),
+  gatewayStreamRequest: async (id, request, onEvent) => {
+    const listener = (_event, streamId, data) => { if (streamId === id) onEvent(data); };
+    ipcRenderer.on("desktop:gateway-stream-event", listener);
+    try { return await ipcRenderer.invoke("desktop:gateway-stream", id, request); }
+    finally { ipcRenderer.removeListener("desktop:gateway-stream-event", listener); }
+  },
+  cancelGatewayStream: (id) => ipcRenderer.invoke("desktop:gateway-stream-cancel", id),
+  ensureLocalModel: (request) => ipcRenderer.invoke("desktop:ensure-local-model", request),
   carrotConfirmSaved: (payload, signature, publicKey) => ipcRenderer.invoke("desktop:carrot-confirm-saved", payload, signature, publicKey),
   carrotVerifyHead: (noteId, commitHash) => ipcRenderer.invoke("desktop:carrot-verify-head", noteId, commitHash),
   platform: process.platform,

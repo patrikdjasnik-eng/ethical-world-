@@ -1,4 +1,5 @@
 import { actionPreview } from "../lib/vaultTools";
+import { hasSavedAiSettings, loadAiSettings, saveAiSettings } from "../lib/aiSettings";
 import { saveAgentAudit, listAgentAudit } from "../lib/storage";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -63,6 +64,25 @@ function createId(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+const metricNumber = (value: number | null | undefined, digits = 0): string =>
+  value != null && Number.isFinite(value) && value >= 0 ? value.toLocaleString("cs-CZ", { maximumFractionDigits: digits }) : "—";
+const metricSeconds = (value: number | null | undefined): string => metricNumber(value == null ? null : value / 1000, 2);
+const sameConnection = (left: AiSettings, right: AiSettings): boolean => {
+  const model = (settings: AiSettings) => settings.provider === "ollama" ? settings.model.replace(/:latest$/, "") : settings.model;
+  return left.provider === right.provider && left.baseUrl === right.baseUrl && left.apiKey === right.apiKey && model(left) === model(right);
+};
+
+async function waitUntilReady<T>(task: Promise<T>, signal: AbortSignal): Promise<T> {
+  let abort: () => void = () => {};
+  const cancelled = new Promise<never>((_resolve, reject) => {
+    abort = () => reject(new DOMException("Aborted", "AbortError"));
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
+  });
+  try { return await Promise.race([task, cancelled]); }
+  finally { signal.removeEventListener("abort", abort); }
+}
+
 export const AiPanel = memo(function AiPanel({
   activeNote,
   notes,
@@ -74,7 +94,15 @@ export const AiPanel = memo(function AiPanel({
   const [messages, setMessages] = useState<AiMessage[]>([initialMessage]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [streamingText, setStreamingText] = useState("");
+  const requestController = useRef<AbortController | null>(null);
+  useEffect(() => () => requestController.current?.abort(), []);
+  const [waitingSeconds, setWaitingSeconds] = useState(0);
   const sendLock = useRef(false);
+  const connectionLock = useRef(false);
+  const useInitialDetection = useRef(!hasSavedAiSettings());
+  const [runtimeMessage, setRuntimeMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [permissionMode, setPermissionMode] = useState<AiPermissionMode>("assist");
@@ -116,52 +144,104 @@ export const AiPanel = memo(function AiPanel({
     modelOnline: false,
     checking: true
   });
-  const [settings, setSettings] = useState<AiSettings>({
-    provider: "ollama",
-    model: "masa-cyber",
-    baseUrl: "http://localhost:11434",
-    apiKey: ""
-  });
+  const [settings, setSettings] = useState<AiSettings>(loadAiSettings);
+  const settingsRef = useRef(settings);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
+  useEffect(() => { saveAiSettings(settings); }, [settings]);
 
-  const refreshConnection = useCallback(async (allowAutoDetect = false) => {
-    setConnection((current) => ({ ...current, checking: true }));
+  useEffect(() => {
+    if (!isSending) return;
+    const started = performance.now();
+    setWaitingSeconds(0);
+    const interval = window.setInterval(() => setWaitingSeconds(Math.floor((performance.now() - started) / 1000)), 1000);
+    return () => window.clearInterval(interval);
+  }, [isSending]);
 
-    const backendOnline = await checkGatewayHealth();
+  const tokenTotal = useMemo(() => {
+    const measured = messages.flatMap((message) => message.metrics ? [message.metrics] : []);
+    const complete = measured.filter((metrics) => metrics.inputTokens != null && metrics.outputTokens != null);
+    return {
+      count: complete.length,
+      responses: measured.length,
+      input: complete.reduce((total, metrics) => total + metrics.inputTokens!, 0),
+      output: complete.reduce((total, metrics) => total + metrics.outputTokens!, 0)
+    };
+  }, [messages]);
 
-    if (!backendOnline) {
-      setConnection({ backendOnline: false, modelOnline: false, checking: false });
-      return;
-    }
+  const refreshConnection = useCallback(async (allowAutoDetect = false, prepareLocal = false) => {
+    if (connectionLock.current) return;
+    connectionLock.current = true;
+    try {
+      setConnection((current) => ({ ...current, checking: true }));
 
-    if (allowAutoDetect) {
-      const detected = await autoDetectLocalProvider();
+      const backendOnline = await checkGatewayHealth();
+      if (!sameConnection(settingsRef.current, settings)) return;
 
-      if (detected?.online && detected.model) {
-        setSettings((current) => ({
-          ...current,
-          provider: detected.provider,
-          baseUrl: detected.baseUrl,
-          model: detected.model ?? current.model
-        }));
-        setConnection({ backendOnline: true, modelOnline: true, checking: false });
+      if (!backendOnline) {
+        setConnection({ backendOnline: false, modelOnline: false, checking: false });
         return;
       }
-    }
+      setConnection((current) => ({ ...current, backendOnline: true }));
 
-    const status = await checkProviderStatus(settings);
-    setConnection({
-      backendOnline: true,
-      modelOnline: Boolean(status?.online),
-      checking: false
-    });
+      let checkedSettings = settings;
+      if ((allowAutoDetect || prepareLocal) && settings.provider === "ollama" && window.ethicalDesktop?.ensureLocalModel) {
+        setRuntimeMessage("Spouštím Ollamu a načítám model…");
+        const runtime = await window.ethicalDesktop.ensureLocalModel({ model: settings.model, baseUrl: settings.baseUrl });
+        if (!sameConnection(settingsRef.current, settings)) return;
+        setRuntimeMessage(runtime.state === "ready" || runtime.state === "unsupported" ? null : runtime.message);
+        if (runtime.state === "missing" || runtime.state === "error") {
+          setConnection({ backendOnline: true, modelOnline: false, checking: false });
+          return;
+        }
+        if (runtime.model) {
+          checkedSettings = { ...settings, model: runtime.model };
+          setSettings((current) => ({ ...current, model: runtime.model! }));
+        }
+        // The explicitly selected model remains authoritative after runtime preparation.
+        allowAutoDetect = false;
+      }
 
-    if (status?.online && status.model && !status.models.includes(settings.model)) {
-      setSettings((current) => ({ ...current, model: status.model ?? current.model }));
+      if (allowAutoDetect) {
+        const detected = await autoDetectLocalProvider();
+        if (!sameConnection(settingsRef.current, settings)) return;
+
+        if (detected?.online && detected.model) {
+          setSettings((current) => ({
+            ...current,
+            provider: detected.provider,
+            baseUrl: detected.baseUrl,
+            model: detected.model ?? current.model
+          }));
+          setConnection({ backendOnline: true, modelOnline: true, checking: false });
+          return;
+        }
+      }
+
+      const status = await checkProviderStatus(checkedSettings);
+      if (!sameConnection(settingsRef.current, settings)) return;
+      const selectedAvailable = status?.models?.some((model) => model === checkedSettings.model || (checkedSettings.provider === "ollama" && !checkedSettings.model.includes(":") && model === checkedSettings.model + ":latest"));
+      setConnection({
+        backendOnline: true,
+        modelOnline: Boolean(status?.online && selectedAvailable),
+        checking: false
+      });
+      if (status?.online && !selectedAvailable) {
+        setRuntimeMessage(`Model „${checkedSettings.model}“ není dostupný. Vyber existující model v nastavení.`);
+      } else if (selectedAvailable) setRuntimeMessage(null);
+    } catch (error) {
+      setRuntimeMessage(error instanceof Error ? error.message : "Kontrola modelu selhala.");
+      setConnection((current) => ({ ...current, modelOnline: false, checking: false }));
+    } finally {
+      connectionLock.current = false;
+      if (!sameConnection(settingsRef.current, settings)) {
+        setConnection((current) => ({ ...current, modelOnline: false, checking: false }));
+        setRuntimeMessage(null);
+      }
     }
   }, [settings]);
 
   useEffect(() => {
-    void refreshConnection(true);
+    void refreshConnection(useInitialDetection.current, true);
   }, []);
 
   useEffect(() => {
@@ -212,6 +292,12 @@ export const AiPanel = memo(function AiPanel({
     let submittedId: string | null = null;
     let responseAdded = false;
     setIsSending(true);
+    setIsGenerating(true);
+    setStreamingText("");
+    const controller = new AbortController();
+    requestController.current = controller;
+    let firstVisibleMs: number | undefined;
+    const requestStarted = performance.now();
     setError(null);
 
     try {
@@ -227,24 +313,56 @@ export const AiPanel = memo(function AiPanel({
             ? "proposal"
             : "answer"
       );
+      let requestSettings = settings;
+      if (!connection.modelOnline && settings.provider === "ollama" && window.ethicalDesktop?.ensureLocalModel) {
+        setRuntimeMessage("Spouštím Ollamu a načítám model…");
+        const runtime = await waitUntilReady(window.ethicalDesktop.ensureLocalModel({ model: settings.model, baseUrl: settings.baseUrl }), controller.signal);
+        if (runtime.state === "missing" || runtime.state === "error") throw new Error(runtime.message);
+        if (runtime.model) requestSettings = { ...settings, model: runtime.model };
+        setRuntimeMessage(null);
+      }
       const response = await sendAiMessage({
-        settings,
+        settings: requestSettings,
         messages: nextMessages,
         notes,
         folders,
         activeNote,
         permissionMode,
-        agentScope: scopeRef.current
+        agentScope: scopeRef.current,
+        signal: controller.signal,
+        onProgress: (progress) => {
+          if (progress.content.trim() && firstVisibleMs === undefined) firstVisibleMs = performance.now() - requestStarted;
+          setStreamingText(progress.content);
+          if (progress.workload === "document") setSendingMode("knowledge");
+        }
       });
+      if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+      setIsGenerating(false);
+      requestController.current = null;
       const parsed = parseAgentResponse(response.content, notes);
       if (parsed.warning) setError(parsed.warning);
+      if (response.metrics?.truncated) {
+        parsed.actions = [];
+        setError("Odpověď dosáhla tokenového limitu. Žádná změna se neprovedla; rozděl dokument do menších částí nebo zvol podrobnou odpověď.");
+      }
       const unsafeUpdates = parsed.actions.filter((action) => action.type === "update_note" && action.content !== undefined && !response.completeNoteIds?.includes(action.noteId));
       if (unsafeUpdates.length) {
         parsed.actions = parsed.actions.filter((action) => !unsafeUpdates.includes(action));
         setError("Přepis odmítnut: model neměl úplný obsah cílové poznámky. Otevři ji nebo pracuj po menších poznámkách; původní obsah zůstává uložený.");
       }
 
-      const assistantMessage: AiMessage = { id: createId(), role: "assistant", content: parsed.content };
+      const hasDocument = parsed.actions.some((action) => (action.type === "create_note" || action.type === "update_note") && action.knowledgeNote);
+      const missingDocument = permissionMode !== "read" && (looksLikeKnowledgeNoteRequest(trimmedInput) || response.metrics?.workload === "document") && parsed.actions.length === 0;
+      if (missingDocument) setInput((current) => current || draft);
+      if (missingDocument && !response.metrics?.truncated && !parsed.warning && unsafeUpdates.length === 0) {
+        setError("Model neposlal platný návrh změny. Nic se neuložilo; zkus menší samostatný dokument.");
+      }
+      const assistantMessage: AiMessage = {
+        id: createId(), role: "assistant",
+        content: missingDocument ? "Dokument nemá dokončený návrh změny. Nic se neuložilo." : hasDocument ? `Připravila jsem ${parsed.actions.length} ${parsed.actions.length === 1 ? "návrh" : parsed.actions.length < 5 ? "návrhy" : "návrhů"}. Obsah je v náhledu změn níže.` : parsed.content,
+        model: response.model, provider: requestSettings.provider,
+        ...(response.metrics ? { metrics: { ...response.metrics, roundTripMs: performance.now() - requestStarted, firstVisibleMs } } : {})
+      };
       setMessages((current) => [...current, assistantMessage]);
       responseAdded = true;
 
@@ -270,7 +388,7 @@ export const AiPanel = memo(function AiPanel({
         ]);
       }
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "AI request failed");
+      setError(controller.signal.aborted ? "Generování zastaveno. Zadání zůstalo rozepsané." : caughtError instanceof Error ? caughtError.message : "AI request failed");
       if (!responseAdded) {
         setMessages((current) => current.filter((message) => message.id !== submittedId));
         setInput((current) => current || draft);
@@ -279,8 +397,11 @@ export const AiPanel = memo(function AiPanel({
     } finally {
       sendLock.current = false;
       setIsSending(false);
+      setIsGenerating(false);
+      setStreamingText("");
+      requestController.current = null;
     }
-  }, [activeNote, canSend, folders, messages, notes, permissionMode, refreshConnection, settings, executeAction]);
+  }, [activeNote, canSend, connection.modelOnline, folders, messages, notes, permissionMode, refreshConnection, settings, executeAction]);
 
   const applyAction = useCallback(async (pending: PendingAction) => {
     if (actionLock.current || isSending) return;
@@ -338,7 +459,7 @@ export const AiPanel = memo(function AiPanel({
         <div>
           <span className={"ai-status-dot " + status.className} />
           <strong>Máša</strong>
-          <small>{status.text} · {settings.model}</small>
+          <small>{runtimeMessage && connection.checking ? "Načítám model…" : status.text} · {settings.model}</small>
         </div>
         <button className="icon-button" type="button" onClick={() => setShowSettings((value) => !value)} title="AI nastavení">
           ⚙
@@ -387,6 +508,15 @@ export const AiPanel = memo(function AiPanel({
           </label>
 
           <label>
+            Délka odpovědi
+            <select disabled={isSending} value={settings.responseStyle ?? "fast"} onChange={(event) => setSettings((current) => ({ ...current, responseStyle: event.target.value as AiSettings["responseStyle"] }))}>
+              <option value="fast">Rychlá · stručně</option>
+              <option value="balanced">Vyvážená</option>
+              <option value="detailed">Podrobná</option>
+            </select>
+          </label>
+
+          <label>
             Base URL
             <input value={settings.baseUrl} onChange={(event) => setSettings((current) => ({ ...current, baseUrl: event.target.value }))} />
           </label>
@@ -415,11 +545,11 @@ export const AiPanel = memo(function AiPanel({
         <div className="ai-offline-banner">
           <strong>Máša čeká na model.</strong>
           <span>
-            {connection.backendOnline
-              ? "Spusť Ollamu nebo llama-server. Ethical World je automaticky zkusí najít."
+            {runtimeMessage ?? (connection.backendOnline
+              ? "Ollama není připravená. Zkontroluj instalaci a model v nastavení; jiný server můžeš spustit ručně."
               : window.ethicalDesktop
                 ? "Desktop runtime backend se nepodařilo spustit. Zkus aplikaci restartovat."
-                : "Spusť FastAPI backend na portu 8787."}
+                : "Spusť FastAPI backend na portu 8787.")}
           </span>
           <button type="button" onClick={() => void refreshConnection(true)}>Zkontrolovat znovu</button>
         </div>
@@ -450,22 +580,40 @@ export const AiPanel = memo(function AiPanel({
               )}
             </div>
             <p>{message.content}</p>
+            {message.metrics && <details className="message-metrics">
+              <summary>
+                Tokeny vstup {metricNumber(message.metrics.inputTokens)} · výstup {metricNumber(message.metrics.outputTokens)}
+                {" · Σ "}{metricNumber(message.metrics.inputTokens != null && message.metrics.outputTokens != null ? message.metrics.inputTokens + message.metrics.outputTokens : null)}
+                {" · "}{metricSeconds(message.metrics.roundTripMs ?? message.metrics.elapsedMs)} s · {metricNumber(message.metrics.tokensPerSecond, 1)} tok/s
+              </summary>
+              <span>{message.provider} · {message.model}</span>
+              <span>Model: {metricSeconds(message.metrics.loadMs)} s načtení · {metricSeconds(message.metrics.promptMs)} s prompt · {metricSeconds(message.metrics.generationMs)} s generování</span>
+              <span>První token modelu: {metricSeconds(message.metrics.firstTokenMs)} s · první text v chatu: {metricSeconds(message.metrics.firstVisibleMs)} s</span>
+              <span>Prompt {metricNumber(message.metrics.promptChars)} znaků · {message.metrics.contextNotes} poznámek · {message.metrics.historyMessages} zpráv historie</span>
+              <span>Tokeny a rychlost vrací provider; — znamená nedostupné měření.</span>
+            </details>}
           </div>
         ))}
         {isSending && (
           <div className="message assistant message-working">
             <span>Máša</span>
             <p>
-              {sendingMode === "knowledge"
+              {streamingText || (sendingMode === "knowledge"
                 ? "Skládám kompletní Markdown poznámku, schémata a vazby…"
                 : sendingMode === "proposal"
                   ? "Připravuju změnu v Ethical World…"
-                  : "Přemýšlím nad odpovědí…"}
+                  : "Přemýšlím nad odpovědí…")}
             </p>
+            <small>{waitingSeconds} s · {settings.model}</small>
           </div>
         )}
         <div ref={messageEndRef} />
       </div>
+
+      {tokenTotal.responses > 0 && <div className="chat-token-total" aria-label="Tokeny konverzace">
+        Σ naměřené tokeny {tokenTotal.count ? metricNumber(tokenTotal.input + tokenTotal.output) : "—"}
+        {" · "}{tokenTotal.count}/{tokenTotal.responses} odpovědí s počty · vstup {tokenTotal.count ? metricNumber(tokenTotal.input) : "—"} / výstup {tokenTotal.count ? metricNumber(tokenTotal.output) : "—"}
+      </div>}
 
       {pendingActions.length > 0 && (
         <section className="agent-actions" aria-label="Máša navržené akce">
@@ -534,9 +682,9 @@ export const AiPanel = memo(function AiPanel({
           placeholder={connection.modelOnline ? "Řekni Máše, co má v Ethical World udělat…" : "AI je offline – nejdřív spusť lokální model"}
           rows={3}
         />
-        <button className="primary-button" type="submit" disabled={!canSend}>
-          {isSending ? "…" : "Send"}
-        </button>
+        {isGenerating && settings.provider === "ollama" && (!window.ethicalDesktop || window.ethicalDesktop.gatewayStreamRequest)
+          ? <button className="secondary-button" type="button" onClick={() => requestController.current?.abort()}>Zastavit</button>
+          : <button className="primary-button" type="submit" disabled={!canSend}>{isSending ? "…" : "Send"}</button>}
       </form>
     </aside>
   );

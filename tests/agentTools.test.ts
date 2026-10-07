@@ -40,6 +40,15 @@ describe("Máša agent action protocol", () => {
     const result = parseAgentResponse("Text\n\n" + fence + "ethical-actions\n[{bad}]\n" + fence);
     expect(result.actions).toEqual([]);
   });
+
+  it("hides incomplete machine content and does not apply a partially completed batch", () => {
+    const complete = '<ethical-note>\n{"action":"create","title":"First"}\n<content>\n# First\n</content>\n</ethical-note>';
+    const result = parseAgentResponse(complete + '\n<ethical-note>\n{"action":"create","title":"Second"}\n<content>\n# Unfinished');
+    expect(result.actions).toEqual([]);
+    expect(result.warning).toContain("nedokončil");
+    expect(result.content).not.toContain("<ethical-note>");
+    expect(result.content).not.toContain("Unfinished");
+  });
 });
 
 

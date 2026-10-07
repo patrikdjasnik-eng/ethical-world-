@@ -4,9 +4,12 @@ const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const crypto = require("node:crypto");
 const { createSecureStore, createSigner } = require("./secure-store.cjs");
-const { verifyBackend, gatewayRequest } = require("./backend-runtime.cjs");
+const { verifyBackend, gatewayRequest, gatewayStreamRequest } = require("./backend-runtime.cjs");
+const chatStreams = new Map();
 const { spawn } = require("node:child_process");
 const { stopBackendProcess } = require("./backend-process.cjs");
+const { createModelRuntime } = require("./model-runtime.cjs");
+const modelRuntime = createModelRuntime();
 const { isAllowedExternalUrl, isTrustedRendererUrl } = require("./security.cjs");
 const { startDeviceLogin, deviceRequest, verifyGitHubToken, createTokenPrompt } = require("./github-auth.cjs");
 
@@ -713,6 +716,28 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
     return gatewayRequest(backendBaseUrl, backendToken, request);
   });
 
+  handleTrusted("desktop:gateway-stream", async (event, id, request) => {
+    if (typeof id !== "string" || !/^[a-z0-9-]{1,80}$/i.test(id) || chatStreams.has(id) || chatStreams.size >= 2) throw new Error("Blocked stream session.");
+    const controller = new AbortController();
+    chatStreams.set(id, controller);
+    const destroyed = () => controller.abort();
+    event.sender.once("destroyed", destroyed);
+    try {
+      return await gatewayStreamRequest(backendBaseUrl, backendToken, request, (data) => {
+        if (!event.sender.isDestroyed()) event.sender.send("desktop:gateway-stream-event", id, data);
+      }, controller.signal);
+    } finally {
+      event.sender.removeListener("destroyed", destroyed);
+      chatStreams.delete(id);
+    }
+  });
+
+  handleTrusted("desktop:gateway-stream-cancel", async (_event, id) => {
+    if (typeof id === "string") chatStreams.get(id)?.abort();
+  });
+
+  handleTrusted("desktop:ensure-local-model", async (_event, request) => modelRuntime.ensure(request ?? {}));
+
   handleTrusted("desktop:carrot-confirm-saved", async (_event, payload, signature, publicKey) => {
     return signerStore().confirm(payload, signature, publicKey);
   });
@@ -747,11 +772,12 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
   let backendStopped = false;
   let backendStopping = false;
   app.on("before-quit", (event) => {
-    if (backendStopped || !backendProcess) return;
+    if (backendStopped) return;
     event.preventDefault();
     if (backendStopping) return;
     backendStopping = true;
-    void stopOwnedBackend().then(() => {
+    for (const controller of chatStreams.values()) controller.abort();
+    void Promise.all([stopOwnedBackend(), modelRuntime.stop()]).then(() => {
       backendStopped = true;
       app.quit();
     }).catch((error) => {

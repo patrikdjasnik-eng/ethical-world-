@@ -6,6 +6,8 @@ import AiPanel from "../src/components/AiPanel";
 import { autoDetectLocalProvider, checkProviderStatus, sendAiMessage } from "../src/lib/ai";
 import { listAgentAudit } from "../src/lib/storage";
 import type { AgentAction, Note } from "../src/types";
+import type { EthicalDesktopApi } from "../src/types/desktop";
+import { saveAiSettings } from "../src/lib/aiSettings";
 
 vi.mock("../src/lib/ai", () => ({
   checkGatewayHealth: vi.fn(async () => true),
@@ -18,10 +20,11 @@ const apply = vi.fn(async (_action: AgentAction) => "provedeno");
 const block = (actions: unknown[]) => '```ethical-actions\n' + JSON.stringify(actions) + '\n```';
 beforeEach(async () => {
   vi.clearAllMocks();
+  localStorage.clear();
   Element.prototype.scrollIntoView = vi.fn();
   await new Promise<void>((resolve) => { const request = indexedDB.deleteDatabase("ethical-world"); request.onsuccess = () => resolve(); });
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); delete window.ethicalDesktop; vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 async function setup() {
   render(<AiPanel notes={[note]} activeNote={note} folders={[{ id: "f", path: "Lab", name: "Lab", parentPath: null, createdAt: "old", updatedAt: "old" }]} visible onRequestHide={() => {}} onApplyAgentAction={apply} />);
   await screen.findByText(/Online · fixture/);
@@ -30,6 +33,59 @@ function send() {
   fireEvent.change(screen.getByPlaceholderText("Řekni Máše, co má v Ethical World udělat…"), { target: { value: "udělej poznámku" } });
   fireEvent.click(screen.getByRole("button", { name: "Send" }));
 }
+
+it("prepares the saved local model on reopening without switching to a probe's default model", async () => {
+  saveAiSettings({ provider: "ollama", model: "chosen", baseUrl: "http://localhost:11434", apiKey: "", responseStyle: "balanced" });
+  const ensure = vi.fn(async () => ({ state: "ready" as const, model: "chosen:latest", message: "ready" }));
+  window.ethicalDesktop = { ensureLocalModel: ensure } as unknown as EthicalDesktopApi;
+  vi.mocked(checkProviderStatus).mockResolvedValueOnce({ online: true, provider: "ollama", models: ["fixture", "chosen:latest"], model: "fixture", baseUrl: "http://localhost:11434" });
+  render(<AiPanel notes={[]} activeNote={null} folders={[]} visible onRequestHide={() => {}} onApplyAgentAction={apply} />);
+  await screen.findByText(/Online · chosen:latest/);
+  expect(ensure).toHaveBeenCalledWith({ model: "chosen", baseUrl: "http://localhost:11434" });
+  expect(autoDetectLocalProvider).not.toHaveBeenCalled();
+});
+
+it("keeps document content in the proposal preview and uses a short chat acknowledgement", async () => {
+  const markdown = "# Deep TLS\n\nImportant technical details";
+  vi.mocked(sendAiMessage).mockResolvedValue({ content: `Dlouhý duplicitní výpis ${markdown}\n<ethical-note>\n{"action":"create","title":"TLS"}\n<content>\n${markdown}\n</content>\n</ethical-note>`, completeNoteIds: [], provider: "ollama", model: "fixture" });
+  await setup(); send();
+  await screen.findByText(/Připravila jsem 1 návrh/);
+  expect(document.querySelector(".message-list")?.textContent).not.toContain("Important technical details");
+  expect(screen.getByText(/Nová poznámka: root\/TLS/).textContent).toContain("Important technical details");
+  expect(apply).not.toHaveBeenCalled();
+});
+
+it("does not replace a model selected while an earlier warmup is pending", async () => {
+  let ready!: (value: { state: "ready"; model: string; message: string }) => void;
+  const ensure = vi.fn(() => new Promise<{ state: "ready"; model: string; message: string }>((resolve) => { ready = resolve; }));
+  window.ethicalDesktop = { ensureLocalModel: ensure } as unknown as EthicalDesktopApi;
+  render(<AiPanel notes={[]} activeNote={null} folders={[]} visible onRequestHide={() => {}} onApplyAgentAction={apply} />);
+  await waitFor(() => expect(ensure).toHaveBeenCalled());
+  fireEvent.click(screen.getByTitle("AI nastavení"));
+  fireEvent.change(screen.getByLabelText("Model"), { target: { value: "new-choice" } });
+  ready({ state: "ready", model: "masa-cyber:latest", message: "ready" });
+  await waitFor(() => expect(screen.getByText(/LLM offline · new-choice/)).toBeTruthy());
+  expect((screen.getByLabelText("Model") as HTMLInputElement).value).toBe("new-choice");
+});
+
+it("treats raw document output as an unfinished task and keeps it out of chat", async () => {
+  vi.mocked(sendAiMessage).mockResolvedValue({ content: "# Raw document\n\nUnattached script content", completeNoteIds: [], provider: "ollama", model: "fixture" });
+  await setup(); send();
+  await screen.findByText(/Model neposlal platný návrh změny/);
+  expect(document.querySelector(".message-list")?.textContent).not.toContain("Unattached script content");
+  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("udělej poznámku");
+  expect(apply).not.toHaveBeenCalled();
+});
+
+it("does not queue any actions from a token-limited response", async () => {
+  vi.mocked(sendAiMessage).mockResolvedValue({ content: block([{ type: "create_note", title: "Partial batch", content: "partial" }]), completeNoteIds: [], provider: "ollama", model: "fixture", metrics: { elapsedMs: 20, inputTokens: null, outputTokens: null, tokensPerSecond: null, loadMs: null, promptMs: null, generationMs: null, promptChars: 100, contextNotes: 0, historyMessages: 1, workload: "document", truncated: true } });
+  await setup(); send();
+  await screen.findByText(/Odpověď dosáhla tokenového limitu/);
+  expect(apply).not.toHaveBeenCalled();
+  expect(screen.queryByRole("button", { name: "Použít" })).toBeNull();
+  expect(screen.getByText(/Tokeny vstup — · výstup —/)).toBeTruthy();
+  expect(screen.getByLabelText("Tokeny konverzace").textContent).toContain("0/1");
+});
 it("ASSIST previews, confirms once and persists the audit outcome", async () => {
   vi.mocked(sendAiMessage).mockResolvedValue({ content: block([{ type: "rename_note", noteId: "a", title: "New" }]), completeNoteIds: ["a"], provider: "ollama", model: "fixture" });
   await setup(); send();

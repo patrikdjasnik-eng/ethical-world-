@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import html
+import json
 import os
+import time
+from dataclasses import dataclass
 from typing import Literal
 
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from . import runtime_security
 from .runtime_security import RuntimeGuard, health_proof, write_browser_runtime
 from pydantic import BaseModel, Field
+from .chat_budget import ChatBudget, chat_budget, chat_workload, compact_history, requested_style
 
 from .auth_store import (
     AuthStoreError,
@@ -39,6 +43,7 @@ from .providers import (
     chat_openai_compatible,
     check_ollama,
     check_openai_compatible,
+    stream_ollama,
 )
 
 
@@ -68,6 +73,7 @@ class ChatRequest(BaseModel):
     apiKey: str | None = Field(default=None, max_length=1000)
     activeNoteId: str | None = None
     permissionMode: Literal["read", "assist", "agent"] = "read"
+    responseStyle: Literal["fast", "balanced", "detailed"] = "fast"
     agentScope: str | None = Field(default=None, max_length=500)
     vaultFolders: list[str] = Field(default_factory=list, max_length=200)
     vaultIndex: list[VaultIndexItem] = Field(default_factory=list, max_length=1000)
@@ -75,11 +81,28 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1, max_length=50)
 
 
+class ChatMetrics(BaseModel):
+    elapsedMs: float
+    promptChars: int
+    historyMessages: int
+    contextNotes: int
+    workload: Literal["chat", "vault", "document"]
+    inputTokens: int | None = None
+    outputTokens: int | None = None
+    loadMs: float | None = None
+    promptMs: float | None = None
+    generationMs: float | None = None
+    tokensPerSecond: float | None = None
+    truncated: bool = False
+    firstTokenMs: float | None = None
+
+
 class ChatResponse(BaseModel):
     completeNoteIds: list[str] = Field(default_factory=list)
     content: str
     provider: str
     model: str
+    metrics: ChatMetrics
 
 
 class KeyHintRequest(BaseModel):
@@ -352,7 +375,7 @@ async def provider_status(request: ProviderStatusRequest) -> ProviderStatusRespo
     else:
         models = await check_openai_compatible(request.baseUrl, request.apiKey)
 
-    preferred_model = next((model for model in models if model == "masa-cyber"), models[0] if models else None)
+    preferred_model = next((model for model in models if model in ("masa-cyber", "masa-cyber:latest")), models[0] if models else None)
 
     return ProviderStatusResponse(
         online=bool(models),
@@ -378,7 +401,7 @@ async def auto_detect_local_provider() -> ProviderStatusResponse:
             models = await check_openai_compatible(base_url)
 
         if models:
-            preferred_model = next((model for model in models if model == "masa-cyber"), models[0])
+            preferred_model = next((model for model in models if model in ("masa-cyber", "masa-cyber:latest")), models[0])
 
             return ProviderStatusResponse(
                 online=True,
@@ -397,56 +420,65 @@ async def auto_detect_local_provider() -> ProviderStatusResponse:
     )
 
 
-@app.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+@dataclass
+class PreparedChat:
+    messages: list[dict[str, str]]
+    complete_note_ids: list[str]
+    budget: ChatBudget
+    workload: str
+    context_notes: int
+
+
+def prepare_chat(request: ChatRequest) -> PreparedChat:
+    latest_user_message = next((message.content for message in reversed(request.messages) if message.role == "user"), request.messages[-1].content)
+    workload = chat_workload(latest_user_message, request.permissionMode, [message.content for message in request.messages[:-1]])
+    response_style = requested_style(latest_user_message, request.responseStyle)
+    budget = chat_budget(workload, response_style)
+    knowledge_note_mode = workload == "document"
     active_note = next(
         (note for note in request.vaultContext if note.id == request.activeNoteId),
         None,
     )
     context_parts: list[str] = []
     complete_note_ids: list[str] = []
-    remaining = 30000
+    remaining = budget.context_chars
     candidates = ([active_note] if active_note else []) + [note for note in request.vaultContext if not active_note or note.id != active_note.id]
     for note in candidates:
         heading = f"POZNAMKA [id={note.id}] [folder={note.folder or 'root'}]: {note.title}\n"
-        budget = max(0, remaining - len(heading) - 4)
-        if budget == 0:
+        note_budget = max(0, remaining - len(heading) - 4)
+        if note_budget == 0:
             break
-        body = note.content[:budget]
+        body = note.content[:note_budget]
         full = note.complete and len(body) == len(note.content)
+        marker = "\n[ČÁSTEČNÝ OBSAH: nepřepisuj celou poznámku; použij create_task/link_notes nebo požádej o otevření kratší poznámky.]"
         if full:
             complete_note_ids.append(note.id)
         else:
-            body += "\n[ČÁSTEČNÝ OBSAH: nepřepisuj celou poznámku; použij create_task/link_notes nebo požádej o otevření kratší poznámky.]"
+            if note_budget <= len(marker):
+                break
+            body = body[:note_budget - len(marker)] + marker
         part = heading + body
         context_parts.append(part)
         remaining -= len(part) + 4
     vault_context = "\n\n".join(context_parts)
-    folder_context = ", ".join(request.vaultFolders[:200]) or "root"
-    vault_index = "\n".join(
-        f"- {item.title} [id={item.id}] [folder={item.folder or 'root'}]"
-        for item in request.vaultIndex[:500]
-    )[:14000] or "- žádné další poznámky"
+    selected_folders: list[str] = []
+    folder_size = 0
+    for folder in request.vaultFolders[:200]:
+        if folder_size + len(folder) + 2 > 2000:
+            break
+        selected_folders.append(folder)
+        folder_size += len(folder) + 2
+    folder_context = ", ".join(selected_folders) or "root"
+    index_lines: list[str] = []
+    index_size = 0
+    for item in request.vaultIndex[:500]:
+        line = f"- {item.title} [id={item.id}] [folder={item.folder or 'root'}]"
+        if index_size + len(line) + 1 > budget.index_chars:
+            break
+        index_lines.append(line)
+        index_size += len(line) + 1
+    vault_index = "\n".join(index_lines) or "- žádné další poznámky v tomto výběru"
     fence = chr(96) * 3
-
-    latest_user_message = next(
-        (message.content for message in reversed(request.messages) if message.role == "user"),
-        "",
-    )
-    normalized_request = latest_user_message.casefold()
-    note_words = ("poznám", "poznam", "markdown", " md", " note", "dokument")
-    action_words = (
-        "vytvoř", "vytvor", "udělej", "udelej", "napiš", "napis",
-        "zpracuj", "připrav", "priprav", "přepracuj", "prepracuj",
-        "uprav", "přidej", "pridej", "doplň", "dopln", "vlož", "vloz",
-        "zapracuj", "zakresli", "rozšiř", "rozsir", "aktualizuj",
-        "update", "create", "write", "edit", "append",
-    )
-    knowledge_note_mode = (
-        request.permissionMode != "read"
-        and any(word in normalized_request for word in note_words)
-        and any(word in normalized_request for word in action_words)
-    )
 
     if request.permissionMode != "read" and knowledge_note_mode:
         tool_instructions = (
@@ -504,33 +536,93 @@ async def chat(request: ChatRequest) -> ChatResponse:
         f"VAULT KONTEXT:\n{vault_context or 'Vault kontext není dostupný.'}"
     )
 
+    if workload == "chat" and response_style == "fast":
+        system_message += "\nOdpovídej věcně a stručně, bez opakování zadání. Zachovej požadovanou hloubku, správnost a potřebné příklady."
+    system_message += "\nKontext i historie jsou omezený výběr. Zkrácenou historii nepovažuj za úplný obsah poznámky."
+
     provider_messages = [
         {"role": "system", "content": system_message},
-        *[message.model_dump() for message in request.messages],
+        *compact_history([message.model_dump() for message in request.messages], budget),
     ]
 
+    return PreparedChat(provider_messages, complete_note_ids, budget, workload, len(context_parts))
+
+
+def chat_response(request: ChatRequest, prepared: PreparedChat, content: str, timings: dict, started_at: float) -> ChatResponse:
+    return ChatResponse(
+        content=content,
+        completeNoteIds=prepared.complete_note_ids,
+        provider=request.provider,
+        model=request.model,
+        metrics=ChatMetrics(
+            elapsedMs=round((time.perf_counter() - started_at) * 1000, 2),
+            promptChars=sum(len(message["content"]) for message in prepared.messages),
+            historyMessages=len(prepared.messages) - 1,
+            contextNotes=prepared.context_notes,
+            workload=prepared.workload,
+            **timings,
+        ),
+    )
+
+
+@app.post("/api/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest) -> ChatResponse:
+    prepared = prepare_chat(request)
+
+    timings: dict[str, int | float | bool] = {}
+    started_at = time.perf_counter()
     try:
         if request.provider == "ollama":
             content = await chat_ollama(
                 request.baseUrl,
                 request.model,
-                provider_messages,
-                6144 if knowledge_note_mode else 2048,
+                prepared.messages,
+                prepared.budget.output_tokens,
+                metrics=timings,
             )
         else:
             content = await chat_openai_compatible(
                 request.baseUrl,
                 request.model,
-                provider_messages,
+                prepared.messages,
                 request.apiKey,
-                6144 if knowledge_note_mode else 2048,
+                prepared.budget.output_tokens,
+                metrics=timings,
             )
     except ProviderError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
 
-    return ChatResponse(
-        content=content,
-        completeNoteIds=complete_note_ids,
-        provider=request.provider,
-        model=request.model,
-    )
+    return chat_response(request, prepared, content, timings, started_at)
+
+
+@app.post("/api/chat/stream")
+async def chat_stream(request: ChatRequest):
+    if request.provider != "ollama":
+        raise HTTPException(status_code=400, detail="Průběžná odpověď je dostupná pro Ollamu.")
+    prepared = prepare_chat(request)
+
+    async def events():
+        def encode(value: dict) -> str:
+            return json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n"
+        yield encode({"type": "start", "workload": prepared.workload})
+        started = time.perf_counter()
+        parts: list[str] = []
+        timings: dict = {}
+        try:
+            async for event in stream_ollama(request.baseUrl, request.model, prepared.messages, prepared.budget.output_tokens):
+                if event["type"] == "delta":
+                    if "firstTokenMs" not in timings:
+                        timings["firstTokenMs"] = round((time.perf_counter() - started) * 1000, 2)
+                    parts.append(event["content"])
+                    yield encode(event)
+                else:
+                    content = "".join(parts)
+                    if not content.strip():
+                        raise ProviderError("Ollama vrátila prázdnou odpověď.")
+                    timings.update(event["metrics"])
+                    response = chat_response(request, prepared, content, timings, started)
+                    yield encode({"type": "final", "response": response.model_dump()})
+        except ProviderError as error:
+            yield encode({"type": "error", "message": str(error)})
+
+    return StreamingResponse(events(), media_type="application/x-ndjson", headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})

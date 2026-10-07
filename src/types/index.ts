@@ -28,10 +28,31 @@ export interface VaultFolder {
 
 export type AiRole = "user" | "assistant";
 
+export interface AiMetrics {
+  elapsedMs: number;
+  firstTokenMs?: number | null;
+  firstVisibleMs?: number;
+  roundTripMs?: number;
+  promptChars: number;
+  historyMessages: number;
+  contextNotes: number;
+  workload: "chat" | "vault" | "document";
+  inputTokens: number | null;
+  outputTokens: number | null;
+  loadMs: number | null;
+  promptMs: number | null;
+  generationMs: number | null;
+  tokensPerSecond: number | null;
+  truncated?: boolean;
+}
+
 export interface AiMessage {
   id: string;
   role: AiRole;
   content: string;
+  metrics?: AiMetrics;
+  model?: string;
+  provider?: AiProvider;
 }
 
 export type AiProvider = "ollama" | "openai-compatible";
@@ -41,6 +62,7 @@ export interface AiSettings {
   model: string;
   baseUrl: string;
   apiKey: string;
+  responseStyle?: "fast" | "balanced" | "detailed";
 }
 
 export type AiPermissionMode = "read" | "assist" | "agent";

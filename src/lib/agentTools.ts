@@ -300,11 +300,20 @@ export function parseAgentResponse(raw: string, notes: Note[] = []): ParsedAgent
     return "";
   }).trim();
 
+  const incompleteBlock = /(?:^|\n)\s*(?:<ethical-note>|\x60\x60\x60ethical-actions)/i.exec(content);
+  if (incompleteBlock) {
+    return {
+      content: content.slice(0, incompleteBlock.index).trim() || "Návrh změny není dokončený.",
+      actions: [],
+      warning: "Model nedokončil návrh změn. Nic se neprovedlo; požádej o menší samostatný návrh."
+    };
+  }
+
   return {
     ...(matchedMachineBlock && actions.length === 0 ? { warning: "Model vrátil neplatný nebo nepodporovaný návrh. Nic se neprovedlo; požádej o nový návrh." } : {}),
     ...(actions.length > 8 ? { warning: "Návrh přesáhl limit 8 akcí. Připrav další položky v samostatné odpovědi." } : {}),
-    content: content || (matchedMachineBlock && actions.length > 0
-      ? "Připravil jsem návrh změny v Ethical World."
+    content: content || (matchedMachineBlock
+      ? actions.length > 0 ? "Připravila jsem návrh změny v Ethical World." : "Návrh změny není platný."
       : raw.trim()),
     actions: actions.slice(0, 8).map((action) => {
       if (!("noteId" in action) || action.type === "open_note") return action;

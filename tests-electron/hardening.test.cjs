@@ -7,7 +7,7 @@ const crypto = require("node:crypto");
 const http = require("node:http");
 const { createSecureStore, createSigner } = require("../electron/secure-store.cjs");
 const { safeTarget, contentHash, writeMarkdownBatch } = require("../electron/markdown-writer.cjs");
-const { verifyBackend, gatewayRequest } = require("../electron/backend-runtime.cjs");
+const { verifyBackend, gatewayRequest, gatewayStreamRequest } = require("../electron/backend-runtime.cjs");
 
 async function fixture(run) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "ethical-test-"));
@@ -83,6 +83,7 @@ test("fake healthy backend never receives a capability or a password", async () 
   try {
     assert.equal(await verifyBackend(base, "secret"), false);
     await assert.rejects(gatewayRequest(base, "secret", { path: "/api/auth/login", method: "POST", body: '{"password":"demo"}' }), /identity/);
+    await assert.rejects(gatewayStreamRequest(base, "secret", { path: "/api/chat/stream", method: "POST", body: "{}" }, () => {}), /identity/);
     assert.ok(requests.every((request) => request.url.startsWith("/health?challenge=") && !request.capability));
     await assert.rejects(gatewayRequest(base, "secret", { path: "/api/auth/../anything", method: "GET" }), /Blocked/);
   } finally { await new Promise((resolve) => server.close(resolve)); }

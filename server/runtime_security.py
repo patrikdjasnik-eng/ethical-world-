@@ -63,9 +63,9 @@ class RuntimeGuard:
         if len(bucket) >= 40:
           return await JSONResponse({"detail": "Příliš mnoho auth požadavků. Zkus to za minutu."}, status_code=429, headers={"Retry-After": "60"})(scope, receive, send)
         bucket.append(now)
-    if path == "/api/chat" and self.active_chats >= 2:
+    is_chat = path in ("/api/chat", "/api/chat/stream")
+    if is_chat and self.active_chats >= 2:
       return await JSONResponse({"detail": "Model již zpracovává dva požadavky."}, status_code=429)(scope, receive, send)
-    is_chat = path == "/api/chat"
     size = 0
     started = False
     async def bounded_receive():

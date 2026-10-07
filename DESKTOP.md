@@ -223,7 +223,11 @@ Současné předpoklady: Windows, Git s přístupem k repozitáři, Node/npm, Py
 
 ## Lokální model Máši na Windows
 
-Nainstalovaný Ethical World spouští vlastní FastAPI backend. Vedle desktopu proto nespouštěj další uvicorn na portu 8787. Ollama je samostatný modelový server; běžně běží na pozadí po spuštění Windows aplikace Ollama. Pokud neběží, můžeš ji spustit skrytě z PowerShellu:
+Nainstalovaný Ethical World spouští vlastní FastAPI backend. Po otevření Máši nově připraví i lokální Ollamu na `localhost:11434` nebo `127.0.0.1:11434`: využije běžící server, jinak najde nainstalované `ollama.exe` a spustí `serve` skrytě. Zvolený model předehřeje prázdným generate požadavkem. Okno aplikace na načítání modelu nečeká; stav je vidět v panelu Máši.
+
+Výběr providera, modelu, Base URL a délky odpovědi se ukládá. API klíč ani AGENT oprávnění se tímto způsobem neukládají. Alias `masa-cyber` se může zpřesnit na `masa-cyber:latest`; stavová kontrola nepřepíná na jiný model. Chybějící instalace/model nebo timeout mají viditelnou hlášku. Automatický start nic nestahuje. Existující Ollama zůstává při zavření aplikace běžet; ukončuje se jen PID serveru spuštěného Ethical Worldem.
+
+Vedle desktopu nespouštěj další uvicorn na portu 8787. Pro ruční diagnostiku Ollamy lze použít tento postup:
 
 ```powershell
 $ErrorActionPreference = "Stop"
@@ -247,11 +251,17 @@ if (-not $modelStatus.models) { throw "Ollama nema zadny lokalni model." }
 $modelStatus.models | Select-Object name, size
 ```
 
-Potom otevři Ethical World Launcher a v nastavení Máši dej **Znovu najít lokální AI**. Pro vlastní model nastav přesný název z výpisu (například `masa-cyber:latest`), provider Ollama a Base URL `http://127.0.0.1:11434`. Model se načte při prvním chat požadavku; tento postup nic nestahuje ani nevytváří nový model. Automatické spouštění modelového serveru z launcheru zatím není implementované.
+V nastavení Máši lze dát **Znovu najít lokální AI** pro opakování přípravy. Pro vlastní model nastav přesný název z výpisu (například `masa-cyber:latest`), provider Ollama a Base URL `http://127.0.0.1:11434`. Příprava je deduplikovaná a časově omezená; chat požadavky drží model v paměti pomocí `keep_alive: 15m`. Automatický start se týká desktopu a standardního Ollama portu; webový vývoj, vlastní port a llama-server používají samostatně spuštěný server.
+
+Máša nabízí **Rychlá / Vyvážená / Podrobná**. Běžný chat posílá menší výběr kontextu a historie. Výslovný požadavek na podrobné vysvětlení zvýší rozpočet i v rychlé volbě; tvorba dokumentů má vlastní větší limit. Ollama odpovědi se zobrazují průběžně a tlačítko **Zastavit** přeruší stream a zachová rozepsané zadání. Návrhy poznámek se během streamu neprovádějí; obsah se objeví v náhledu po dokončení a validaci. Volný Markdown bez platného návrhu není uložená poznámka.
+
+Pod odpovědí jsou skutečné tokeny vstup/výstup, součet, čas požadavku a tok/s. Rozbalení ukáže načtení modelu, zpracování promptu, generování, první token modelu a první viditelný text v chatu. Dále je počet znaků promptu, kontextových poznámek a zpráv historie. Znakový rozpočet není tokenizer ani tokenový odhad. Souhrn konverzace počítá jen odpovědi s dostupnými vstupními i výstupními počty; pomlčka znamená chybějící měření. OpenAI-compatible vrací dostupné usage počty a celkový čas, bez vymyšlené rychlosti generování.
+
+Překročení kontextu, výstupní tokenový limit nebo přerušený akční blok blokují neúplné změny. Ollama požadavky posílají `truncate: false` a `shift: false`; jejich podporu je potřeba ověřit na instalované verzi Ollamy. Velké dokumenty může být nutné rozdělit. Skutečnou rychlost na konkrétním GPU/CPU ověří cold/warm odpovědi a stejné úlohy před/po; testovací HTTP odpovědi rychlost LLM nedokládají.
 
 Pouze pro webový vývoj ve zdrojích lze místo desktopu ručně spustit gateway z kořene checkoutu: `.\.venv\Scripts\python.exe -m uvicorn server.main:app --host 127.0.0.1 --port 8787`. V dalším terminálu běží `npm run dev`; desktop při tomto postupu nech zavřený.
 
-Reference: [Ollama Windows](https://docs.ollama.com/windows), [Ollama CLI](https://docs.ollama.com/cli).
+Reference: [Ollama Windows](https://docs.ollama.com/windows), [Ollama Chat API](https://docs.ollama.com/api/chat), [Ollama FAQ](https://docs.ollama.com/faq), [Ollama request types](https://github.com/ollama/ollama/blob/main/api/types.go).
 
 ## GitHub přihlášení v konektoru
 
