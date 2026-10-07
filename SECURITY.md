@@ -65,7 +65,11 @@ Kryptografický protokol pro týmový chat nebude vlastní návrh. Produkční v
 
 GitHub OAuth token ani Ethical World session token nejsou ukládané v renderer storage. Desktop používá Electron `safeStorage`, takže na disk jde pouze OS-encrypted blob.
 
-GitHub Device OAuth MVP používá širší `repo` scope kvůli private repositories. Produkční distribuce má přejít na GitHub App s minimálními Contents permissions.
+GitHub Device OAuth je dostupný pouze s vlastním `ETHICAL_GITHUB_CLIENT_ID`; sdílený zabudovaný Client ID byl odstraněný. Main proces vyžaduje nativní souhlas před zahájením, přijímá pouze pevné HTTPS endpointy GitHubu bez redirectů a kód vrácený GitHubem, který zobrazí také nativní dialog před otevřením prohlížeče. Výchozí `public_repo` dává čtení/zápis veřejných repozitářů; širší `repo` pro private repositories vyžaduje explicitní výběr a nativní potvrzení. Obě OAuth oprávnění zahrnují více než samotné Markdown soubory. Pro omezení na vybraná repa používej fine-grained PAT s Contents permissions; další krok je GitHub App.
+
+Device grant se kontroluje podle schváleného scope i skutečné hlavičky `X-OAuth-Scopes` z ověřeného `/user`. Neočekávaná širší oprávnění se odmítnou. Login se před uložením potvrzuje v nativním dialogu; workspace nikdy nedostane token ani `device_code`. Main vynucuje jeden flow/poll, TTL a `slow_down`; cancel, disconnect, reload a zavření okna zneplatní opožděné odpovědi. Zápis a odpojení používají jednu frontu; při zrušení během zápisu se obnoví předchozí credential. Privilegované IPC přijímá pouze vlastní main frame.
+
+Tato ochrana nezabrání schválení útočníkova Device OAuth kódu mimo aplikaci na skutečném webu GitHubu. Používej pouze kód právě zahájeného přihlášení, ověř doménu i název své OAuth aplikace. Client ID je veřejný identifikátor, nikoli secret nebo důkaz identity vlastníka. Dříve uložené tokeny automaticky neztrácejí svá oprávnění; jejich grant můžeš odebrat v GitHub Settings → Applications. Lokální odpojení odstraní uložený token, nerevokuje grant na GitHubu.
 
 Notion public OAuth client secret nesmí být součástí desktop aplikace. Code exchange a refresh tokeny musí obsluhovat serverová vrstva.
 

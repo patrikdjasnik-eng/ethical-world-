@@ -4,11 +4,11 @@
 ![Scope](https://img.shields.io/badge/scope-bugs_%2B_security-334155)
 ![Branch](https://img.shields.io/badge/branch-dev%2Ffirst--runnable-6f42c1)
 
-Aktualizovaný stav auditu k 7. 10. 2026 pro větev `dev/first-runnable`. Základem je aplikační commit [`b292894`](https://github.com/patrikdjasnik-eng/ethical-world-/commit/b292894fd7822dbcc1358f681c6491ed27e8fdf7), kontrola současného kódu a poslední lokální validace. Tato aktualizace mění dokumentaci, nikoli aplikaci. [Původní report z 4. 10.](https://github.com/patrikdjasnik-eng/ethical-world-/blob/b292894fd7822dbcc1358f681c6491ed27e8fdf7/AUDIT.md) zůstává dostupný jako historický snapshot.
+Aktualizovaný stav auditu k 7. 10. 2026 pro větev `dev/first-runnable`. Předchozím aplikačním základem je commit [`b292894`](https://github.com/patrikdjasnik-eng/ethical-world-/commit/b292894fd7822dbcc1358f681c6491ed27e8fdf7), navazující opravy CI a GitHub Device OAuth, kontrola současného kódu a lokální validace. [Původní report z 4. 10.](https://github.com/patrikdjasnik-eng/ethical-world-/blob/b292894fd7822dbcc1358f681c6491ed27e8fdf7/AUDIT.md) zůstává dostupný jako historický snapshot.
 
 Audit zahrnuje Electron/IPC, identitu FastAPI runtime, účty a sessions, AI request → model → návrh → zápis, Markdown/Mermaid preview, konektory, Carrot integritu, launcher a závislosti. Rozlišuje opravu doloženou kódem a regresí od nativního Windows/modelového retestu. Repo je veřejné; Git HTTPS clone/fetch nevyžaduje GitHub přihlášení.
 
-GitHub CI/CD není podmínkou předání. Jeho aktuální stav se v tomto dokumentačním kroku neověřoval; níže uvedené výsledky jsou lokální. Čistá instalace na jiném Windows PC, úplný packaged renderer E2E a odolnost konkrétního modelu nejsou uzavřené.
+GitHub Actions byly ověřené: [běh 37624651002](https://github.com/patrikdjasnik-eng/ethical-world-/actions/runs/37624651002) selhal před spuštěním kroků. Anotace frontend i backend checku shodně hlásí: “The job was not started because your account is locked due to a billing issue.” Jde o blokaci účtu, nikoli test failure. Nový workflow je připravený; zelený hosted běh vyžaduje odstranění této blokace v GitHub Billing a skutečné opakování kontrol. Níže uvedené výsledky jsou lokální. Čistá instalace na jiném Windows PC, úplný packaged renderer E2E a odolnost konkrétního modelu nejsou uzavřené.
 
 ## Stav původních nálezů
 
@@ -68,6 +68,20 @@ Původní boolean souhlas v `RemoteImage` přetrval při změně `src`. Nový č
 
 Důkaz: DOM regrese schválená URL → jiná query s potenciálním obsahem note → žádný obrázek před novým kliknutím. Potvrzená URL se stále odešle cílovému serveru; aplikace nevydává souhlas s jednou URL za souhlas se všemi dalšími.
 
+## CI a GitHub Device OAuth
+
+Workflow nyní používá Node 24 místo nekompatibilního Node 20; deklarované minimum Forge toolchainu je >=22.13.0 v package manifestu/locku. Frontend/desktop + build a Python 3.12 backend mají matice Ubuntu 24.04/Windows 2022. Pinned Ubuntu verze odstraní neplánovaný přechod `ubuntu-latest`; PowerShell helper se v Actions při chybějícím runtime nesmí přeskočit. Checkout nemá persistentní credentials, `GITHUB_TOKEN` má jen `contents: read`, Actions jsou připnuté na ověřené plné commit SHA a caches používají konkrétní lockfiles. Běh nepublikuje release ani nepoužívá produkční secrets.
+
+Ověření CI není přebarvené přes `continue-on-error` ani vypnuté testy. Aktuální překážka je GitHub billing lock před přidělením runneru. Standardní hosted runnery veřejného repozitáře jsou [zdarma](https://docs.github.com/en/billing/concepts/product-billing/github-actions), účet ale může zůstat blokovaný i pro jejich použití. Chybu účtu nelze odstranit změnou Node nebo testů v repozitáři. Po odstranění blokace: Actions → poslední CI → Re-run failed jobs. Windows výsledky do té doby nejsou doložené.
+
+V Device OAuth byl token dříve uložený před ověřením účtu a odpojení nezneplatnilo pending flow. Main nyní vlastní jedinou přihlašovací operaci, kontroluje TTL/poll interval a sdílí in-flight request. Cancel/disconnect/reload/window close abortuje požadavky a opožděné výsledky odmítá. Zápis credentialu sdílí frontu s odpojením; cancel během zápisu obnoví předchozí token. Starší HTTP 401 nesmaže novější credential.
+
+Sdílený zabudovaný OAuth Client ID byl odstraněný. Vlastní ID a povolený Device Flow jsou explicitní konfigurace; fine-grained PAT zůstává dostupný bez OAuth konfigurace. Výchozí `public_repo` je užší než předchozí `repo read:user`, přístup k private repo vyžaduje výslovnou volbu. Nativní dialog potvrzuje Client ID/scope, druhý zobrazuje skutečný GitHub kód před otevřením pevné HTTPS URL a další potvrzuje ověřený účet před uložením. Scopes z token grant odpovědi i `/user` hlavičky musí být podmnožinou schválených oprávnění. Žádné cizí endpointy, redirecty, raw provider errors, token ani `device_code` se do workspace nepředávají. Privilegované IPC odmítá i same-origin subframe.
+
+Důkaz: `github-auth-runtime.test.cjs` včetně late response, expiry, slow_down, broader scopes, neplatného účtu, souběžného startu, cancel během persistence a disconnect. `github-auth-ipc.test.cjs` provede skutečný preload → main handler → auth runtime → fixture GitHub odpovědi → nativní dialog callback → secret store a zpětné disconnect. Test používá Electron/HTTP/storage fixtures; nenahrazuje živý OAuth grant nebo skutečný Electron GUI. React regrese ověřují výchozí/explicitní scope, cancel polling timeru a ignorování opožděného výsledku po unmountu.
+
+Ochrana neblokuje autorizaci útočníkovy aplikace mimo Ethical World na skutečné GitHub stránce. Client ID není secret ani důkaz důvěryhodného vlastníka. Dříve uložené tokeny/grants se automaticky nezúží; odpojení odstraní lokální credential, vzdálený grant se revokuje v GitHub Settings → Applications. `public_repo` i `repo` stále dovolují více než Markdown/Contents; další omezení poskytuje fine-grained PAT nebo GitHub App.
+
 ## Backend, launcher a odezva
 
 `backend-manager.cjs` sdílí souběžný start, ověřuje identitu, podporuje retry po chybě a restart vlastního ukončeného procesu. Bundled cold start má 45s limit, dev 15s. Okno se otevře bez čekání na backend; panel, retry a zpráva se připojí ke stejné přípravě. Již odeslaný POST se automaticky neopakuje. Neověřený backend se nepřebírá a ukončuje se pouze vlastně spuštěný proces. Existující podporovanou Ollamu aplikace využije, ale nepřebírá její životní cyklus ani ji při zavření neukončuje.
@@ -97,26 +111,25 @@ Pozdější model využil připravené váhy, ale generoval chybný dlouhý výp
 | P1: lokální data nejsou izolované podle účtu | IndexedDB vault sdílí profil; logout není šifrované uzamčení poznámek | Navrhnout per-account datové oddělení/lock, obnovu a migraci; oddělit tento požadavek od runtime capability |
 | P2: Notion key storage a export race | Klíč je v datovém adresáři, kontrola obsahu před replace není atomická | OS key store; explicitní diff/backup a dokumentovaná conflict policy |
 | P2: supply chain a build prostředí | Runtime locks existují, PyInstaller build požadavky nejsou úplně uzamčené; advisory stav se průběžně mění | Uzamknout build toolchain, Python hashes; pravidelně opakovat npm/pip advisory audit |
-| P2: konfigurace CI Node verze | `.github/workflows/ci.yml` používá Node 20; nainstalovaný Forge CLI 8.0.1 deklaruje Node >=22.13.0 | Sjednotit workflow s dokumentovaným Node 24 LTS; jde o staticky zjištěný nesoulad, nikoli tvrzení o výsledku aktuálního CI běhu |
+| P1: hosted CI blokace účtu | GitHub odmítá spustit job kvůli billing lock; žádné kroky neběžely | Odblokovat účet v GitHub Billing, opakovat upravený workflow a ověřit oba OS; nepovažovat lokální green za hosted green |
 | P2: velký vault a export UX | Graph pořád porovnává všechny páry; chybí jednotný export preview a atomicita batchu | 100/500/1000-note benchmark, worker/top-K; create/update/conflict manifest a zřetelný partial success |
-| P2: GitHub connector scope | Device OAuth požaduje širší `repo` scope; veřejná viditelnost Ethical World ho sama nezúží | GitHub App/minimální Contents permissions; přístupy nastavovat podle konkrétního připojeného repa |
+| P2: GitHub connector scope | Default je `public_repo`, private `repo` je explicitní; obě oprávnění stále přesahují Contents/Markdown | Fine-grained PAT pro vybraná repa nebo GitHub App/minimální Contents permissions; retest živého OAuth a odebrání starých grantů |
 | P3: přesnost názvů a dlouhodobá důvěra | Bootstrap admin je běžný účet; Carrot týmová rotace/enrollment nejsou hotové | Srovnat názvy s rolemi; navrhnout explicitní trusted-key lifecycle a jeho regrese |
 
 ## Doložená validace
 
-Poslední aplikační kontrola pro základový commit: **183 úspěšných unikátních testů**, TypeScript a produkční Vite build.
+Závěrečná lokální kontrola CI/OAuth oprav: **201 úspěšných unikátních testů**, TypeScript a produkční Vite build; žádný test nebyl přeskočený.
 
 | Vrstva | Výsledek | Praktický rozsah |
 | --- | --- | --- |
-| Vitest | 94 prošlo | App/IndexedDB, chat transport, návrhy/approval, scope, streaming/draft, Carrot, graph, obrázky |
-| Node / Electron helpers | 44 prošlo v `npm run verify`; PowerShell test v základním PATH přeskočen | Runtime identity/lifecycle, secrets/signer, Markdown export, launcher, model start a URL/renderer policy |
-| PowerShell helper zvlášť | 1 prošel bez skipu s portable PS 7.4.7 | Shortcut regex/array discovery, implicitní cesta mimo cwd a explicitní InstallerScript; není nativní Windows instalace |
+| Vitest | 97 prošlo | App/IndexedDB, chat transport, návrhy/approval, scope, streaming/draft, Carrot, graph, obrázky |
+| Node / Electron helpers | 60 prošlo, 0 skip; včetně PowerShell helperu s portable PS 7.4.7 | OAuth controller + preload/main IPC, frame policy, runtime identity/lifecycle, secrets/signer, Markdown export, launcher a PowerShell shortcut/cwd regrese |
 | Python backend | 44 prošlo v úplném závěrečném běhu | Capability/auth, provider URL/DNS/stream, context budgets/complete IDs, echo/role boundaries, parent EOF, SQLite connection cleanup |
-| Živý HTTP smoke | Prošel | Skutečný FastAPI proces + ověřený desktop gateway + fixture provider: start, stream, hostile context separation, echo rejection/connection close, restart, EOF shutdown |
+| Živý HTTP smoke | Prošel při předchozí Máša opravě; tento krok ho neopakuje | Skutečný FastAPI proces + ověřený desktop gateway + fixture provider: start, stream, hostile context separation, echo rejection/connection close, restart, EOF shutdown |
 
-Lokální prostředí: Linux, Node 24.19.0, Python 3.12.14, portable PowerShell 7.4.7. Skutečný Electron Windows renderer, Windows PowerShell 5.1, Squirrel upgrade, Ollama modelové váhy/GPU a živé GitHub/Notion OAuth exporty tímto během ověřené nejsou. Dříve zapsaný npm/pip advisory scan v dev notes není nový scan k této dokumentační aktualizaci.
+Lokální prostředí: Linux, Node 24.19.0, Python 3.12.14, portable PowerShell 7.4.7. Skutečný Electron Windows renderer, Windows PowerShell 5.1, Squirrel upgrade, Ollama modelové váhy/GPU a živé GitHub/Notion OAuth exporty tímto během ověřené nejsou. Dříve zapsaný npm/pip advisory scan v dev notes není nový scan k této CI/OAuth aktualizaci. Workflow YAML, matice, oprávnění a plné SHA byly zkontrolované lokálně; actionlint nebyl spuštěný, protože download release binárky nebyl v tomto prostředí dostupný.
 
-V tomto dokumentačním kroku se ověřují vazby nálezů na zdrojové soubory/testy, odkazy a `git diff --check`. Aplikační sady se znovu nespouštějí bez změny kódu. Podrobnosti implementace a jednotlivých ověření jsou v [DEV-NOTES.md](DEV-NOTES.md), hranice důvěry v [SECURITY.md](SECURITY.md) a chování agentky v [AI.md](AI.md).
+Změny CI/OAuth se ověřují cílenými regresními testy, celou lokální sadou, strukturální kontrolou workflow YAML, vazbami nálezů na zdrojové soubory a `git diff --check`. Hosted výsledek je samostatné ověření; billing lock nelze vydávat za úspěšnou CI validaci. Podrobnosti implementace a jednotlivých ověření jsou v [DEV-NOTES.md](DEV-NOTES.md), hranice důvěry v [SECURITY.md](SECURITY.md) a chování agentky v [AI.md](AI.md).
 
 ## Doporučený další retest
 
@@ -124,4 +137,5 @@ V tomto dokumentačním kroku se ověřují vazby nálezů na zdrojové soubory/
 2. Máša: dva krátké stejné dotazy pro cold/warm odezvu, potom dokument a navazující editace. Zaznamenat preparation, first token/text, load/prompt/generation, tokeny, `ollama ps` a kvalitu obsahu.
 3. Injection: podvržené instrukce v těle, title/folder/indexu a starší odpovědi. READ nesmí měnit data; ASSIST i AGENT s kontextem musí ukázat konkrétní návrh k potvrzení. Opis nesmí skončit uloženou odpovědí/akcí.
 4. Preview/data: změna dříve schválené image URL, externí odkaz, Mermaid error, junction export, konflikt GitHub/Notion a zavření během ukládání.
-5. Rozšířit cílené regrese o auth cooldown recovery, OAuth state limit, Carrot key lifecycle a fuzz/property případy parseru/paths. Výsledky zaznamenat po scénářích; žádný hand-picked corpus neoznačovat za stoprocentní odolnost.
+5. GitHub: vlastní OAuth aplikace, public/private volba, odmítnutí širšího grantu, native kód/account potvrzení, cancel/disconnect při pomalé odpovědi a revokace starého grantu; po odstranění billing lock retest CI na obou OS.
+6. Rozšířit cílené regrese o auth cooldown recovery, OAuth state limit, Carrot key lifecycle a fuzz/property případy parseru/paths. Výsledky zaznamenat po scénářích; žádný hand-picked corpus neoznačovat za stoprocentní odolnost.

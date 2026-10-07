@@ -175,6 +175,14 @@ if ($LASTEXITCODE -ne 0) { throw "Backend testy selhaly." }
 
 Na Linuxu/macOS použij `npm run verify` a `.venv/bin/python -m server.test_runner`. Úplný Python test log vzniká v `out/diagnostics/backend-tests.log`. Pro vlastní `llama-server` nastav OpenAI-compatible provider a jeho `/v1` endpoint; desktop ho automaticky nespouští.
 
+## CI a GitHub připojení
+
+[CI workflow](https://github.com/patrikdjasnik-eng/ethical-world-/actions/workflows/ci.yml) spouští stejné frontend/desktop testy a produkční build na Ubuntu 24.04 a Windows 2022 s Node 24. Backend na obou platformách používá Python 3.12, runtime lock a `server.test_runner`. Windows větev zahrnuje skutečný PowerShell helper test; v Actions se při chybějícím PowerShellu nepřeskakuje. Workflow nic nepublikuje a nepoužívá produkční secrets. `npm run desktop:update` zůstává dostupné nezávisle na Actions.
+
+Pokud workflow selže bez spuštěných kroků a anotace hlásí **account is locked due to a billing issue**, zkontroluj [GitHub Settings → Billing and licensing](https://github.com/settings/billing). Jde o blokaci účtu před přidělením runneru, ne o výsledek testů. Standardní hosted runnery veřejného repozitáře jsou [zdarma](https://docs.github.com/en/billing/concepts/product-billing/github-actions); větší runnery a storage mají vlastní účtování. Po odstranění blokace v Actions použij **Re-run failed jobs**.
+
+Git clone a launcher nevyžadují přihlášení do GitHub konektoru. Pro Markdown sync lze použít **Připojit tokenem** a fine-grained PAT omezený na vybraná repa. Device OAuth vyžaduje vlastní OAuth aplikaci a `ETHICAL_GITHUB_CLIENT_ID`; výchozí scope je pouze pro veřejné repozitáře, soukromé vyžadují výslovnou volbu. Postup a ochrany přihlášení jsou v [DESKTOP.md](DESKTOP.md#github-přihlášení-v-konektoru) a [SECURITY.md](SECURITY.md).
+
 ## Dokumentace
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) – technická architektura.

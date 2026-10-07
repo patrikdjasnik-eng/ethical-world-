@@ -30,6 +30,7 @@ export interface DesktopGitHubRepo {
 
 export interface DesktopGitHubLoginStart {
   configured: boolean;
+  cancelled?: boolean;
   error?: string;
   sessionId?: string;
   userCode?: string;
@@ -42,6 +43,7 @@ export type DesktopGitHubLoginPoll =
   | { status: "pending"; intervalSeconds?: number }
   | { status: "connected"; login: string | null }
   | { status: "expired" }
+  | { status: "cancelled" }
   | { status: "error"; error?: string };
 
 export interface EthicalDesktopApi {
@@ -74,9 +76,10 @@ export interface EthicalDesktopApi {
   readMarkdownFiles: (connectionId: string) => Promise<{ files: DesktopMarkdownFile[]; truncated: boolean }>;
   writeMarkdownFiles: (connectionId: string, files: DesktopMarkdownFile[]) => Promise<{ written: number }>;
   githubStatus: () => Promise<DesktopGitHubStatus>;
-  githubStartLogin: () => Promise<DesktopGitHubLoginStart>;
+  githubStartLogin: (scope?: "public_repo" | "repo") => Promise<DesktopGitHubLoginStart>;
   githubConnectToken: () => Promise<{ connected: boolean; login: string | null; error?: string }>;
   githubPollLogin: (sessionId: string) => Promise<DesktopGitHubLoginPoll>;
+  githubCancelLogin: (sessionId?: string) => Promise<boolean>;
   githubDisconnect: () => Promise<{ connected: false }>;
   githubListRepos: () => Promise<DesktopGitHubRepo[]>;
   githubReadMarkdown: (

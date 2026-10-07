@@ -9,8 +9,9 @@ const chatStreams = new Map();
 const { createBackendManager } = require("./backend-manager.cjs");
 const { createModelRuntime } = require("./model-runtime.cjs");
 const modelRuntime = createModelRuntime();
-const { isAllowedExternalUrl, isTrustedRendererUrl } = require("./security.cjs");
-const { startDeviceLogin, deviceRequest, verifyGitHubToken, createTokenPrompt } = require("./github-auth.cjs");
+const { isAllowedExternalUrl, isTrustedRendererUrl, isTrustedMainFrame } = require("./security.cjs");
+const { createTokenPrompt } = require("./github-auth.cjs");
+const { createGitHubAuthRuntime } = require("./github-auth-runtime.cjs");
 
 const squirrelStartup = require("electron-squirrel-startup");
 const { updateElectronApp, UpdateSourceType } = require("update-electron-app");
@@ -29,10 +30,43 @@ function serialConnector(id, operation) {
   return task;
 }
 const ignoredMarkdownDirs = new Set([".git", "node_modules", ".venv", "venv", "dist", "out", "build"]);
-const githubDeviceSessions = new Map();
 const githubClientId = String(
-  process.env.ETHICAL_GITHUB_CLIENT_ID ?? "Ov23liJffFw6fPudRTQ1"
+  process.env.ETHICAL_GITHUB_CLIENT_ID ?? ""
 ).trim();
+const githubAuth = createGitHubAuthRuntime({
+  clientId: githubClientId,
+  saveToken: (token) => saveSecret("github.oauth", token),
+  deleteToken: () => deleteSecret("github.oauth"),
+  loadToken: () => loadSecret("github.oauth"),
+  requestToken: requestGitHubToken,
+  openVerification: (url) => shell.openExternal(url),
+  confirmStart: async ({ clientId, scope }) => {
+    const permission = scope === "repo"
+      ? "Čtení a zápis veřejných i soukromých repozitářů (repo). Tento scope zahrnuje i správu hooks a dalších repo oprávnění."
+      : "Čtení a zápis veřejných repozitářů (public_repo).";
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: "warning", title: "Připojit GitHub", buttons: ["Zrušit", "Pokračovat na GitHub"], defaultId: 0, cancelId: 0,
+      message: "Povolit přihlášení přes vlastní GitHub OAuth aplikaci?",
+      detail: `Client ID: ${clientId}\n${permission}\n\nOtevře se https://github.com/login/device. Zadej pouze kód z tohoto přihlášení a ověř název vlastní OAuth aplikace na GitHubu. Kódy ze zpráv, poznámek nebo chatu nepoužívej.`,
+    });
+    return result.response === 1;
+  },
+  confirmDeviceCode: async ({ userCode }) => {
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: "info", title: "GitHub přihlašovací kód", buttons: ["Zrušit", "Otevřít GitHub"], defaultId: 0, cancelId: 0,
+      message: `Kód pro toto přihlášení: ${userCode}`,
+      detail: "Na https://github.com/login/device použij přesně tento kód a ověř název své OAuth aplikace. Kód dodaný chatem nebo jinou zprávou nepoužívej.",
+    });
+    return result.response === 1;
+  },
+  confirmAccount: async ({ login, scopes }) => {
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: "question", title: "Potvrdit GitHub účet", buttons: ["Zrušit", "Připojit účet"], defaultId: 0, cancelId: 0,
+      message: `Připojit ověřený účet @${login}?`, detail: `Oprávnění: ${scopes}\nToken se uloží přes OS secure storage.`,
+    });
+    return result.response === 1;
+  },
+});
 const githubApiVersion = "2026-03-10";
 const backendToken = crypto.randomBytes(48).toString("base64url");
 let secureStore = null;
@@ -110,7 +144,7 @@ function trustedRendererUrl(rawUrl) {
 
 function assertTrustedRenderer(event) {
   const senderUrl = event.senderFrame?.url || event.sender?.getURL?.() || "";
-  if (event.sender !== mainWindow?.webContents || !trustedRendererUrl(senderUrl)) {
+  if (!isTrustedMainFrame(event, mainWindow?.webContents) || !trustedRendererUrl(senderUrl)) {
     throw new Error("Blocked IPC call from an untrusted renderer.");
   }
 }
@@ -170,7 +204,7 @@ async function githubRequest(apiPath, options = {}) {
 
   if (!response.ok) {
     if (response.status === 401) {
-      await deleteSecret("github.oauth");
+      await githubAuth.dropRejectedToken(token);
     }
 
     const payload = await response.json().catch(() => null);
@@ -417,6 +451,9 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
       }
     });
 
+    mainWindow.once("closed", () => { githubAuth.cancel(); mainWindow = null; });
+    mainWindow.webContents.on("render-process-gone", () => githubAuth.cancel());
+    mainWindow.webContents.on("did-navigate", () => githubAuth.cancel());
     mainWindow.once("ready-to-show", () => {
       mainWindow?.show();
     });
@@ -518,106 +555,21 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
 
   handleTrusted("desktop:github-status", async () => {
     const token = await loadSecret("github.oauth");
-    if (!token) return { configured: Boolean(githubClientId), connected: false, login: null };
+    if (!token) return { configured: githubAuth.configured, connected: false, login: null };
 
     try {
       const user = await githubRequest("/user");
-      return { configured: Boolean(githubClientId), connected: true, login: user.login ?? null };
+      return { configured: githubAuth.configured, connected: true, login: user.login ?? null };
     } catch {
-      return { configured: Boolean(githubClientId), connected: false, login: null };
+      return { configured: githubAuth.configured, connected: false, login: null };
     }
   });
 
-  handleTrusted("desktop:github-start-login", async () => {
-    if (!githubClientId) {
-      return { configured: false };
-    }
-
-    let payload;
-    try { payload = await startDeviceLogin(githubClientId); }
-    catch (error) { return { configured: true, error: error.message }; }
-    const sessionId = crypto.randomUUID();
-    const interval = Math.max(Number(payload.interval ?? 5), 5);
-    const expiresAt = Date.now() + Number(payload.expires_in ?? 900) * 1000;
-
-    githubDeviceSessions.clear();
-    githubDeviceSessions.set(sessionId, {
-      deviceCode: payload.device_code,
-      interval,
-      expiresAt,
-      nextPollAt: Date.now() + interval * 1000
-    });
-
-    if (payload.verification_uri) {
-      openExternalSafe(payload.verification_uri);
-    }
-
-    return {
-      configured: true,
-      sessionId,
-      userCode: payload.user_code,
-      verificationUri: payload.verification_uri,
-      intervalSeconds: interval,
-      expiresAt
-    };
-  });
-
-  handleTrusted("desktop:github-connect-token", async () => {
-    try {
-      const rawToken = await requestGitHubToken();
-      if (rawToken === null) return { connected: false, login: null };
-      const verified = await verifyGitHubToken(rawToken);
-      await saveSecret("github.oauth", verified.token);
-      githubDeviceSessions.clear();
-      return { connected: true, login: verified.login };
-    } catch (error) { return { connected: false, login: null, error: error.message }; }
-  });
-
-  handleTrusted("desktop:github-poll-login", async (_event, sessionId) => {
-    const session = githubDeviceSessions.get(String(sessionId ?? ""));
-    if (!session) return { status: "expired" };
-    if (Date.now() >= session.expiresAt) {
-      githubDeviceSessions.delete(String(sessionId));
-      return { status: "expired" };
-    }
-
-    if (Date.now() < session.nextPollAt) return { status: "pending", intervalSeconds: session.interval };
-    session.nextPollAt = Date.now() + session.interval * 1000;
-    let payload;
-    try {
-      payload = await deviceRequest("oauth/access_token", {
-        client_id: githubClientId, device_code: session.deviceCode,
-        grant_type: "urn:ietf:params:oauth:grant-type:device_code"
-      });
-    } catch (error) {
-      githubDeviceSessions.delete(String(sessionId));
-      return { status: "error", error: error.message };
-    }
-
-    if (payload.error === "authorization_pending") return { status: "pending" };
-    if (payload.error === "slow_down") {
-      session.interval += 5;
-      session.nextPollAt = Date.now() + session.interval * 1000;
-      return { status: "pending", intervalSeconds: session.interval };
-    }
-    if (payload.error) {
-      githubDeviceSessions.delete(String(sessionId));
-      return { status: "error", error: payload.error_description ?? payload.error };
-    }
-
-    if (!payload.access_token) return { status: "pending" };
-
-    await saveSecret("github.oauth", payload.access_token);
-    githubDeviceSessions.delete(String(sessionId));
-
-    const user = await githubRequest("/user");
-    return { status: "connected", login: user.login ?? null };
-  });
-
-  handleTrusted("desktop:github-disconnect", async () => {
-    await deleteSecret("github.oauth");
-    return { connected: false };
-  });
+  handleTrusted("desktop:github-start-login", async (_event, scope) => githubAuth.start(scope));
+  handleTrusted("desktop:github-connect-token", async () => githubAuth.connectToken());
+  handleTrusted("desktop:github-poll-login", async (_event, sessionId) => githubAuth.poll(sessionId));
+  handleTrusted("desktop:github-cancel-login", async (_event, sessionId) => { githubAuth.cancel(sessionId); return true; });
+  handleTrusted("desktop:github-disconnect", async () => githubAuth.disconnect());
 
   handleTrusted("desktop:github-list-repos", async () => {
     const repos = await githubRequest(
@@ -709,7 +661,7 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
   handleTrusted("desktop:runtime-status", async () => ({
     ...await backendRuntime.status(),
     backendLogPath: backendLogPath(),
-    githubClientConfigured: Boolean(githubClientId)
+    githubClientConfigured: githubAuth.configured
   }));
 
   app.on("second-instance", () => {
@@ -736,6 +688,7 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
     event.preventDefault();
     if (backendStopping) return;
     backendStopping = true;
+    githubAuth.cancel();
     for (const controller of chatStreams.values()) controller.abort();
     void Promise.all([backendRuntime.stop(), modelRuntime.stop()]).then(() => {
       backendStopped = true;

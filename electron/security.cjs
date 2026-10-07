@@ -15,6 +15,10 @@ function isInside(basePath, candidatePath) {
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
+function isTrustedMainFrame(event, webContents) {
+  return Boolean(webContents && event.sender === webContents && event.senderFrame && event.senderFrame === webContents.mainFrame);
+}
+
 function isTrustedRendererUrl(rawUrl, options) {
   const value = String(rawUrl ?? "");
   if (!value) return false;
@@ -36,5 +40,6 @@ function isTrustedRendererUrl(rawUrl, options) {
 module.exports = {
   isAllowedExternalUrl,
   isInside,
+  isTrustedMainFrame,
   isTrustedRendererUrl
 };

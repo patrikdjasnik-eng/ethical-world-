@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { markdownFilesToNotes, notesToMarkdownFiles } from "../lib/markdownConnector";
 import {
   disconnectNotion,
@@ -22,6 +22,20 @@ interface MarkdownConnection {
   label: string;
 }
 
+function waitForLoginPoll(signal: AbortSignal, milliseconds: number): Promise<boolean> {
+  if (signal.aborted) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const finish = (elapsed: boolean) => {
+      window.clearTimeout(timer);
+      signal.removeEventListener("abort", cancel);
+      resolve(elapsed);
+    };
+    const cancel = () => finish(false);
+    const timer = window.setTimeout(() => finish(true), milliseconds);
+    signal.addEventListener("abort", cancel, { once: true });
+  });
+}
+
 export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNotes }: ConnectorPanelProps) {
   const [exportAll, setExportAll] = useState(false);
   const selectExportNotes = useCallback((connectionId: string, provider: "local-markdown" | "github") => {
@@ -42,6 +56,21 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
   const [githubBusy, setGithubBusy] = useState<"login" | "repos" | "import" | "export" | null>(null);
   const [githubStatusText, setGithubStatusText] = useState("Kontroluju GitHub connector…");
   const [githubUserCode, setGithubUserCode] = useState<string | null>(null);
+  const [githubScope, setGithubScope] = useState<"public_repo" | "repo">("public_repo");
+  const githubAttempt = useRef<{ controller: AbortController; sessionId?: string } | null>(null);
+  const cancelGitHubLogin = useCallback((showStatus = true) => {
+    const attempt = githubAttempt.current;
+    if (!attempt) return;
+    githubAttempt.current = null;
+    attempt.controller.abort();
+    void window.ethicalDesktop?.githubCancelLogin(attempt.sessionId).catch(() => undefined);
+    if (showStatus) {
+      setGithubBusy(null);
+      setGithubUserCode(null);
+      setGithubStatusText("GitHub přihlášení zrušeno.");
+    }
+  }, []);
+  useEffect(() => () => cancelGitHubLogin(false), [cancelGitHubLogin]);
 
   const [notionConfigured, setNotionConfigured] = useState(false);
   const [notionConnected, setNotionConnected] = useState(false);
@@ -300,76 +329,83 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
   }, [connection, selectExportNotes, confirmExport]);
 
   const connectGitHubToken = useCallback(async () => {
-    if (!window.ethicalDesktop) return;
+    const desktop = window.ethicalDesktop;
+    if (!desktop || githubAttempt.current) return;
+    const attempt = { controller: new AbortController() };
+    githubAttempt.current = attempt;
     setGithubBusy("login");
     setGithubUserCode(null);
     try {
-      const connected = await window.ethicalDesktop.githubConnectToken();
+      const connected = await desktop.githubConnectToken();
+      if (attempt.controller.signal.aborted) return;
       if (connected.error) { setGithubStatusText(connected.error); return; }
       if (!connected.connected) { setGithubStatusText("Připojení tokenem zrušeno."); return; }
       setGithubLogin(connected.login);
       setGithubStatusText("GitHub připojený přes OS secure storage.");
       await loadGitHubRepos();
     } catch (error) {
-      setGithubStatusText(error instanceof Error ? error.message : "GitHub přihlášení tokenem selhalo.");
-    } finally { setGithubBusy(null); }
+      if (!attempt.controller.signal.aborted) setGithubStatusText(error instanceof Error ? error.message : "GitHub přihlášení tokenem selhalo.");
+    } finally {
+      if (githubAttempt.current === attempt) {
+        githubAttempt.current = null;
+        setGithubBusy(null);
+      }
+    }
   }, [loadGitHubRepos]);
 
   const connectGitHub = useCallback(async () => {
-    if (!window.ethicalDesktop) return;
+    const desktop = window.ethicalDesktop;
+    if (!desktop || githubAttempt.current) return;
+    const attempt: { controller: AbortController; sessionId?: string } = { controller: new AbortController() };
+    githubAttempt.current = attempt;
     setGithubBusy("login");
     setGithubUserCode(null);
-
     try {
-      const started = await window.ethicalDesktop.githubStartLogin();
+      const started = await desktop.githubStartLogin(githubScope);
+      if (attempt.controller.signal.aborted) return;
+      if (started.cancelled) { setGithubStatusText("GitHub přihlášení zrušeno."); return; }
       if (started.error) { setGithubStatusText(started.error); return; }
-
       if (!started.configured || !started.sessionId) {
         setGithubConfigured(false);
-        setGithubStatusText("Nejdřív nastav ETHICAL_GITHUB_CLIENT_ID a restartuj desktop dev.");
+        setGithubStatusText("Device OAuth není nakonfigurovaný. GitHub lze připojit tokenem.");
         return;
       }
-
-      setGithubConfigured(true);
+      attempt.sessionId = started.sessionId;
       setGithubUserCode(started.userCode ?? null);
-      setGithubStatusText(
-        "GitHub se otevřel v prohlížeči. Zadej kód " + (started.userCode ?? "") + "."
-      );
-
+      setGithubStatusText("Na github.com/login/device zadej pouze kód z tohoto okna. Kódy z cizích zpráv nepoužívej.");
       let intervalSeconds = Math.max(started.intervalSeconds ?? 5, 5);
       const expiresAt = started.expiresAt ?? Date.now() + 15 * 60 * 1000;
-
       while (Date.now() < expiresAt) {
-        await new Promise((resolve) => window.setTimeout(resolve, intervalSeconds * 1000));
-        const result = await window.ethicalDesktop.githubPollLogin(started.sessionId);
-
+        if (!await waitForLoginPoll(attempt.controller.signal, intervalSeconds * 1000)) return;
+        if (Date.now() >= expiresAt) break;
+        const result = await desktop.githubPollLogin(started.sessionId);
+        if (attempt.controller.signal.aborted) return;
         if (result.status === "pending") {
           intervalSeconds = Math.max(result.intervalSeconds ?? intervalSeconds, intervalSeconds);
           continue;
         }
-
         if (result.status === "connected") {
           setGithubLogin(result.login);
-          setGithubUserCode(null);
           setGithubStatusText("Připojeno" + (result.login ? " jako @" + result.login : "") + ".");
           await loadGitHubRepos();
           return;
         }
-
-        if (result.status === "error") {
-          setGithubStatusText(result.error ?? "GitHub autorizace selhala.");
-          return;
-        }
-
-        setGithubStatusText("GitHub autorizační kód vypršel. Spusť přihlášení znovu.");
-        return;
+        if (result.status === "error") { setGithubStatusText(result.error ?? "GitHub autorizace selhala."); return; }
+        if (result.status === "cancelled") { setGithubStatusText("GitHub přihlášení zrušeno."); return; }
+        break;
       }
+      setGithubStatusText("GitHub autorizační kód vypršel. Spusť přihlášení znovu.");
     } catch (error) {
-      setGithubStatusText(error instanceof Error ? error.message : "GitHub přihlášení selhalo.");
+      if (!attempt.controller.signal.aborted) setGithubStatusText(error instanceof Error ? error.message : "GitHub přihlášení selhalo.");
     } finally {
-      setGithubBusy(null);
+      if (githubAttempt.current === attempt) {
+        githubAttempt.current = null;
+        setGithubUserCode(null);
+        setGithubBusy(null);
+        void desktop.githubCancelLogin(attempt.sessionId).catch(() => undefined);
+      }
     }
-  }, [loadGitHubRepos]);
+  }, [githubScope, loadGitHubRepos]);
 
   const disconnectGitHub = useCallback(async () => {
     if (!window.ethicalDesktop) return;
@@ -492,12 +528,21 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
 
           {!githubLogin ? (
             <div className="connector-actions">
+              <label className="connector-select">
+                Přístup přes GitHub OAuth
+                <select value={githubScope} onChange={(event) => setGithubScope(event.target.value as "public_repo" | "repo")} disabled={githubBusy !== null}>
+                  <option value="public_repo">Veřejné repozitáře</option>
+                  <option value="repo">Veřejné a soukromé repozitáře</option>
+                </select>
+              </label>
+              {githubScope === "repo" && <small>Soukromé repozitáře vyžadují širší oprávnění. Pro přístup jen k vybraným repozitářům použij fine-grained token.</small>}
               <button type="button" onClick={() => void connectGitHub()} disabled={!githubConfigured || githubBusy !== null}>
                 {githubBusy === "login" ? "Čekám na GitHub…" : "Připojit GitHub"}
               </button>
               <button type="button" onClick={() => void connectGitHubToken()} disabled={githubBusy !== null}>
                 Připojit tokenem
               </button>
+              {githubBusy === "login" && <button type="button" onClick={() => cancelGitHubLogin()}>Zrušit přihlášení</button>}
               {githubUserCode && <code className="connector-code">{githubUserCode}</code>}
             </div>
           ) : (

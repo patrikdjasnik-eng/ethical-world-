@@ -24,5 +24,6 @@ test('PowerShell shortcut discovery preserves records through regex matching and
     assert.equal(explicitResult.status, 0, `${explicitResult.stdout}\n${explicitResult.stderr}`);
     return;
   }
+  if (process.env.GITHUB_ACTIONS === 'true') assert.fail('CI requires PowerShell; the shortcut regression must run.');
   t.skip('PowerShell is unavailable; run scripts/test-desktop-scripts.ps1 on Windows.');
 });

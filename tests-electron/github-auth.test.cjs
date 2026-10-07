@@ -20,6 +20,10 @@ test('device code responses must contain valid codes, expiry and the trusted Git
     return response(200, payload);
   });
   assert.equal(started.user_code, 'USER-CODE');
+  assert.equal(started.device_code, payload.device_code);
+  for (const bad of [{ user_code: '' }, { user_code: 'click evil.test' }, { device_code: 'x'.repeat(257) }, { interval: 1.5 }, { expires_in: 1801 }]) {
+    await assert.rejects(startDeviceLogin('fixture', async () => response(200, { ...payload, ...bad })));
+  }
   await assert.rejects(startDeviceLogin('fixture', async () => response(200, { ...payload, verification_uri: 'https://evil.test' })));
   await assert.rejects(startDeviceLogin('fixture', async () => response(200, { ...payload, device_code: undefined })));
   await assert.rejects(startDeviceLogin('fixture', async () => response(200, { ...payload, expires_in: NaN })));
@@ -45,6 +49,8 @@ test('manual tokens are validated with GitHub before they can be saved and are n
   await assert.rejects(verifyGitHubToken(token, async () => response(401, {})), (error) => !error.message.includes(token) && error.message.includes('neplatný'));
   await assert.rejects(verifyGitHubToken('header\ninjection', async () => assert.fail('No network request for invalid input')));
   await assert.rejects(verifyGitHubToken(token, async () => response(200, {})), /nevrátil/);
+  await assert.rejects(verifyGitHubToken(token, async () => response(200, null)), /nevrátil/);
+  await assert.rejects(verifyGitHubToken(token, async () => ({ ok: true, json: async () => { throw new Error(token); } })), (error) => !error.message.includes(token));
 });
 
 test('native token prompt is single-flight, isolated from the workspace and removes its IPC handler', async () => {

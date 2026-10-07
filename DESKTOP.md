@@ -273,8 +273,20 @@ Reference: [Ollama Windows](https://docs.ollama.com/windows), [Ollama Chat API](
 
 ## GitHub přihlášení v konektoru
 
-GitHub pro zabudovaný Client ID aktuálně vrací `device_flow_disabled` (HTTP 400). Device OAuth musí být zapnutý v registraci dané GitHub aplikace; změna kódu toto nastavení na GitHubu nezapne. Konektor nyní ukazuje konkrétní důvod namísto obecné IPC výjimky.
+Device OAuth používá pouze vlastní OAuth aplikaci s povoleným Device Flow. Zabudovaný sdílený Client ID se už nepoužívá. Bez konfigurace je dostupné **Připojit tokenem**. Fine-grained PAT vytvoř v GitHub Settings → Developer settings → Personal access tokens, vyber potřebné repozitáře a oprávnění Contents: Read and write, Metadata: Read. Token se zadává v izolovaném nativním okně, ověří přes `/user`, účet se nativně potvrdí a teprve potom se uloží přes OS secure storage.
 
-Alternativa **Připojit tokenem** otevře samostatné izolované okno. Fine-grained PAT vytvoř v GitHub Settings → Developer settings → Personal access tokens, vyber potřebné repozitáře a oprávnění Contents: Read and write, Metadata: Read. Token se nejprve ověří přes `/user`, pak se uloží přes existující OS secure storage. Hlavní workspace dostane pouze stav a login, token se do něj nevrací. Zrušení nebo neplatný token existující připojení nepřepíše. OAuth varianta zůstává dostupná pro vlastní `ETHICAL_GITHUB_CLIENT_ID` s aktivním Device Flow.
+Pro vlastní OAuth aplikaci nastav Client ID do prostředí a úplně restartuj desktop:
+
+```powershell
+# Pro tento PowerShell proces a aplikaci spuštěnou z něj:
+$env:ETHICAL_GITHUB_CLIENT_ID = "CLIENT_ID_VLASTNI_OAUTH_APLIKACE"
+npm.cmd run desktop:dev
+# Pro launcher spouštěný ikonou nastav uživatelskou proměnnou prostředí ve Windows
+# a odhlaš/přihlaš Windows, aby ji Explorer i launcher převzaly.
+```
+
+V GitHub Settings → Developer settings → OAuth Apps zapni **Enable Device Flow** pro danou aplikaci. Client secret se do desktopu nezadává. Výchozí volba je přístup k veřejným repozitářům; soukromé repozitáře vyžadují širší oprávnění a explicitní volbu. Nativní dialog ukáže Client ID a požadovaný přístup před otevřením `https://github.com/login/device`. Další nativní dialog zobrazí skutečný kód z GitHub odpovědi před otevřením prohlížeče. Na webu zkontroluj název vlastní aplikace a zadej právě tento kód. Kód z chatu, poznámky nebo cizí zprávy nepoužívej.
+
+Tlačítko **Zrušit přihlášení** zastaví flow i polling; zrušení/neplatný token dosavadní připojení nepřepíše. Po ověření následuje potvrzení účtu v nativním dialogu. Širší než schválená OAuth oprávnění se odmítnou; případný starý grant odeber v GitHub Settings → Applications a zkus nové přihlášení. Odpojení odstraňuje lokální credential, nikoli vzdálený grant. Existující token není touto aktualizací automaticky zúžený.
 
 Dokumentace GitHubu: [Device Flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow) a [Personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).

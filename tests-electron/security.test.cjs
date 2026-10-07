@@ -5,8 +5,18 @@ const { pathToFileURL } = require("node:url");
 const {
   isAllowedExternalUrl,
   isInside,
+  isTrustedMainFrame,
   isTrustedRendererUrl
 } = require("../electron/security.cjs");
+
+test("privileged IPC requires the owned main frame, including same-origin subframes", () => {
+  const webContents = { mainFrame: {} };
+  assert.equal(isTrustedMainFrame({ sender: webContents, senderFrame: webContents.mainFrame }, webContents), true);
+  assert.equal(isTrustedMainFrame({ sender: webContents, senderFrame: {} }, webContents), false);
+  assert.equal(isTrustedMainFrame({ sender: webContents }, webContents), false);
+  assert.equal(isTrustedMainFrame({ sender: {}, senderFrame: webContents.mainFrame }, webContents), false);
+  assert.equal(isTrustedMainFrame({}, undefined), false);
+});
 
 test("external URL policy only permits http(s)", () => {
   assert.equal(isAllowedExternalUrl("https://example.com/path"), true);
