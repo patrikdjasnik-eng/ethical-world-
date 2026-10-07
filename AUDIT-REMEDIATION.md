@@ -27,7 +27,7 @@ Základ: `dev/first-runnable`, commit `0403da0382cf8e4d4a7bb50b2eb02e9020b4b96e`
 
 ## Rozsah ověření a zbývající hranice
 
-Spouští se `npm run verify`, `python -m server.test_runner`, dependency advisory kontroly a reálný HTTP gateway test. Lokálně prošlo 109 frontend testů, 70 Electron/Node testů a 46 backend testů (225 celkem). Jeden další test zástupců vyžaduje PowerShell a na Linuxu je přeskočený. npm i pip-audit runtime/build dependencies hlásí nula známých zranitelností. Živý HTTPS smoke test v tomto prostředí narazil na DNS chybu `EAI_AGAIN`; skutečný Crawlee runner byl ověřen s řízeným síťovým vstupem. Hosted výsledky jsou uvedené v PR; žádný výsledek starého commitu se nepřenáší na nový commit.
+Spouští se `npm run verify`, `python -m server.test_runner`, dependency advisory kontroly a reálný HTTP gateway test. Lokálně prošlo 109 frontend testů, 71 Electron/Node testů a 46 backend testů (226 celkem). Jeden další test zástupců vyžaduje PowerShell a na Linuxu je přeskočený. Kontrola ikon porovnává všech sedm resource přímo v zabalených EXE; regrese odmítne skutečný placeholder, chybějící velikost i změněný obrazový bajt. npm i pip-audit runtime/build dependencies hlásí nula známých zranitelností. Živý HTTPS smoke test v tomto prostředí narazil na DNS chybu `EAI_AGAIN`; skutečný Crawlee runner byl ověřen s řízeným síťovým vstupem. Hosted výsledky jsou uvedené v PR; žádný výsledek starého commitu se nepřenáší na nový commit.
 
 Naměřený syntetický tagový graf (2 000 notes, přibližně 6 000 znaků/note) klesl z 1 999 000 hran a přibližně 5 431 ms na 0 related hran a 74 ms. První chunk HTTP streamu při fixture odpovědi trvající 1 s dorazil přibližně za 10 ms. Jde o měření tohoto prostředí, ne benchmark uživatelského PC.
 
