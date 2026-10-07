@@ -1,538 +1,127 @@
 # Deep Audit
 
-![Audit](https://img.shields.io/badge/audit-2026--10--04-7c3aed)
+![Audit](https://img.shields.io/badge/audit-2026--10--07-7c3aed)
 ![Scope](https://img.shields.io/badge/scope-bugs_%2B_security-334155)
 ![Branch](https://img.shields.io/badge/branch-dev%2Ffirst--runnable-6f42c1)
 
-Audit je statická kontrola implementace, trust boundaries, datové integrity, AI action flow, Electron desktop vrstvy, FastAPI backendu, konektorů a testů.
+Aktualizovaný stav auditu k 7. 10. 2026 pro větev `dev/first-runnable`. Základem je aplikační commit [`b292894`](https://github.com/patrikdjasnik-eng/ethical-world-/commit/b292894fd7822dbcc1358f681c6491ed27e8fdf7), kontrola současného kódu a poslední lokální validace. Tato aktualizace mění dokumentaci, nikoli aplikaci. [Původní report z 4. 10.](https://github.com/patrikdjasnik-eng/ethical-world-/blob/b292894fd7822dbcc1358f681c6491ed27e8fdf7/AUDIT.md) zůstává dostupný jako historický snapshot.
 
-GitHub Actions jsou v době auditu blokované mimo samotné testovací kroky: frontend i backend job končí bez jediného `step` a bez logu. Proto zde není tvrzení, že aktuální HEAD prošel runnerem. Repo aktuálně obsahuje 44 explicitních test cases napříč Vitest a Node test runnerem.
+Audit zahrnuje Electron/IPC, identitu FastAPI runtime, účty a sessions, AI request → model → návrh → zápis, Markdown/Mermaid preview, konektory, Carrot integritu, launcher a závislosti. Rozlišuje opravu doloženou kódem a regresí od nativního Windows/modelového retestu. Repo je veřejné; Git HTTPS clone/fetch nevyžaduje GitHub přihlášení.
 
-## Opraveno během auditu
+GitHub CI/CD není podmínkou předání. Jeho aktuální stav se v tomto dokumentačním kroku neověřoval; níže uvedené výsledky jsou lokální. Čistá instalace na jiném Windows PC, úplný packaged renderer E2E a odolnost konkrétního modelu nejsou uzavřené.
 
-### P0 — Electron navigation + privileged preload bridge
+## Stav původních nálezů
 
-Původní stav:
+Priorita odpovídá původnímu reportu; sloupec stav popisuje současnou implementaci.
 
-- hlavní BrowserWindow měl `contextIsolation`, sandbox a vypnutý Node integration;
-- preload ale vystavoval privilegované API pro sessions, GitHub, Markdown filesystem a Carrot;
-- `setWindowOpenHandler` řešil pouze nová okna;
-- nebyl `will-navigate` guard;
-- IPC handlery nekontrolovaly URL/origin senderu.
+| Původní nález | Stav k 7. 10. | Oprava a důkaz | Co zbývá |
+| --- | --- | --- | --- |
+| P0: navigace k cizímu obsahu s privilegovaným preloadem | Opraveno v kódu a regresích | `electron/security.cjs`, trusted IPC v `main.cjs`; povolený renderer origin/dist, blokování navigace/webview a nevhodných external URL; `tests-electron/security.test.cjs` | Nativní packaged navigace a IPC E2E |
+| P1: Carrot neověřuje skutečný obsah | Opraveno | Přepočet snapshot/commit hash a parent chain v `src/lib/carrot.ts`; `tests/carrot.test.ts` | Vícezařízení a rotace klíčů nejsou dokončený produktový protokol |
+| P1: Carrot důvěřuje klíči z libovolného commitu | Opraveno pro desktop | Trust anchor, trusted public keys a potvrzená hlava mimo IndexedDB v `electron/secure-store.cjs`; regrese cizího signeru a rollbacku v `hardening.test.cjs` | Webová varianta má unsigned historii; týmový enrollment/revocation a rotace zůstávají otevřené |
+| P1: anonymní server na 8787 je považovaný za backend | Opraveno | Náhodná capability, challenge/HMAC proof a gateway přes Electron main; fake backend nesmí dostat capability ani heslo | Packaged test na Windows s cizím procesem a následným restartem |
+| P1: first-use owner bootstrap race | Opraveno pro runtime boundary | Capability gate, single-use bootstrap pod lockem; neoprávněný klient a druhý bootstrap odmítnuty v `server/tests/test_security.py` | Nenahrazuje izolaci před kompromitovaným OS účtem |
+| P1: packaged `file://` renderer ↔ FastAPI CORS | Komunikační cesta opravena; nativní retest otevřený | Omezené IPC/main-process gateway místo přímého renderer fetch; `Origin: null` zůstává odmítnutý; reálný HTTP transport test | Úplný packaged auth/chat E2E, bez vypnutí `webSecurity` |
+| P1: symlink/junction escape lokálního Markdown writeru | Opraveno v kódu a regresi | `realpath`/`lstat`, odmítnutí symlinků, neplatných segmentů a reserved names; opakovaná kontrola před zápisem | Junction větev regresního testu dosud nebyla spuštěna na skutečných Windows |
+| P1: poslední edit se ztratí při rychlém přepnutí poznámky | Opraveno pro běžný flow | Snapshot write queue, flush před navazujícími změnami a viditelná chyba zápisu; skutečný App/IndexedDB test edit → rychlý switch → remount | Nativní zavření při probíhajícím zápisu a obnovovací scénář po pádu; žádný příslib zápisu při násilném ukončení OS |
+| P1: connector export přepíše cizí změny / celý vault | Částečně uzavřeno | Defaultně jen notes daného konektoru, explicitní Export all; local preflight/hash/backup, GitHub blob baseline + non-force branch update, Notion kontrola baseline | Jednotný dry-run/diff preview; Notion read → replace není atomická operace |
+| P1: nezamčený dependency graph | Opraveno pro npm a runtime Python | `package-lock.json`, `npm ci`, `server/requirements.lock.txt`; Windows marker pro uvloop | Build requirements pro PyInstaller jsou rozsahové, lock nemá Python hash enforcement; průběžná advisory kontrola |
+| P1: logout/změna hesla ponechá jiné sessions | Opraveno | Serverová revokace a kontrola token hash; regrese logout/password change | Oddělení vaultů mezi lokálními účty není implementované |
+| P2: Notion callback HTML injection | Opraveno v kódu | HTML escaping a callback CSP `default-src 'none'` | Reálný OAuth callback při integračním retestu |
+| P2: chybí CSP, remote Markdown obrázky se načítají samy | Opraveno; URL souhlas dále zpřesněný | CSP ve Vite HTML transformu, `RemoteImage` vyžaduje kliknutí pro přesnou HTTPS URL včetně query; `tests/remoteImage.test.tsx` | Kliknutí stále odešle celou URL cílovému serveru |
+| P2: libovolná provider URL / metadata SSRF | Opraveno pro provider proxy | URL/DNS policy, loopback nebo povolený HTTPS host, IP pinning, Host/TLS identity, zákaz redirectů a response limits; backend regrese | Nové providery přidávat vědomě do allowlistu; důvěryhodnost jejich odpovědí není odvozena z HTTPS |
+| P2: graph znovu tokenizuje každý pár poznámek | Částečně opraveno | Features se předpočítají jednou per note; deterministické graph regrese | Párové porovnání zůstává O(n²), bez workeru/top-K a doloženého budgetu velkého vaultu |
+| P2: závislý batch používá starý snapshot složek | Opraveno pro pořadí a aktuální stav | App executor používá aktuální refs; test create_folder → create_note → rename/move/task/link proti IndexedDB | Batch není jedna atomická transakce; případná dřívější úspěšná změna se automaticky nevrací |
+| P2: auth nemá rate limit | Základní ochrana implementovaná | Capability před auth, limit 40 auth požadavků/minutu per client IP, scrypt mimo event loop; chat má limit dvou souběžných requestů | Regrese auth limitu a jeho recovery, silnější per-account policy podle potřeby |
+| P3: sessions se nečistí | Opraveno při vytváření session | Mazání expirovaných řádků a omezení historie sessions per účet v `_create_session()` | Není periodický cleanup bez dalšího přihlášení |
+| P3: Notion OAuth state nemá TTL/limit | Opraveno v kódu, expiry regresi | 10min TTL, cleanup při startu flow, nejvýše 5 otevřených flow per účet; expired state odmítnutý před sítí | Retest limitu a cleanup kombinací |
+| P2: Notion encryption key leží vedle dat | Otevřeno | Fernet chrání samostatně uniklou DB, fallback klíč zůstává v datovém prostoru | Migrace master key do OS key store a bezpečný unwrap pro backend |
+| P3: `bootstrap_admin_from_env` vytvoří běžný účet | Název zůstává zavádějící | Implementace výslovně vytváří běžný účet, privilegovaný owner má samostatný bootstrap | Přejmenovat funkci/env dokumentaci; nejde o grant admin práv |
 
-Riziko:
+## Nové opravy: Máša a prompt injection
 
-Importovaná Markdown poznámka mohla obsahovat běžný externí odkaz. Navigace stejného BrowserWindow na cizí stránku by mohla ponechat preload bridge dostupný v novém dokumentu. Cizí obsah by tím získal cestu k privilegovaným IPC operacím.
+### Oddělení instrukcí, kontextu a oprávnění
 
-Hotový fix:
+Dříve se obsah poznámek, index i názvy složek připojovaly přímo do systémové zprávy. Nyní systém obsahuje pravidla/protokol a vybraný vault jde jako nedůvěryhodný JSON do samostatné user zprávy před konverzací. Poslední zpráva musí být user zadání; klient nesmí vložit system roli. Známé ChatML/Llama/INST tokeny se v datech i historii převádějí na doslovný text. UI uvítání se modelu neposílá jako dřívější modelová odpověď.
 
-- každá top-level navigace se blokuje přes `will-navigate`;
-- bezpečné `http/https` URL se otevírají mimo aplikaci;
-- zakázané protokoly jako `javascript:`, `data:` a `file:` se neposílají do `shell.openExternal`;
-- nové window requests jsou vždy denied;
-- webview attach je denied;
-- každý IPC handler jde přes `handleTrusted()`;
-- IPC sender musí být aktuální Ethical World BrowserWindow a jeho URL musí odpovídat povolenému dev originu nebo souboru uvnitř packaged `dist`;
-- přidán samostatný Node security test suite.
+Tato struktura sama nezaručuje odolnost modelu proti přirozeným podvrženým příkazům. Rozhodující ochrana zápisu je mimo LLM:
 
-### P1 — Carrot integrity
+- READ nepřijímá akce; ASSIST vyžaduje konkrétní potvrzení.
+- AGENT automaticky povolí jen `create_note` v přesné složce z UI při prvním zadání bez existujících poznámek, aktivní note a historie. Izolovaný request nepřidává nesouvisející folder metadata.
+- S vaultem nebo historií čekají všechny změny na potvrzení. Modelové `user_confirmed`, údajné system role ani scope v poznámce neudělují práva.
+- Platnost grantu, aktuální režim, typ akce a přesná cílová složka se kontrolují znovu před automatickým provedením. Parser přijímá omezené akce/argumenty; LLM nemá shell, mazání ani konektorové či síťové tools.
+- Úplný přepis existující note vyžaduje úplný modelový vstup a nezměněný snapshot cíle; provedení má lokální audit.
 
-Původní stav ověřoval Ed25519 podpis nad uloženým `snapshotHash`, ale znovu nepřepočítával hash reálného `title/folder/content`.
+Důkaz: `server/tests/test_chat_safety.py`, `tests/agentPolicy.test.ts`, `tests/agentTools.test.ts`, `tests/aiPanel.test.tsx` a skutečný request přes klient/gateway v `tests/chatTransport.test.tsx`. Vybrané adversarial případy neprokazují procentuální odolnost modelu ani ochranu před kompromitací OS/rendereru.
 
-Hotový fix:
+### Opis interního promptu
 
-- recompute snapshot hash;
-- recompute commit hash;
-- kontrola parent ID + parent commit hash;
-- propagace rozbitého parent chainu;
-- tamper testy;
-- ověření celé načtené historie, ne jen UI výřezu.
+Desktop odpověď obsahovala opis interních instrukcí a kontextu. Backend nyní odmítá alespoň 20 souvislých normalizovaných slov z aktuálního pravidlového promptu, včetně varianty Jsi/Jsem Máša. Nehledá kopie běžného obsahu vaultu. Kontrola platí pro obě dokončené provider odpovědi a Ollama stream. Podezřelý úvod může krátce zadržet; po detekci zavře provider stream, nevrátí final ani návrh k provedení. UI obnoví draft a odmítnutý text nepřidá do historie.
 
-### P1 — session revocation
+Guard nepokrývá parafráze/kódované kopie a může odmítnout dlouhou legitimní citaci interních pravidel. Při opisu po jiném úvodu může být část textu dočasně vidět. Není to autorizační hranice; systémový prompt nesmí být úložiště secretů. Žádný dodatečný modelový call či skrytý retry se nepřidává.
 
-Původní stav:
+Důkaz: stream po malých chunkech, echo po úvodu, dokončená HTTP 502 odpověď, neprovedení akcí, zachování legitimního vysvětlení a uzavření provider iteratoru. Živý smoke přes skutečný FastAPI, ověřený Electron gateway a HTTP fixture ověřil také uzavření provider TCP/HTTP spojení před dokončením odpovědi. Skutečná šablona `masa-cyber` se v tomto prostředí netestovala.
 
-- logout smazal session token pouze z renderer storage;
-- serverová session zůstala platná do expirace;
-- změna hesla nerušila ostatní session tokeny;
-- starší bootstrap session mohla teoreticky přežít změnu hesla.
+### Souhlas se vzdáleným obrázkem
 
-Hotový fix:
+Původní boolean souhlas v `RemoteImage` přetrval při změně `src`. Nový či podvržený Markdown tak mohl využít starší kliknutí pro jiný síťový cíl. Souhlas je nyní vázaný na přesnou URL včetně query. Změna URL znovu zobrazí tlačítko; ne-HTTPS schemes se nenačítají.
 
-- nový serverový `/api/auth/logout`;
-- logout revokuje hash session v SQLite;
-- změna hesla revokuje všechny ostatní sessions uživatele a zachová pouze session, která změnu právě autorizovala.
+Důkaz: DOM regrese schválená URL → jiná query s potenciálním obsahem note → žádný obrázek před novým kliknutím. Potvrzená URL se stále odešle cílovému serveru; aplikace nevydává souhlas s jednou URL za souhlas se všemi dalšími.
 
-### P2 — Notion OAuth callback HTML
+## Backend, launcher a odezva
 
-Workspace name a error text se vkládaly přímo do HTML callback stránky.
+`backend-manager.cjs` sdílí souběžný start, ověřuje identitu, podporuje retry po chybě a restart vlastního ukončeného procesu. Bundled cold start má 45s limit, dev 15s. Okno se otevře bez čekání na backend; panel, retry a zpráva se připojí ke stejné přípravě. Již odeslaný POST se automaticky neopakuje. Neověřený backend se nepřebírá a ukončuje se pouze vlastně spuštěný proces. Existující podporovanou Ollamu aplikace využije, ale nepřebírá její životní cyklus ani ji při zavření neukončuje.
 
-Hotový fix:
+Foreground příprava modelu spustí Ollamu a zkontroluje přesný nainstalovaný model bez prázdné generate warmup operace před chatem. Neprovádí download nebo automatickou výměnu modelu. Startup diagnostika je omezená a rediguje capability/známé secret hodnoty; neukládá chat/vault obsah.
 
-- HTML escaping;
-- callback odpověď dostává `Content-Security-Policy: default-src 'none'`.
+Git launcher používá čistý checkout, fast-forward aktualizaci, časový limit kontroly a instalační receipt. Nezměněný commit nebalí znovu. Dirty/divergent checkout zachová, při offline fetch nebo neúspěšném buildu použije předchozí instalaci, pokud existuje. Chyba ani neověřená instalace neoznačí commit za nainstalovaný. Zamykání balení a opravy shortcut discovery/PowerShell 5.1 jsou součástí kódu a helper regresí; Squirrel/native Windows flow zůstává k retestu.
 
-### Funkční dokončení
+Dvě doložená desktop měření z konverzace:
 
-- Mermaid už není pouze source code: Preview má skutečný lazy-loaded lokální renderer v strict režimu;
-- Mermaid parse error má bezpečný code fallback;
-- Máša panel po schování neztrácí session;
-- batch approvals mají `Použít vše`;
-- ROADMAP, STRUCTURE, SECURITY, AI, CARROT a README byly srovnané s reálnou implementací.
+| Metrika | Starší odpověď | Pozdější odpověď |
+| --- | --- | --- |
+| První viditelný text od submitu | 48,12 s | 1,08 s |
+| Příprava služeb | Neměřeno | 0,39 s |
+| Load / prompt modelu | 11,59 / 10,72 s | 0,02 / 0,10 s |
+| Round trip / výstupní tokeny | 48,75 s / 18 | 26,88 s / 768 |
+| Rychlost generování providera | 28,5 tok/s | 29,8 tok/s |
 
----
+Pozdější model využil připravené váhy, ale generoval chybný dlouhý výpis instrukcí. Nejde o párový benchmark stejného zadání a studeného stavu; nelze z něj počítat obecné procentuální zrychlení ani správnost odpovědí. Poslední ochrana promptu potřebuje vlastní desktop retest.
 
-## Otevřené nálezy
+## Otevřená rizika a další práce
 
-### P1 — Carrot podpis zatím nemá trusted signer binding
+| Priorita | Zbývající problém | Konkrétní další krok |
+| --- | --- | --- |
+| P1: ověření distribuované aplikace | Lokální regrese a HTTP smoke nenahrazují packaged Windows renderer E2E | Launcher update, dva starty, backend restart, owner/session flow, chat/stream/stop, navigace/IPC, junction a save při zavření |
+| P1: konkrétní LLM a nepřímá injection | Model může stále následovat podvržený text a navrhnout chybný obsah; zápis s kontextem chrání potvrzení | Reálný `masa-cyber` corpus: benigní české dotazy, falešné role/souhlasy v note/metadatech/historii, kódování/parafráze; měřit kvalitu i false positives guardu |
+| P1: lokální data nejsou izolované podle účtu | IndexedDB vault sdílí profil; logout není šifrované uzamčení poznámek | Navrhnout per-account datové oddělení/lock, obnovu a migraci; oddělit tento požadavek od runtime capability |
+| P2: Notion key storage a export race | Klíč je v datovém adresáři, kontrola obsahu před replace není atomická | OS key store; explicitní diff/backup a dokumentovaná conflict policy |
+| P2: supply chain a build prostředí | Runtime locks existují, PyInstaller build požadavky nejsou úplně uzamčené; advisory stav se průběžně mění | Uzamknout build toolchain, Python hashes; pravidelně opakovat npm/pip advisory audit |
+| P2: konfigurace CI Node verze | `.github/workflows/ci.yml` používá Node 20; nainstalovaný Forge CLI 8.0.1 deklaruje Node >=22.13.0 | Sjednotit workflow s dokumentovaným Node 24 LTS; jde o staticky zjištěný nesoulad, nikoli tvrzení o výsledku aktuálního CI běhu |
+| P2: velký vault a export UX | Graph pořád porovnává všechny páry; chybí jednotný export preview a atomicita batchu | 100/500/1000-note benchmark, worker/top-K; create/update/conflict manifest a zřetelný partial success |
+| P2: GitHub connector scope | Device OAuth požaduje širší `repo` scope; veřejná viditelnost Ethical World ho sama nezúží | GitHub App/minimální Contents permissions; přístupy nastavovat podle konkrétního připojeného repa |
+| P3: přesnost názvů a dlouhodobá důvěra | Bootstrap admin je běžný účet; Carrot týmová rotace/enrollment nejsou hotové | Srovnat názvy s rolemi; navrhnout explicitní trusted-key lifecycle a jeho regrese |
 
-Aktuální verifier správně přepočítává obsah, commit hash i parent chain. Ed25519 podpis ale ověřuje proti `publicKey`, který je uložený přímo v daném Carrot commitu.
+## Doložená validace
 
-To znamená, že útočník s možností přepsat IndexedDB může teoreticky:
-
-1. změnit obsah historie;
-2. přepočítat snapshot/commit hash;
-3. vygenerovat vlastní Ed25519 keypair;
-4. podepsat falešný payload;
-5. uložit do commitu svůj `publicKey` a `keyId`.
-
-Kryptografická verifikace potom může projít, protože chybí nezávislý trust anchor, který řekne, kterému signer klíči aplikace skutečně důvěřuje.
-
-Doporučený fix:
-
-- Electron main drží registry důvěryhodných Carrot public keys / key IDs;
-- lokální device key je trust anchor v OS `safeStorage`;
-- commit ideálně odkazuje na `keyId`, ne na libovolný self-declared key jako jediný zdroj důvěry;
-- verifier nejdřív ověří, že `keyId + publicKey` odpovídá známé identitě, teprve potom podpis;
-- budoucí team režim musí mít explicitní key enrollment/revocation;
-- key rotation musí zachovat předchozí veřejné klíče jako read-only trust history.
-
-Testy:
-
-- commit podepsaný cizím, nově vloženým keypair musí selhat;
-- známý `keyId` + jiný public key musí selhat;
-- neznámý `keyId` musí být `untrusted`, ne `verified`;
-- legitimní lokální device key musí projít;
-- po key rotation se staré legitimní commity musí dát ověřit proti uložené trust history.
-
-### P1 — backend na portu 8787 nemá runtime identity
-
-Electron považuje backend za důvěryhodný, pokud `http://127.0.0.1:8787/health` pouze vrátí úspěšný HTTP status.
-
-Pravděpodobný útok:
-
-1. cizí lokální proces obsadí port 8787 dřív než Ethical World;
-2. vrátí falešný health response;
-3. desktop označí runtime jako `external`;
-4. renderer mu následně posílá auth requesty, hesla, session tokeny, vault context nebo AI API key.
-
-Doporučený fix:
-
-- při startu Electronu generovat náhodný runtime capability token;
-- předat jej pouze vlastně spuštěnému backend procesu přes environment/pipe;
-- health handshake musí challenge ověřit;
-- renderer-backend requesty musí mít runtime capability nebo musí jít přes main-process proxy;
-- v packaged režimu nedůvěřovat anonymnímu procesu pouze proto, že odpovídá na portu.
-
-### P1 — owner bootstrap má first-use race
-
-`POST /api/auth/bootstrap-owner` je před prvním nastavením hesla dostupný bez autentizace na loopback backendu.
-
-Po dnešním session fixu starý bootstrap token nepřežije změnu hesla, ale jiný lokální proces stále může bootstrap získat jako první a pokusit se owner účet převzít.
-
-Doporučený fix:
-
-- desktop-only one-time bootstrap capability;
-- capability držet v Electron main procesu, ne v renderer storage;
-- endpoint bez capability vrací 403;
-- capability po prvním úspěšném použití okamžitě zneplatnit.
-
-### P1 — packaged renderer ↔ FastAPI CORS je vysoce pravděpodobný integrační bug
-
-Packaged Electron načítá `dist/index.html` přes `file://`.
-
-FastAPI standardně povoluje pouze:
-
-- `http://localhost:5173`;
-- `http://127.0.0.1:5173`.
-
-File documents mají v moderních browserech typicky opaque origin serializovaný jako `null`. Přidat CORS allowlist `null` není bezpečné řešení.
-
-Proto je potřeba reálný packaged E2E test auth/health/chat. Backend spawn test sám nestačí.
-
-Doporučený fix:
-
-- preferovat vlastní secure app protocol nebo main-process API proxy;
-- nepoužívat `Access-Control-Allow-Origin: null`;
-- packaged renderer nesmí vypínat `webSecurity`.
-
-### P1 — local Markdown writer má symlink/junction escape gap
-
-`resolveInsideRoot()` kontroluje lexikální path traversal, ale write flow nekontroluje, zda existující parent část cesty není symlink/junction vedoucí mimo approved root.
-
-Příklad:
-
-```text
-approved-root/
-  escape -> C:\Users\...\outside
-```
-
-Write na `escape/note.md` může projít lexikální kontrolou, ale filesystem ho může fyzicky zapsat mimo root.
-
-Doporučený fix:
-
-- canonical/realpath approved root;
-- před zápisem projít existující parent segmenty přes `lstat`;
-- reject symlink/reparse-point chain;
-- před finálním write znovu ověřit canonical parent path;
-- Windows test musí zahrnout junction.
-
-### P1 — autosave může ztratit poslední edit při rychlém switchi
-
-Aktivní note se ukládá přes 450ms timeout navázaný na `activeNote`.
-
-Pokud uživatel:
-
-1. napíše změnu;
-2. přepne note dřív než timeout doběhne;
-3. zavře aplikaci bez návratu k původní note;
-
-cleanup timeout zruší a stará note nemusí být zapsaná do IndexedDB. Stejný problém může přeskočit Carrot snapshot.
-
-Doporučený fix:
-
-- persistence queue per note ID;
-- flush před změnou active note;
-- flush při app/window close;
-- Carrot commit spustit až po úspěšném persistence flush.
-
-### P1 — connector export nemá conflict/diff guard
-
-Local Markdown a GitHub export mohou zapisovat přes existující Markdown path. Notion používá `replace_content`.
-
-Navíc GitHub/local export nyní mapuje celý vault, nejen notes patřící danému connectoru.
-
-Riziko je spíš data integrity než RCE:
-
-- nechtěný overwrite dokumentace;
-- export interních notes do špatného repa;
-- ztráta externích změn;
-- replace celého Notion page bez diff preview.
-
-Doporučený fix:
-
-- defaultně exportovat pouze notes daného connectoru;
-- `Export all` jako explicitní volba;
-- před zápisem vytvořit dry-run manifest;
-- classify create/update/conflict;
-- conflict vyžaduje explicitní potvrzení.
-
-### P1 — dependency graph není reprodukovatelně zamčený
-
-Repo nemá:
-
-- `package-lock.json`;
-- `pnpm-lock.yaml`;
-- `yarn.lock`.
-
-Node dependency install tedy používá rozsahy z `package.json`. Python requirements jsou také rozsahové.
-
-Dopad:
-
-- dva buildy nemusí dostat stejné transitive dependencies;
-- CI nemůže používat `npm ci`;
-- supply-chain audit nemá stabilní dependency snapshot.
-
-Doporučený fix:
-
-- vytvořit a commitnout npm lock;
-- přejít v CI na `npm ci`;
-- zvážit Python constraints/lock;
-- přidat `npm audit`/OSV a `pip-audit` jako oddělený security job.
-
-### P2 — chybí CSP a Markdown umí remote image fetch
-
-`index.html` nemá Content Security Policy.
-
-React Markdown může zobrazit remote images z importovaných notes. To znamená, že otevření nedůvěryhodné Markdown poznámky může udělat síťový request na cizí host a prozradit například IP/čas otevření.
-
-Doporučený fix:
-
-- explicitní CSP pro desktop/web build;
-- custom Markdown image renderer;
-- remote images defaultně blokovat nebo načítat až po potvrzení;
-- případně allowlist pro známé badge/image originy.
-
-### P2 — provider baseUrl je libovolný HTTP target bez capability gate
-
-FastAPI přijímá `baseUrl` z rendereru a backend přes něj provádí HTTP request.
-
-Je to částečně záměr kvůli Ollama/OpenAI-compatible remote endpointům, ale chybí bezpečnostní policy:
-
-- validace schématu;
-- explicitní remote-provider režim;
-- ochrana proti link-local/cloud metadata targets;
-- runtime authentication backendu.
-
-Doporučený fix:
-
-- pouze `http/https`;
-- loopback povolen automaticky;
-- remote host vyžaduje explicitní user opt-in;
-- link-local/metadata IP rozsahy blokovat defaultně;
-- request timeout/size limit a circuit breaker.
-
-### P2 — Graph related edges mají O(n²) hot path
-
-`buildKnowledgeGraph()` porovnává každý pár notes a uvnitř každého páru znovu tokenizuje title a parsuje hashtags.
-
-U stovek až tisíců notes může UI zamrznout.
-
-Doporučený fix:
-
-- precompute token/tag feature map jednou per note;
-- worker pro velké vaulty;
-- related-edge limit/top-K;
-- performance budget test pro 100/500/1000 notes.
-
-### P2 — batch `Použít vše` neumí závislé akce
-
-`applyAllActions()` používá stejnou callback closure pro celý batch.
-
-Příklad:
-
-```text
-1. create_folder Cyber/New
-2. create_note folder=Cyber/New
-```
-
-Druhá akce může stále kontrolovat starý `folders` snapshot a selhat.
-
-Doporučený fix:
-
-- doménový action executor nad aktuálním mutable/transactional state;
-- nebo dependency graph batch actions;
-- po každém kroku aktualizovat working state před validací dalšího.
-
-### P2 — login nemá abuse/rate-limit guard
-
-`/api/auth/login` používá správně scrypt + constant-time compare, ale endpoint nemá rate limit ani krátkodobý lockout/backoff.
-
-Protože je backend loopback-only, není to internet-facing brute-force problém. Pořád ale platí:
-
-- jiný lokální proces může zkoušet hesla neomezeně;
-- scrypt je záměrně drahý, takže rychlé opakované pokusy mohou zároveň vytvořit CPU DoS;
-- endpoint nemá per-account cooldown ani globální concurrency limit.
-
-Doporučený fix:
-
-- in-memory token bucket / exponential backoff per normalizovaný e-mail;
-- malý globální limit souběžných scrypt loginů;
-- generická chybová hláška zůstává stejná;
-- úspěšný login resetuje backoff;
-- nevytvářet permanentní account lockout, který by šel zneužít k DoS.
-
-### P3 — sessions se po expiraci průběžně nečistí
-
-Expirace je kontrolovaná při lookupu, takže starý token přestane fungovat. Expired rows ale mohou zůstávat v SQLite neomezeně dlouho.
-
-Fix:
-
-- při startu a občas při login/logout smazat `expires_at <= now`;
-- případně limitovat počet aktivních sessions per user/device.
-
-### P2 — Notion encryption key je lokální file vedle dat
-
-Fernet payload v SQLite je šifrovaný, ale fallback `connector.key` je ve stejném user data prostoru.
-
-To chrání před izolovaným únikem DB, ale ne před útočníkem se čtením celého user data adresáře.
-
-Doporučený fix pro Windows desktop:
-
-- master key přes Electron `safeStorage` / DPAPI;
-- backend dostane krátkodobý unwrap key/capability od main procesu;
-- plaintext master key neukládat vedle DB.
-
-### P3 — Notion OAuth states nemají TTL/limit
-
-`_oauth_states` je in-memory map bez expirace. Nedokončené login flows zůstávají do restartu backendu.
-
-Fix:
-
-- uložit `created_at`;
-- 10–15 minut TTL;
-- limit aktivních states per user;
-- cleanup při start/status.
-
-### P3 — `bootstrap_admin_from_env` nevytváří admin role
-
-Funkce se jmenuje bootstrap admin, ale volá `register_user()`, který vždy zapisuje roli `user`.
-
-Buď funkci přejmenovat, nebo explicitně implementovat očekávanou privileged roli. Aktuálně je název zavádějící.
-
----
-
-## Další testovací balík
-
-Doporučený další balík není jedna obří E2E sada. Rozdělit jej na rychlé vrstvy.
-
-### Tier A — každý push
-
-#### Vitest
-
-Nové soubory:
-
-- `tests/autosave.test.tsx`
-  - edit → switch <450ms → data se neztratí;
-  - close/flush;
-  - Carrot vzniká po persistenci.
-
-- `tests/agentWorkflow.test.tsx`
-  - dependent batch `create_folder → create_note`;
-  - partial batch failure;
-  - `Použít vše` zachová pořadí;
-  - stale note ID;
-  - stale folder.
-
-- `tests/markdownConnector.security.test.ts`
-  - Windows reserved names;
-  - duplicate paths;
-  - traversal normalization;
-  - source-only export policy;
-  - conflict manifest.
-
-- `tests/mermaid.security.test.tsx`
-  - malformed diagram fallback;
-  - huge input;
-  - click/init directive policy;
-  - renderer nesmí spadnout.
-
-- `tests/graph.performance.test.ts`
-  - deterministic result;
-  - 100/500/1000 synthetic notes;
-  - budget pro related-edge build.
-
-#### Carrot trust-anchor tests
-
-Rozšířit `tests/carrot.test.ts` a Electron security testy o:
-
-- forged commit s vlastním útočníkovým Ed25519 keypair;
-- mismatch `keyId/publicKey`;
-- unknown signer;
-- trusted local signer;
-- key rotation + ověření historického signer key;
-- rozlišení `integrity valid` vs `signature valid` vs `signer trusted`.
-
-#### Node test runner
-
-Rozšířit `tests-electron/security.test.cjs`:
-
-- trusted IPC URL;
-- remote URL reject;
-- `javascript/data/file` external URL reject;
-- packaged dist containment;
-- navigation policy;
-- fake external renderer nesmí mít IPC capability.
-
-Nový:
-
-- `tests-electron/markdown-paths.test.cjs`
-  - symlink/junction escape;
-  - canonical root;
-  - write target outside root = reject.
-
-### Tier B — FastAPI security integration
-
-Přidat `pytest` a izolovaný temp data dir.
-
-`server/tests/test_auth_security.py`
-
-- password hash není plaintext;
-- session DB obsahuje pouze hash;
-- logout revokuje token;
-- password change ruší jiné sessions;
-- bootstrap je single-use/capability gated po implementaci;
-- expired token = 401;
-- malformed bearer = 401;
-- opakované chybné loginy aktivují backoff/rate limit;
-- úspěšný login backoff resetuje;
-- expired session cleanup odstraní staré DB rows.
-
-`server/tests/test_provider_security.py`
-
-- scheme allowlist;
-- invalid URL;
-- blocked link-local metadata target;
-- provider timeout;
-- oversized response;
-- runtime capability required;
-- fake process na 8787 neprojde handshake.
-
-`server/tests/test_notion_security.py`
-
-- OAuth state mismatch;
-- OAuth state expiry;
-- callback HTML escaping;
-- connector secret není vrácen rendereru;
-- oversized Markdown write reject.
-
-### Tier C — Electron packaged E2E na Windows
-
-Použít Playwright Electron nebo současný PowerShell smoke skript rozšířit o skutečný renderer test.
-
-Povinné scénáře:
-
-1. spustit packaged app;
-2. renderer načten;
-3. backend handshake prošel;
-4. `/health` dostupný z renderer flow;
-5. owner bootstrap/password flow;
-6. restart a session restore;
-7. fake server na 8787 → app jej odmítne;
-8. kliknutí na externí Markdown link → app nenaviguje;
-9. remote page nemůže použít preload IPC;
-10. lokální fake OpenAI-compatible server → Máša odpoví;
-11. Mermaid preview se vykreslí;
-12. hide/show Máša zachová konverzaci.
-
-Tohle je test, který definitivně rozhodne i současnou otázku packaged `file://` CORS.
-
-### Tier D — fuzz/property tests
-
-Volitelně `fast-check` / Hypothesis:
-
-- agent action JSON parser;
-- `<ethical-note>` envelope;
-- wiki links;
-- Markdown path sanitizer;
-- folder normalizer;
-- GitHub relative paths.
-
-Cíl je najít kombinace Unicode, slashů, nulových znaků, extrémních délek a nested inputů, které ruční příklady nepokryjí.
-
-### Tier E — supply chain
-
-Samostatný job, aby dependency outage nerozbila běžné unit tests:
-
-- `npm ci`;
-- `npm audit --omit=dev` nebo OSV scanner;
-- `pip-audit -r server/requirements.txt`;
-- dependency license snapshot;
-- kontrola lockfile změn v PR.
-
----
-
-## Doporučené pořadí další práce
-
-1. runtime identity/capability pro backend;
-2. owner bootstrap capability;
-3. packaged renderer E2E + vyřešit CORS bez `Origin: null`;
-4. autosave flush;
-5. symlink-safe Markdown writer;
-6. connector conflict/diff policy;
-7. lockfile + supply-chain job;
-8. CSP + remote image policy;
-9. graph performance;
-10. Notion key storage a OAuth state TTL.
-
-Dokud nejsou hotové první tři body a packaged E2E, projekt je kvalitní development MVP, ale neměl by se označovat za security-hardened release.
+Poslední aplikační kontrola pro základový commit: **183 úspěšných unikátních testů**, TypeScript a produkční Vite build.
+
+| Vrstva | Výsledek | Praktický rozsah |
+| --- | --- | --- |
+| Vitest | 94 prošlo | App/IndexedDB, chat transport, návrhy/approval, scope, streaming/draft, Carrot, graph, obrázky |
+| Node / Electron helpers | 44 prošlo v `npm run verify`; PowerShell test v základním PATH přeskočen | Runtime identity/lifecycle, secrets/signer, Markdown export, launcher, model start a URL/renderer policy |
+| PowerShell helper zvlášť | 1 prošel bez skipu s portable PS 7.4.7 | Shortcut regex/array discovery, implicitní cesta mimo cwd a explicitní InstallerScript; není nativní Windows instalace |
+| Python backend | 44 prošlo v úplném závěrečném běhu | Capability/auth, provider URL/DNS/stream, context budgets/complete IDs, echo/role boundaries, parent EOF, SQLite connection cleanup |
+| Živý HTTP smoke | Prošel | Skutečný FastAPI proces + ověřený desktop gateway + fixture provider: start, stream, hostile context separation, echo rejection/connection close, restart, EOF shutdown |
+
+Lokální prostředí: Linux, Node 24.19.0, Python 3.12.14, portable PowerShell 7.4.7. Skutečný Electron Windows renderer, Windows PowerShell 5.1, Squirrel upgrade, Ollama modelové váhy/GPU a živé GitHub/Notion OAuth exporty tímto během ověřené nejsou. Dříve zapsaný npm/pip advisory scan v dev notes není nový scan k této dokumentační aktualizaci.
+
+V tomto dokumentačním kroku se ověřují vazby nálezů na zdrojové soubory/testy, odkazy a `git diff --check`. Aplikační sady se znovu nespouštějí bez změny kódu. Podrobnosti implementace a jednotlivých ověření jsou v [DEV-NOTES.md](DEV-NOTES.md), hranice důvěry v [SECURITY.md](SECURITY.md) a chování agentky v [AI.md](AI.md).
+
+## Doporučený další retest
+
+1. Windows: aktualizace přes launcher a dva běžné starty; bez nového commitu se znovu nebalí. Ověřit výpadek/restart backendu a uchování původní instalace při neúspěšném updatu.
+2. Máša: dva krátké stejné dotazy pro cold/warm odezvu, potom dokument a navazující editace. Zaznamenat preparation, first token/text, load/prompt/generation, tokeny, `ollama ps` a kvalitu obsahu.
+3. Injection: podvržené instrukce v těle, title/folder/indexu a starší odpovědi. READ nesmí měnit data; ASSIST i AGENT s kontextem musí ukázat konkrétní návrh k potvrzení. Opis nesmí skončit uloženou odpovědí/akcí.
+4. Preview/data: změna dříve schválené image URL, externí odkaz, Mermaid error, junction export, konflikt GitHub/Notion a zavření během ukládání.
+5. Rozšířit cílené regrese o auth cooldown recovery, OAuth state limit, Carrot key lifecycle a fuzz/property případy parseru/paths. Výsledky zaznamenat po scénářích; žádný hand-picked corpus neoznačovat za stoprocentní odolnost.
