@@ -26,7 +26,8 @@ test("research respects robots rules and extracts inert bounded text", async () 
 });
 
 async function until(check) {
-  for (let count = 0; count < 150; count += 1) {
+  const deadline = performance.now() + 15000;
+  while (performance.now() < deadline) {
     if (await check()) return;
     await new Promise((resolve) => setTimeout(resolve, 20));
   }

@@ -31,7 +31,7 @@
     "desktop:backend:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-backend.ps1",
     "desktop:make:standalone": "npm run desktop:backend:build && npm run desktop:make",
     "desktop:package:standalone": "npm run desktop:backend:build && npm run desktop:package",
-    "test:electron": "node --test tests-electron/*.test.cjs",
+    "test:electron": "node --test --test-concurrency=1 tests-electron/*.test.cjs",
     "test:backend": "python -m server.test_runner",
     "verify:full": "npm run verify && npm run test:backend",
     "desktop:update": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/update-desktop.ps1",

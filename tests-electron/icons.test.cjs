@@ -17,7 +17,7 @@ test("all packaged icon sizes exactly match the canonical SVG artwork", () => {
     const size = ico[entry] || 256;
     const length = ico.readUInt32LE(entry + 8);
     const offset = ico.readUInt32LE(entry + 12);
-    const expected = new Resvg(source, { fitTo: { mode: "width", value: size } }).render().asPng();
+    const expected = new Resvg(source, { fitTo: { mode: "width", value: size }, font: { loadSystemFonts: false } }).render().asPng();
     assert.deepEqual(ico.subarray(offset, offset + length), expected);
   }
   const config = require("../forge.config.cjs");

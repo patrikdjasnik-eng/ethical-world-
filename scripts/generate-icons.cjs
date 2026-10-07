@@ -5,7 +5,7 @@ const { Resvg } = require("@resvg/resvg-js");
 const root = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "public", "ethical-world-mark.svg"));
 const sizes = [16, 24, 32, 48, 64, 128, 256];
-const images = sizes.map((size) => new Resvg(source, { fitTo: { mode: "width", value: size } }).render().asPng());
+const images = sizes.map((size) => new Resvg(source, { fitTo: { mode: "width", value: size }, font: { loadSystemFonts: false } }).render().asPng());
 const header = Buffer.alloc(6 + sizes.length * 16);
 header.writeUInt16LE(1, 2);
 header.writeUInt16LE(sizes.length, 4);
