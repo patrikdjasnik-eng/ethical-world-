@@ -24,38 +24,53 @@ async function publicTarget(value, lookup = dns.lookup) {
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
   const records = net.isIP(hostname) ? [{ address: hostname, family: net.isIP(hostname) }] : await lookup(hostname, { all: true, verbatim: true });
   if (!records.length || records.some(({ address }) => !publicAddress(address))) throw new Error("DNS ukazuje na neveřejnou adresu. Požadavek byl zablokován.");
-  return { url, record: records[0] };
+  return { url, records };
 }
-async function fetchPublic(value, signal, authorizeRedirect, redirects = 0) {
+async function fetchPublic(value, signal, authorizeRedirect, redirects = 0, transport = {}) {
   signal.throwIfAborted();
-  const { url, record } = await publicTarget(value);
+  const { url, records } = await publicTarget(value, transport.lookup);
   signal.throwIfAborted();
-  const result = await new Promise((resolve, reject) => {
-    // Pin the validated address for this socket; redirects get their own DNS check.
-    const request = https.get(url, {
-      agent: false, signal, timeout: 20000,
-      headers: { "User-Agent": userAgent, Accept: "text/html, text/plain", "Accept-Encoding": "identity" },
-      lookup: (_hostname, options, callback) => options?.all
-        ? callback(null, [record]) : callback(null, record.address, record.family)
-    }, (response) => {
-      let size = 0;
-      const chunks = [];
-      response.on("error", reject);
-      response.on("data", (chunk) => {
-        size += chunk.length;
-        if (size > 2 * 1024 * 1024) response.destroy(new Error("Stránka překračuje limit 2 MiB."));
-        else chunks.push(chunk);
+  let result;
+  for (const [index, record] of records.entries()) {
+    signal.throwIfAborted();
+    try {
+      result = await new Promise((resolve, reject) => {
+        let receivedResponse = false;
+        // Každý pokus používá pouze adresu z již ověřeného DNS snapshotu.
+        const request = (transport.get ?? https.get)(url, {
+          agent: false, signal, timeout: 20000,
+          headers: { "User-Agent": userAgent, Accept: "text/html, text/plain", "Accept-Encoding": "identity" },
+          lookup: (_hostname, options, callback) => options?.all
+            ? callback(null, [record]) : callback(null, record.address, record.family)
+        }, (response) => {
+          receivedResponse = true;
+          let size = 0;
+          const chunks = [];
+          response.on("error", reject);
+          response.on("data", (chunk) => {
+            size += chunk.length;
+            if (size > 2 * 1024 * 1024) response.destroy(new Error("Stránka překračuje limit 2 MiB."));
+            else chunks.push(chunk);
+          });
+          response.on("end", () => resolve({ status: response.statusCode, headers: response.headers, body: Buffer.concat(chunks).toString("utf8"), url: url.href }));
+        });
+        request.on("timeout", () => request.destroy(Object.assign(new Error("Stránka neodpověděla do 20 sekund."), { code: "ETIMEDOUT" })));
+        request.on("error", (error) => {
+          error.retryAddress = !receivedResponse && ["ENETUNREACH", "EHOSTUNREACH", "ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "EADDRNOTAVAIL"].includes(error.code);
+          reject(error);
+        });
       });
-      response.on("end", () => resolve({ status: response.statusCode, headers: response.headers, body: Buffer.concat(chunks).toString("utf8"), url: url.href }));
-    });
-    request.on("timeout", () => request.destroy(new Error("Stránka neodpověděla do 20 sekund.")));
-    request.on("error", reject);
-  });
+      break;
+    } catch (error) {
+      signal.throwIfAborted();
+      if (!error.retryAddress || index === records.length - 1) throw error;
+    }
+  }
   if ([301, 302, 303, 307, 308].includes(result.status)) {
     if (redirects >= 3 || !result.headers.location) throw new Error("Příliš mnoho přesměrování.");
     const destination = validateUrl(new URL(result.headers.location, url).href).href;
     if (authorizeRedirect) await authorizeRedirect(destination);
-    return fetchPublic(destination, signal, authorizeRedirect, redirects + 1);
+    return fetchPublic(destination, signal, authorizeRedirect, redirects + 1, transport);
   }
   if (result.headers["content-encoding"] && result.headers["content-encoding"] !== "identity") throw new Error("Server ignoroval požadavek na nekomprimovaný obsah.");
   return result;

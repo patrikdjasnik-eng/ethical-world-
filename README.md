@@ -213,6 +213,8 @@ Desktopový konektor **Web Research** používá [Crawlee od Apify](https://gith
 V Connectors zadej 1–10 veřejných HTTPS adres. Úloha má omezenou souběžnost, nejvýše dvě opakování a uložený průběh. **Výsledky** nejdřív zobrazí získaný text a zdroje; teprve **Importovat výsledky do vaultu** vytvoří poznámky. Úlohu lze zastavit, spustit znovu nebo smazat. Rozběhnuté úlohy po restartu zůstanou označené jako přerušené a samy neobnoví síťový provoz. Ukládá se nejvýše 20 úloh.
 
 Sběr respektuje robots.txt, používá identifikovatelný User-Agent a nepoužívá přihlášení, cookies ani obcházení ochrany webu. Stahuje pouze HTML/text ze zadaných adres, bez spouštění skriptů a automatického procházení odkazů. DNS a každý redirect procházejí kontrolou veřejné adresy; adresa je připnutá k socketu. Limit je 2 MiB na odpověď, 100 000 znaků extrahovaného textu na stránku a 1 MiB výsledného textu na úlohu. Zkrácené výsledky se předávají AI jako neúplné. JavaScriptové a placené stránky mohou vyžadovat ruční import.
+Politika robots.txt je záměrně přísnější než RFC 9309: HTTP 200 se vyhodnotí podle pravidel, HTTP 404 znamená chybějící pravidla. Jakýkoli jiný stav (včetně 401, 403, 429 a 5xx), síťová chyba nebo timeout sběr zastaví. Nepoužíváme obecné povolení pro všechny 4xx. Weby s nedostupnými pravidly lze zpracovat ručním importem. Při chybě připojení se vyzkouší další veřejná adresa z ověřeného DNS snapshotu; chyby TLS, HTTP a čtení těla tento fallback nespouštějí.
+
 
 ## Ikony desktopové aplikace
 

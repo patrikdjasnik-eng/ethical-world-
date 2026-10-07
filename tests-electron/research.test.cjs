@@ -58,3 +58,112 @@ test("actual Crawlee retries a failed page, persists results and cancels a runni
     await restored.stop();
   } finally { await runtime.stop(); await fs.rm(directory, { recursive: true, force: true }); }
 });
+
+function addressTransport(records, failures, calls) {
+  const { EventEmitter } = require("node:events");
+  return {
+    lookup: async () => records,
+    get: (_url, options, onResponse) => {
+      const request = new EventEmitter();
+      request.destroy = (error) => request.emit("error", error);
+      queueMicrotask(() => {
+        options.lookup("example.org", { all: true }, (_error, pinned) => {
+          calls.push(pinned[0]);
+          const failure = failures[calls.length - 1];
+          if (failure) {
+            request.emit("error", Object.assign(new Error(failure), { code: failure }));
+            return;
+          }
+          const response = new EventEmitter();
+          response.statusCode = 200;
+          response.headers = { "content-type": "text/plain" };
+          onResponse(response);
+          response.emit("data", Buffer.from("success"));
+          response.emit("end");
+        });
+      });
+      return request;
+    }
+  };
+}
+
+const publicRecords = [
+  { address: "2606:4700:4700::1111", family: 6 },
+  { address: "93.184.216.34", family: 4 }
+];
+
+test("research falls back from unreachable IPv6 to pinned public IPv4", async () => {
+  const { fetchPublic } = require("../electron/research-fetch.cjs");
+  const calls = [];
+  const result = await fetchPublic("https://example.org", new AbortController().signal, undefined, 0,
+    addressTransport(publicRecords, ["ENETUNREACH"], calls));
+  assert.equal(result.body, "success");
+  assert.deepEqual(calls, publicRecords);
+});
+
+test("research rejects mixed private DNS before any connection and never retries TLS", async () => {
+  const { fetchPublic } = require("../electron/research-fetch.cjs");
+  const calls = [];
+  await assert.rejects(fetchPublic("https://example.org", new AbortController().signal, undefined, 0,
+    addressTransport([...publicRecords, { address: "10.0.0.1", family: 4 }], [], calls)), /DNS/);
+  assert.equal(calls.length, 0);
+  await assert.rejects(fetchPublic("https://example.org", new AbortController().signal, undefined, 0,
+    addressTransport(publicRecords, ["CERT_HAS_EXPIRED"], calls)), /CERT_HAS_EXPIRED/);
+  assert.equal(calls.length, 1);
+});
+
+test("research reports exhausted public addresses and abort prevents fallback", async () => {
+  const { fetchPublic } = require("../electron/research-fetch.cjs");
+  const calls = [];
+  await assert.rejects(fetchPublic("https://example.org", new AbortController().signal, undefined, 0,
+    addressTransport(publicRecords, ["ENETUNREACH", "ECONNREFUSED"], calls)), /ECONNREFUSED/);
+  assert.equal(calls.length, 2);
+  const controller = new AbortController();
+  const transport = addressTransport(publicRecords, ["ENETUNREACH"], []);
+  const get = transport.get;
+  let attempts = 0;
+  transport.get = (...args) => { attempts += 1; const request = get(...args); controller.abort(); return request; };
+  await assert.rejects(fetchPublic("https://example.org", controller.signal, undefined, 0, transport), { name: "AbortError" });
+  assert.equal(attempts, 1);
+});
+
+test("strict robots policy permits missing rules but blocks other HTTP errors", async () => {
+  for (const status of [200, 404, 401, 403, 429, 500, 503]) {
+    const calls = [];
+    const download = async (url) => {
+      calls.push(url);
+      return { status: url.endsWith("robots.txt") ? status : 200, body: "", headers: { "content-type": "text/plain" }, url };
+    };
+    const pending = collectPage("https://example.org/page", new AbortController().signal, download);
+    if ([200, 404].includes(status)) { await pending; assert.equal(calls.length, 2); }
+    else { await assert.rejects(pending, /robots.txt/); assert.equal(calls.length, 1); }
+  }
+});
+
+test("research does not retry another address after an HTTP response or body error", async () => {
+  const { EventEmitter } = require("node:events");
+  const { fetchPublic } = require("../electron/research-fetch.cjs");
+  for (const bodyError of [false, true]) {
+    let attempts = 0;
+    const transport = {
+      lookup: async () => publicRecords,
+      get: (_url, _options, onResponse) => {
+        attempts += 1;
+        const request = new EventEmitter();
+        queueMicrotask(() => {
+          const response = new EventEmitter();
+          response.statusCode = 503;
+          response.headers = {};
+          onResponse(response);
+          if (bodyError) response.emit("error", Object.assign(new Error("body reset"), { code: "ECONNRESET" }));
+          else response.emit("end");
+        });
+        return request;
+      }
+    };
+    const pending = fetchPublic("https://example.org", new AbortController().signal, undefined, 0, transport);
+    if (bodyError) await assert.rejects(pending, /body reset/);
+    else assert.equal((await pending).status, 503);
+    assert.equal(attempts, 1);
+  }
+});
