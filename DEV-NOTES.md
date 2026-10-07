@@ -1835,3 +1835,8 @@ Reference: [Ollama Generate API — explicitní načtení a časování](https:/
 - README/DESKTOP/SECURITY/AUDIT popisují aktuální přihlášení, konfiguraci a billing blocker. Stávající tokeny se automaticky nezúží ani vzdáleně nerevokují. Ochrana uvnitř Ethical World nezabrání schválení útočníkova Device OAuth kódu mimo aplikaci; public_repo i repo stále zahrnují širší přístup než Contents. Pro vybraná repa doporučený fine-grained PAT; další debt je GitHub App. React kontrola: hooks bez podmíněného pořadí, refs pro lifetime, cleanup ruší timer/flow, přístupný select a tlačítka, žádný nový chat/model call.
 
 - Ověření po pushi: aplikační commit 83fab9a64058f2c31705aadd74e589d07805876b má přesně lokálně ověřený tree 3c8d165747712ce2802c760c90c681392f84a6c6. Actions run 37628952625 vytvořil všechny 4 matrix jobs, ale všechny skončily bez kroků/logs se stejným billing lock. Anotace všech čtyř checků byly přečtené; nesoulad runner verze ani testy nebyly příčinou tohoto neúspěšného běhu. Další změna je pouze záznam výsledku v dokumentaci; aplikační testy se bez změny kódu neopakují.
+
+## 2026-10-07 — viditelný stav CI v README
+
+- Na začátku README je datované vysvětlení GitHub Billing blokace s přesnou anotací a odkazem na ověřený běh 37629754595. Odděluje 201 lokálně úspěšných testů/build od dosud neprovedených hosted kontrol a odkazuje na audit i postup odblokování/opakování CI.
+- Stav a příčina jsou už doložené v AUDIT.md a předchozím záznamu. Validace tohoto dokumentačního doplnění: aktuální branch head/běh, odkazy a git diff --check. Aplikační kód se nemění.

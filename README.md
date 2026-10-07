@@ -7,6 +7,10 @@
 
 Ethical World je local-first knowledge workspace inspirovaný nástroji jako Obsidian, ale AI vrstva je součástí architektury od prvního dne.
 
+> **Stav CI — ověřeno 7. 10. 2026:** GitHub Actions jsou blokované kvůli problému s účtováním GitHub účtu. [Ověřený běh](https://github.com/patrikdjasnik-eng/ethical-world-/actions/runs/37629754595) skončil před spuštěním testů s hláškou „The job was not started because your account is locked due to a billing issue.“
+>
+> Lokálně prošlo 201 testů a produkční build. Hosted CI zůstává neověřené do odstranění blokace v GitHub Billing a opakování běhu. Podrobnosti: [AUDIT.md](AUDIT.md#ci-a-github-device-oauth) a [postup pro CI](#ci-a-github-připojení).
+
 Cílem je mít jedno místo pro poznámky, projekty, wiki odkazy a kontextovou AI agentku, která umí pracovat nad aktuálním vaultem bez nutnosti odesílat všechna data do cloudu.
 
 ## Aktuální v0.1
