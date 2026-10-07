@@ -1840,3 +1840,10 @@ Reference: [Ollama Generate API — explicitní načtení a časování](https:/
 
 - Na začátku README je datované vysvětlení GitHub Billing blokace s přesnou anotací a odkazem na ověřený běh 37629754595. Odděluje 201 lokálně úspěšných testů/build od dosud neprovedených hosted kontrol a odkazuje na audit i postup odblokování/opakování CI.
 - Stav a příčina jsou už doložené v AUDIT.md a předchozím záznamu. Validace tohoto dokumentačního doplnění: aktuální branch head/běh, odkazy a git diff --check. Aplikační kód se nemění.
+
+## 2026-10-07 — Windows CI a kanonické cesty Markdown fixture
+
+- [Pokus 4 běhu 37638994478](https://github.com/patrikdjasnik-eng/ethical-world-/actions/runs/37638994478/attempts/4) už spustil skutečné runnery: billing blokace přestala tento běh blokovat. Oba backendy prošly 44 testy, Linux frontend prošel 97 Vitest + 60 Node testy a buildem. Windows frontend prošel Vitest a PowerShell helperem, ale dvě Markdown regrese skončily na `Approved root identity changed.`; produkční build se kvůli testům nespustil.
+- Příčina je v testovacím vstupu: `os.tmpdir()`/`mkdtemp()` cesta nemusí na Windows odpovídat kanonické `realpath` cestě. Produkční výběr složky už schvaluje `fs.realpath`; fixture nyní stejným způsobem kanonizuje kořen před předáním testům. Kontrola identity schváleného kořene, junction/symlink ochrana a conflict preflight v produkčním writeru zůstávají aktivní; očekávané chyby ani testy se neuvolňují.
+- Přidaná regrese nahradí schválenou složku junctionem/symlinkem na externí složku a ověří odmítnutí exportu i zachování externího souboru bez backup/temp zápisu. Původní regrese dál ověřují junction uvnitř vaultu, traversal, reserved names, konflikt a backup.
+- Lokální validace: cílený hardening soubor 6/6, celá Node sada 61/61, 0 skip s PowerShell v PATH a `GITHUB_ACTIONS=true`; `git diff --check`. Frontend/backend kód se nemění. Hosted Windows oprava čeká na nový úplný CI běh; úspěšný stav se doplní až podle jeho výsledku.

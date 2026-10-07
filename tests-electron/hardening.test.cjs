@@ -11,7 +11,12 @@ const { verifyBackend, gatewayRequest, gatewayStreamRequest } = require("../elec
 
 async function fixture(run) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "ethical-test-"));
-  try { await run(root); } finally { await fs.rm(root, { recursive: true, force: true }); }
+  try {
+    // Stejně jako schválení složky v aplikaci používá fixture kanonickou cestu.
+    await run(await fs.realpath(root));
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
 }
 const encryption = {
   isEncryptionAvailable: () => true,
@@ -56,6 +61,21 @@ test("Markdown writer refuses links, traversal and external targets", async () =
   await assert.rejects(safeTarget(vault, "../test.md"));
   await assert.rejects(safeTarget(vault, "CON.md"));
   assert.deepEqual(await fs.readdir(outside), []);
+}));
+
+test("Markdown writer rejects an approved root replaced by a link", async () => fixture(async (root) => {
+  const vault = path.join(root, "vault");
+  const outside = path.join(root, "outside");
+  await fs.mkdir(vault);
+  await fs.mkdir(outside);
+  await fs.writeFile(path.join(outside, "one.md"), "external");
+  const approvedRoot = await fs.realpath(vault);
+  await fs.rename(vault, path.join(root, "original-vault"));
+  await fs.symlink(outside, approvedRoot, process.platform === "win32" ? "junction" : "dir");
+
+  await assert.rejects(writeMarkdownBatch(approvedRoot, [{ relativePath: "one.md", content: "overwrite" }], new Map()), /Approved root identity changed/);
+  assert.equal(await fs.readFile(path.join(outside, "one.md"), "utf8"), "external");
+  assert.deepEqual(await fs.readdir(outside), ["one.md"]);
 }));
 
 test("Markdown export preflights conflicts and backs up overwritten content", async () => fixture(async (root) => {
