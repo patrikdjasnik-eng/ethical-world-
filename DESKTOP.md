@@ -215,9 +215,43 @@ Při každém kliknutí:
 4. Pokud je daný commit už potvrzený jako nainstalovaný, otevře EXE bez opakování testů/buildu. První spuštění launcheru sestaví ověřenou verzi, protože původní instalace nemá potvrzení zdrojového commitu.
 5. Nový commit projde lokálním verify, backend testy, standalone buildem a instalací. Launcher zůstává během práce viditelný a nabízí živý log; okno nelze zavřít uprostřed instalace. Po otevření aplikačního okna uloží potvrzený commit a zavře se.
 
+Kontrola lokálního repozitáře a fetch mají společný limit 8 sekund. Při překročení se update přeskočí a otevře dostupná instalace; další start kontrolu zopakuje. Zjištění běžící aplikace používá Windows tasklist s limitem 3 sekund. Log uvádí dobu jednotlivých kontrol a okno rozlišuje lokální kontrolu, GitHub a stahování změn. Limit kontroly nepřerušuje následný fast-forward zápis do checkoutu, build ani instalaci; ty mohou trvat déle.
+
 Při offline síti, chybě Gitu nebo selhání buildu launcher otevře předchozí dostupnou instalaci a zobrazí důvod. Při selhání samotné instalace je návrat možný jen pokud předchozí EXE zůstalo dostupné; nejde o transakční rollback Squirrel. Potvrzení commitu se neposune po chybě buildu, neplatném instalačním receipt nebo neúspěšném spuštění. Log posledního pokusu je `launcher.log`. Původní ikona **Ethical World** zůstává přímým spuštěním bez Git kontroly.
 
 Současné předpoklady: Windows, Git s přístupem k repozitáři, Node/npm, Python a již použitý Windows packaging toolchain. První nový build může trvat několik minut. Launcher nepřidává CI/CD, publikaci Release ani placenou službu. WinForms/COM/Squirrel vyžadují ověření na skutečných Windows; lokální Git a helper testy toto ověření nenahrazují.
+
+## Lokální model Máši na Windows
+
+Nainstalovaný Ethical World spouští vlastní FastAPI backend. Vedle desktopu proto nespouštěj další uvicorn na portu 8787. Ollama je samostatný modelový server; běžně běží na pozadí po spuštění Windows aplikace Ollama. Pokud neběží, můžeš ji spustit skrytě z PowerShellu:
+
+```powershell
+$ErrorActionPreference = "Stop"
+$ollamaPath = (Get-Command ollama -ErrorAction Stop).Source
+$modelStatus = $null
+try {
+  $modelStatus = Invoke-RestMethod "http://127.0.0.1:11434/api/tags" -TimeoutSec 2
+} catch {
+  Start-Process -FilePath $ollamaPath -ArgumentList "serve" -WindowStyle Hidden
+}
+
+$modelDeadline = (Get-Date).AddSeconds(30)
+while (-not $modelStatus -and (Get-Date) -lt $modelDeadline) {
+  Start-Sleep -Milliseconds 500
+  try {
+    $modelStatus = Invoke-RestMethod "http://127.0.0.1:11434/api/tags" -TimeoutSec 2
+  } catch {}
+}
+if (-not $modelStatus) { throw "Ollama na portu 11434 neodpovida." }
+if (-not $modelStatus.models) { throw "Ollama nema zadny lokalni model." }
+$modelStatus.models | Select-Object name, size
+```
+
+Potom otevři Ethical World Launcher a v nastavení Máši dej **Znovu najít lokální AI**. Pro vlastní model nastav přesný název z výpisu (například `masa-cyber:latest`), provider Ollama a Base URL `http://127.0.0.1:11434`. Model se načte při prvním chat požadavku; tento postup nic nestahuje ani nevytváří nový model. Automatické spouštění modelového serveru z launcheru zatím není implementované.
+
+Pouze pro webový vývoj ve zdrojích lze místo desktopu ručně spustit gateway z kořene checkoutu: `.\.venv\Scripts\python.exe -m uvicorn server.main:app --host 127.0.0.1 --port 8787`. V dalším terminálu běží `npm run dev`; desktop při tomto postupu nech zavřený.
+
+Reference: [Ollama Windows](https://docs.ollama.com/windows), [Ollama CLI](https://docs.ollama.com/cli).
 
 ## GitHub přihlášení v konektoru
 

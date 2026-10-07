@@ -3,7 +3,7 @@ import "fake-indexeddb/auto";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import AiPanel from "../src/components/AiPanel";
-import { sendAiMessage } from "../src/lib/ai";
+import { autoDetectLocalProvider, checkProviderStatus, sendAiMessage } from "../src/lib/ai";
 import { listAgentAudit } from "../src/lib/storage";
 import type { AgentAction, Note } from "../src/types";
 
@@ -21,10 +21,10 @@ beforeEach(async () => {
   Element.prototype.scrollIntoView = vi.fn();
   await new Promise<void>((resolve) => { const request = indexedDB.deleteDatabase("ethical-world"); request.onsuccess = () => resolve(); });
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 async function setup() {
   render(<AiPanel notes={[note]} activeNote={note} folders={[{ id: "f", path: "Lab", name: "Lab", parentPath: null, createdAt: "old", updatedAt: "old" }]} visible onRequestHide={() => {}} onApplyAgentAction={apply} />);
-  await waitFor(() => expect((screen.getByRole("button", { name: "Send" }) as HTMLButtonElement).disabled).toBe(false));
+  await screen.findByText(/Online · fixture/);
 }
 function send() {
   fireEvent.change(screen.getByPlaceholderText("Řekni Máše, co má v Ethical World udělat…"), { target: { value: "udělej poznámku" } });
@@ -68,4 +68,61 @@ it("refuses whole-document replacement when the model received partial context",
   await screen.findByText(/Přepis odmítnut/);
   expect(apply).not.toHaveBeenCalled();
   expect(screen.queryByRole("button", { name: "Použít" })).toBeNull();
+});
+
+it.each(["Enter", "button"])("sends the current draft with %s even without crypto.randomUUID", async (trigger) => {
+  vi.mocked(sendAiMessage).mockResolvedValue({ content: "Odpověď dorazila", completeNoteIds: [], provider: "ollama", model: "fixture" });
+  await setup();
+  vi.stubGlobal("crypto", { getRandomValues: crypto.getRandomValues.bind(crypto) });
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, { target: { value: "Ahoj Mášo" } });
+  if (trigger === "Enter") fireEvent.keyDown(input, { key: "Enter" });
+  else fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await screen.findByText("Odpověď dorazila");
+  expect(sendAiMessage).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(sendAiMessage).mock.calls[0][0].messages.at(-1)?.content).toBe("Ahoj Mášo");
+  expect((input as HTMLTextAreaElement).value).toBe("");
+});
+
+it("keeps Shift+Enter and IME confirmation for editing instead of submitting", async () => {
+  await setup();
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, { target: { value: "Rozepsaná zpráva" } });
+  fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+  fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+  expect(sendAiMessage).not.toHaveBeenCalled();
+  expect((input as HTMLTextAreaElement).value).toBe("Rozepsaná zpráva");
+});
+
+it("shows a submit preparation error and retains the draft for retry", async () => {
+  await setup();
+  vi.spyOn(crypto, "randomUUID").mockImplementation(() => { throw new Error("ID generation failed"); });
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "Důležitý text" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await screen.findByText("ID generation failed");
+  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("Důležitý text");
+  expect(sendAiMessage).not.toHaveBeenCalled();
+});
+
+it("submits the visible textarea value even when filling it did not dispatch a change event", async () => {
+  vi.mocked(sendAiMessage).mockResolvedValue({ content: "Vyplněný text dorazil", completeNoteIds: [], provider: "ollama", model: "fixture" });
+  await setup();
+  (screen.getByRole("textbox") as HTMLTextAreaElement).value = "Text vložený do formuláře";
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await screen.findByText("Vyplněný text dorazil");
+  expect(vi.mocked(sendAiMessage).mock.calls[0][0].messages.at(-1)?.content).toBe("Text vložený do formuláře");
+});
+
+it("does not let an offline status probe silently block an actual chat attempt", async () => {
+  vi.mocked(autoDetectLocalProvider).mockResolvedValueOnce(null);
+  vi.mocked(checkProviderStatus).mockResolvedValueOnce(null);
+  vi.mocked(sendAiMessage).mockRejectedValueOnce(new Error("Model není dostupný"));
+  render(<AiPanel notes={[]} activeNote={null} folders={[]} visible onRequestHide={() => {}} onApplyAgentAction={apply} />);
+  await screen.findByText("Máša čeká na model.");
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, { target: { value: "Zkus spojení" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await screen.findByText("Model není dostupný");
+  expect(sendAiMessage).toHaveBeenCalledTimes(1);
+  expect((input as HTMLTextAreaElement).value).toBe("Zkus spojení");
 });

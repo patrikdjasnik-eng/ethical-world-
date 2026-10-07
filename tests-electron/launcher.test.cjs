@@ -110,6 +110,36 @@ test('offline fetch and failed builds launch the old EXE and never mark the comm
   await assert.rejects(fs.access(path.join(config.launcherDir, 'last-install.json')));
 });
 
+test('a slow Git check has one deadline, aborts the fetch and opens the installed app', async (t) => {
+  const { directory, config, calls, options } = await fixture(t);
+  const runGit = options.git;
+  let fetchAborted = false;
+  options.checkTimeoutMs = 100;
+  options.git = async (root, args, commandOptions) => {
+    // Keep the deadline test independent of Windows process/antivirus startup time.
+    if (args[0] === 'branch') return config.branch;
+    if (args[0] === 'remote') return path.join(directory, 'origin.git');
+    if (args[0] === 'status') return '';
+    if (args[0] !== 'fetch') return runGit(root, args);
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(resolve, 300);
+      commandOptions?.signal?.addEventListener('abort', () => {
+        clearTimeout(timer);
+        fetchAborted = true;
+        reject(new Error('Fetch aborted'));
+      }, { once: true });
+    });
+    return runGit(root, args);
+  };
+  const result = await runLauncher(config, options);
+  assert.equal(result.stage, 'warning');
+  assert.match(result.message, /casovy limit/);
+  assert.equal(fetchAborted, true);
+  assert.equal(calls.updates.length, 0);
+  assert.ok(!calls.git.some((args) => args[0] === 'merge'));
+  assert.match(calls.launches[0], /app-0\.1\.1/);
+});
+
 test('wrong receipts and launch failures do not advance the installed commit', async (t) => {
   const { config, calls, options } = await fixture(t);
   const update = options.update;

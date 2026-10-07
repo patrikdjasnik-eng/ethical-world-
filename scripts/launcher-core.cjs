@@ -19,10 +19,10 @@ function remoteIdentity(value) {
   throw new Error('Origin musi odkazovat na patrikdjasnik-eng/ethical-world- bez tokenu v URL.');
 }
 
-async function git(repoPath, argumentsList) {
+async function git(repoPath, argumentsList, options = {}) {
   try {
     const result = await execute('git', ['-c', 'credential.interactive=false', '-C', repoPath, ...argumentsList], {
-      env: gitEnvironment, windowsHide: true, timeout: 30000, maxBuffer: 1024 * 1024,
+      env: gitEnvironment, windowsHide: true, timeout: 30000, signal: options.signal, maxBuffer: 1024 * 1024,
     });
     return result.stdout.trim();
   } catch {
@@ -32,23 +32,43 @@ async function git(repoPath, argumentsList) {
 }
 
 async function syncRepository(config, options = {}) {
-  const runGit = options.git ?? git;
+  const executeGit = options.git ?? git;
   const verifyRemote = options.verifyRemote ?? remoteIdentity;
-  const branch = await runGit(config.repoPath, ['branch', '--show-current']);
-  if (branch !== config.branch) throw new Error(`Repozitar musi byt na vetvi ${config.branch}. Launcher vetve neprepina.`);
-  verifyRemote(await runGit(config.repoPath, ['remote', 'get-url', 'origin']));
-  if (await runGit(config.repoPath, ['status', '--porcelain', '--untracked-files=normal'])) {
-    throw new Error('Repozitar obsahuje lokalni zmeny. Uloz je commitem nebo je vyres pred aktualizaci.');
-  }
-  await runGit(config.repoPath, ['fetch', '--no-tags', '--no-recurse-submodules', 'origin', `refs/heads/${config.branch}`]);
-  const [ahead, behind] = (await runGit(config.repoPath, ['rev-list', '--left-right', '--count', 'HEAD...FETCH_HEAD'])).split(/\s+/).map(Number);
-  if (!Number.isInteger(ahead) || !Number.isInteger(behind) || ahead !== 0) {
-    throw new Error('Lokalni historie obsahuje vlastni commity nebo se rozesla s GitHubem. Launcher ji neprepise.');
-  }
-  if (behind > 0) await runGit(config.repoPath, ['merge', '--ff-only', 'FETCH_HEAD']);
-  const commit = await runGit(config.repoPath, ['rev-parse', 'HEAD']);
-  if (!/^[a-f0-9]{40,64}$/.test(commit)) throw new Error('Git nevratil platny commit.');
-  return commit;
+  const controller = new AbortController();
+  const timeoutMs = options.checkTimeoutMs ?? 8000;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const runGit = async (root, args) => {
+    controller.signal.throwIfAborted();
+    const startedAt = Date.now();
+    options.status?.('checking', args[0] === 'fetch' ? 'Kontroluji zmeny na GitHubu...' : args[0] === 'merge' ? 'Stahuji nove zmeny...' : 'Kontroluji lokalni repozitar...');
+    try {
+      const result = await executeGit(root, args, { signal: controller.signal });
+      controller.signal.throwIfAborted();
+      return result;
+    } finally { options.log?.(`Git ${args[0]}: ${Date.now() - startedAt} ms\n`); }
+  };
+  try {
+    const branch = await runGit(config.repoPath, ['branch', '--show-current']);
+    if (branch !== config.branch) throw new Error(`Repozitar musi byt na vetvi ${config.branch}. Launcher vetve neprepina.`);
+    verifyRemote(await runGit(config.repoPath, ['remote', 'get-url', 'origin']));
+    if (await runGit(config.repoPath, ['status', '--porcelain', '--untracked-files=normal'])) {
+      throw new Error('Repozitar obsahuje lokalni zmeny. Uloz je commitem nebo je vyres pred aktualizaci.');
+    }
+    await runGit(config.repoPath, ['fetch', '--no-tags', '--no-recurse-submodules', 'origin', `refs/heads/${config.branch}`]);
+    const [ahead, behind] = (await runGit(config.repoPath, ['rev-list', '--left-right', '--count', 'HEAD...FETCH_HEAD'])).split(/\s+/).map(Number);
+    if (!Number.isInteger(ahead) || !Number.isInteger(behind) || ahead !== 0) {
+      throw new Error('Lokalni historie obsahuje vlastni commity nebo se rozesla s GitHubem. Launcher ji neprepise.');
+    }
+    // Do not interrupt a working-tree mutation after the read-only check succeeds.
+    clearTimeout(timer);
+    if (behind > 0) await runGit(config.repoPath, ['merge', '--ff-only', 'FETCH_HEAD']);
+    const commit = await runGit(config.repoPath, ['rev-parse', 'HEAD']);
+    if (!/^[a-f0-9]{40,64}$/.test(commit)) throw new Error('Git nevratil platny commit.');
+    return commit;
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error('Kontrola Gitu prekrocila casovy limit. Aktualizaci zkusim pri dalsim spusteni.');
+    throw error;
+  } finally { clearTimeout(timer); }
 }
 
 function buildVersion(baseVersion, commitCount) {
@@ -122,8 +142,10 @@ async function powershell(config, script, timeoutMs = 30000) {
 }
 
 async function applicationRunning(config) {
-  const result = await powershell(config, '@(Get-Process -Name EthicalWorld -ErrorAction SilentlyContinue).Count');
-  return Number(result.stdout.trim()) > 0;
+  const result = await execute('tasklist.exe', ['/FI', 'IMAGENAME eq EthicalWorld.exe', '/FO', 'CSV', '/NH'], {
+    windowsHide: true, timeout: 3000, maxBuffer: 1024 * 1024,
+  });
+  return /^"EthicalWorld\.exe",/im.test(result.stdout);
 }
 
 async function launchApplication(config, executable, allowExisting = false) {
@@ -165,8 +187,11 @@ async function runLauncher(config, options = {}) {
   const previous = await lastInstallation(config.installRoot, state);
   const newestInstallation = await lastInstallation(config.installRoot, null);
   try {
+    const checkStartedAt = Date.now();
     emit('checking', 'Kontroluji aktualizace Ethical World...');
-    if (await isRunning(config)) {
+    const running = await isRunning(config);
+    log(`Kontrola bezici aplikace: ${Date.now() - checkStartedAt} ms\n`);
+    if (running) {
       if (!previous) throw new Error('Aplikace bezi, ale jeji instalace nebyla nalezena.');
       await launch(config, previous.executable, true);
       return { stage: 'ready', message: 'Ethical World uz bezi. Prepinam do aplikace.' };

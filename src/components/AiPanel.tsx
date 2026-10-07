@@ -53,6 +53,16 @@ function looksLikeKnowledgeNoteRequest(value: string): boolean {
     /(vytvoř|vytvor|udělej|udelej|napiš|napis|zpracuj|připrav|priprav|přepracuj|prepracuj|uprav|přidej|pridej|doplň|dopln|vlož|vloz|zapracuj|zakresli|rozšiř|rozsir|aktualizuj|create|write|update|edit|append)/i.test(value);
 }
 
+function createId(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  // Some renderer contexts expose secure random bytes without randomUUID.
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 15) | 64;
+  bytes[8] = (bytes[8] & 63) | 128;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export const AiPanel = memo(function AiPanel({
   activeNote,
   notes,
@@ -64,6 +74,7 @@ export const AiPanel = memo(function AiPanel({
   const [messages, setMessages] = useState<AiMessage[]>([initialMessage]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const sendLock = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [permissionMode, setPermissionMode] = useState<AiPermissionMode>("assist");
@@ -80,7 +91,7 @@ export const AiPanel = memo(function AiPanel({
   };
   const executeAction = useCallback(async (action: AgentAction): Promise<string> => {
     if (permissionRef.current === "read") throw new Error("READ režim nemůže měnit vault.");
-    const id = crypto.randomUUID();
+    const id = createId();
     const entry = { id, createdAt: new Date().toISOString(), actionType: action.type, ...("noteId" in action ? { noteId: action.noteId } : {}), result: "started" };
     await saveAgentAudit(entry);
     try {
@@ -171,13 +182,14 @@ export const AiPanel = memo(function AiPanel({
   }, []);
 
   const status = useMemo(() => {
+    if (isSending) return { text: "Čekám na odpověď…", className: "checking" };
     if (connection.checking) return { text: "Kontroluju…", className: "checking" };
     if (!connection.backendOnline) return { text: "Backend offline", className: "offline" };
     if (!connection.modelOnline) return { text: "LLM offline", className: "warning" };
     return { text: "Online", className: "online" };
-  }, [connection]);
+  }, [connection, isSending]);
 
-  const canSend = connection.backendOnline && connection.modelOnline && !isSending && applyingActionId === null;
+  const canSend = !isSending && applyingActionId === null;
 
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -193,30 +205,28 @@ export const AiPanel = memo(function AiPanel({
     }
   }, []);
 
-  const submit = useCallback(async () => {
-    const trimmedInput = input.trim();
-    if (!trimmedInput || !canSend) return;
-
-    const userMessage: AiMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: trimmedInput
-    };
-    const nextMessages = [...messages, userMessage];
-
-    setMessages(nextMessages);
-    setInput("");
-    setSendingMode(
-      permissionMode !== "read" && looksLikeKnowledgeNoteRequest(trimmedInput)
-        ? "knowledge"
-        : looksLikeActionRequest(trimmedInput) && permissionMode !== "read"
-          ? "proposal"
-          : "answer"
-    );
+  const submit = useCallback(async (draft: string) => {
+    const trimmedInput = draft.trim();
+    if (!trimmedInput || !canSend || sendLock.current) return;
+    sendLock.current = true;
+    let submittedId: string | null = null;
+    let responseAdded = false;
     setIsSending(true);
     setError(null);
 
     try {
+      const userMessage: AiMessage = { id: createId(), role: "user", content: trimmedInput };
+      submittedId = userMessage.id;
+      const nextMessages = [...messages, userMessage];
+      setMessages(nextMessages);
+      setInput("");
+      setSendingMode(
+        permissionMode !== "read" && looksLikeKnowledgeNoteRequest(trimmedInput)
+          ? "knowledge"
+          : looksLikeActionRequest(trimmedInput) && permissionMode !== "read"
+            ? "proposal"
+            : "answer"
+      );
       const response = await sendAiMessage({
         settings,
         messages: nextMessages,
@@ -234,14 +244,9 @@ export const AiPanel = memo(function AiPanel({
         setError("Přepis odmítnut: model neměl úplný obsah cílové poznámky. Otevři ji nebo pracuj po menších poznámkách; původní obsah zůstává uložený.");
       }
 
-      setMessages((current) => [
-        ...current,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: parsed.content
-        }
-      ]);
+      const assistantMessage: AiMessage = { id: createId(), role: "assistant", content: parsed.content };
+      setMessages((current) => [...current, assistantMessage]);
+      responseAdded = true;
 
       if (permissionRef.current !== "read" && permissionRef.current === permissionMode && parsed.actions.length > 0) {
         const pending: PendingAction[] = [];
@@ -250,13 +255,14 @@ export const AiPanel = memo(function AiPanel({
           if (allowed) {
             try {
               const result = await executeAction(action);
-              setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", content: "✓ " + result }]);
+              const actionMessage: AiMessage = { id: createId(), role: "assistant", content: "✓ " + result };
+              setMessages((current) => [...current, actionMessage]);
             } catch (error) {
               setError(error instanceof Error ? error.message : "Agentní akce selhala.");
-              pending.push(...parsed.actions.slice(index).map((item) => ({ id: crypto.randomUUID(), action: item })));
+              pending.push(...parsed.actions.slice(index).map((item) => ({ id: createId(), action: item })));
               break;
             }
-          } else pending.push({ id: crypto.randomUUID(), action });
+          } else pending.push({ id: createId(), action });
         }
         setPendingActions((current) => [
           ...current,
@@ -265,11 +271,16 @@ export const AiPanel = memo(function AiPanel({
       }
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "AI request failed");
+      if (!responseAdded) {
+        setMessages((current) => current.filter((message) => message.id !== submittedId));
+        setInput((current) => current || draft);
+      }
       void refreshConnection(false);
     } finally {
+      sendLock.current = false;
       setIsSending(false);
     }
-  }, [activeNote, canSend, folders, input, messages, notes, permissionMode, refreshConnection, settings, executeAction]);
+  }, [activeNote, canSend, folders, messages, notes, permissionMode, refreshConnection, settings, executeAction]);
 
   const applyAction = useCallback(async (pending: PendingAction) => {
     if (actionLock.current || isSending) return;
@@ -280,14 +291,8 @@ export const AiPanel = memo(function AiPanel({
     try {
       const result = await executeAction(pending.action);
       setPendingActions((current) => current.filter((candidate) => candidate.id !== pending.id));
-      setMessages((current) => [
-        ...current,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: "✓ " + result
-        }
-      ]);
+      const actionMessage: AiMessage = { id: createId(), role: "assistant", content: "✓ " + result };
+      setMessages((current) => [...current, actionMessage]);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Akci se nepodařilo provést");
     } finally {
@@ -306,14 +311,8 @@ export const AiPanel = memo(function AiPanel({
       try {
         const result = await executeAction(pending.action);
         setPendingActions((current) => current.filter((candidate) => candidate.id !== pending.id));
-        setMessages((current) => [
-          ...current,
-          {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: result
-          }
-        ]);
+        const actionMessage: AiMessage = { id: createId(), role: "assistant", content: result };
+        setMessages((current) => [...current, actionMessage]);
       } catch (caughtError) {
         setError(caughtError instanceof Error ? caughtError.message : "Akci se nepodařilo provést");
         break;
@@ -514,25 +513,31 @@ export const AiPanel = memo(function AiPanel({
         </section>
       )}
 
-      {error && <div className="ai-error">{error}</div>}
+      {error && <div className="ai-error" role="alert">{error}</div>}
 
-      <div className="chat-composer">
+      <form className="chat-composer" onSubmit={(event) => {
+        event.preventDefault();
+        const draft = new FormData(event.currentTarget).get("message");
+        void submit(typeof draft === "string" ? draft : "");
+      }}>
         <textarea
+          name="message"
+          aria-label="Zpráva Máše"
           value={input}
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
               event.preventDefault();
-              void submit();
+              event.currentTarget.form?.requestSubmit();
             }
           }}
           placeholder={connection.modelOnline ? "Řekni Máše, co má v Ethical World udělat…" : "AI je offline – nejdřív spusť lokální model"}
           rows={3}
         />
-        <button className="primary-button" type="button" onClick={() => void submit()} disabled={!canSend}>
+        <button className="primary-button" type="submit" disabled={!canSend}>
           {isSending ? "…" : "Send"}
         </button>
-      </div>
+      </form>
     </aside>
   );
 });
