@@ -31,14 +31,14 @@ Cílem je mít jedno místo pro poznámky, projekty, wiki odkazy a kontextovou A
 
 ## Instalace na vlastním PC
 
-Windows instalátor a launcher jsou určené pro **Windows x64**. Linux a macOS mohou používat webovou vývojovou variantu popsanou níže. Repozitář je zatím **soukromý**: pro klonování i další aktualizace potřebuje GitHub účet s přístupem k `patrikdjasnik-eng/ethical-world-`. Bez tohoto oprávnění klonování neprojde.
+Windows instalátor a launcher jsou určené pro **Windows x64**. Linux a macOS mohou používat webovou vývojovou variantu popsanou níže. Repozitář je **veřejný**: kdokoliv ho může naklonovat přes HTTPS a používat Git aktualizace bez přihlášení ke GitHubu.
 
 ### 1. Připrav nástroje
 
 | Nástroj | Co nainstalovat |
 | --- | --- |
 | Windows | Windows 10/11, 64bitová varianta; aktuální Ollama vyžaduje alespoň Windows 10 22H2. |
-| Git | [Git for Windows](https://git-scm.com/install/windows), včetně Git Credential Manageru pro HTTPS přihlášení. |
+| Git | [Git for Windows](https://git-scm.com/install/windows). Pro veřejné HTTPS klonování není potřeba GitHub účet ani token. |
 | Node.js + npm | [Node.js 24 LTS](https://nodejs.org/en/download). Současný desktop toolchain vyžaduje minimálně Node 22.13. |
 | Python | [Python pro Windows](https://www.python.org/downloads/windows/). Backend je lokálně ověřený s Pythonem 3.12; zajisti funkční příkaz `python` v PATH. |
 | Ollama | [Ollama pro Windows](https://ollama.com/download/windows), pokud chceš lokální AI. Poznámky a graf lze používat i bez ní. |
@@ -56,12 +56,12 @@ První sestavení vyžaduje internet pro stažení závislostí. Pro lokální A
 
 ### 2. Naklonuj projekt a vytvoř launcher
 
-Následující příkazy vytvoří checkout v tvém profilu. Pokud ho chceš jinde, uprav první `Set-Location`. Při klonování se přihlas přes Git Credential Manager účtem s oprávněním k repozitáři.
+Následující příkazy vytvoří checkout v tvém profilu. Pokud ho chceš jinde, uprav první `Set-Location`. Veřejná HTTPS adresa nevyžaduje přihlášení.
 
 ```powershell
 Set-Location $env:USERPROFILE
 git clone --branch dev/first-runnable https://github.com/patrikdjasnik-eng/ethical-world-.git
-if ($LASTEXITCODE -ne 0) { throw "Klonovani selhalo. Zkontroluj pristup k repozitari." }
+if ($LASTEXITCODE -ne 0) { throw "Klonovani selhalo. Zkontroluj sit, adresu a cilovou slozku." }
 Set-Location .\ethical-world-
 npm.cmd run desktop:launcher:install
 if ($LASTEXITCODE -ne 0) { throw "Instalace launcheru selhala." }
@@ -149,7 +149,7 @@ Otevři `http://127.0.0.1:5173`. API běží na `http://127.0.0.1:8787`; Vite je
 
 ### Web na Linuxu nebo macOS
 
-Použij stejnou větev a přístup ke Gitu, Node.js a Python 3.12. V terminálu připrav závislosti a spusť backend:
+Použij stejnou veřejnou HTTPS adresu a větev, Node.js a Python 3.12. V terminálu připrav závislosti a spusť backend:
 
 ```bash
 git clone --branch dev/first-runnable https://github.com/patrikdjasnik-eng/ethical-world-.git

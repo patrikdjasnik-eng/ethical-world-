@@ -37,9 +37,9 @@ Výstup je pod `out/`.
 
 ## Auto-update
 
-Repozitář je private. Doporučená cesta je [launcher s automatickou aktualizací z Gitu](#launcher-s-automatickou-aktualizací-z-gitu): stáhne povolenou větev, provede lokální kontroly a sestaví i nainstaluje aplikaci na Windows. První instalaci od klonování popisuje [README.md](README.md#instalace-na-vlastním-pc).
+Repozitář je veřejný. Doporučená cesta je [launcher s automatickou aktualizací z Gitu](#launcher-s-automatickou-aktualizací-z-gitu): stáhne povolenou větev, provede lokální kontroly a sestaví i nainstaluje aplikaci na Windows. HTTPS klonování a aktualizace nevyžadují GitHub přihlášení. První instalaci od klonování popisuje [README.md](README.md#instalace-na-vlastním-pc).
 
-Vestavěný Electron updater pro GitHub Releases je samostatná možnost. Veřejný update service neumí autentizovat private Releases, proto je tato kontrola standardně vypnutá. GitHub token se nevkládá do rendereru nebo instalátoru.
+Vestavěný Electron updater pro GitHub Releases je samostatná možnost a jeho kontrola je standardně vypnutá. Veřejná dostupnost zdrojů sama nepublikuje instalační balíčky do Releases ani tento updater nezapíná. GitHub token se nevkládá do rendereru nebo instalátoru.
 
 Pouze při vědomém přechodu na veřejné Releases lze zapnout `ETHICAL_WORLD_PUBLIC_UPDATES=1`. Nastavení CI/CD nebo placeného plánu není podmínkou lokálního ověření a sestavení.
 
@@ -169,7 +169,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-desktop-install
 
 > Shortcut zatím používá ikonu zabudovanou v executable. Vlastní brandované `.ico` přidáme do packageru samostatně, jakmile uzamkneme finální Ethical World logo.
 
-## Aktualizace již nainstalovaného EXE z private repozitáře
+## Aktualizace již nainstalovaného EXE ze zdrojů
 
 Po `git pull --ff-only origin dev/first-runnable` zavři Ethical World a spusť `npm run desktop:update` v kořeni repozitáře na Windows. Skript obnoví uzamčené závislosti, spustí lokální kontroly, nově sestaví bundled Python backend a Squirrel installer a provede upgrade stejné aplikace. Potom ověří ProductVersion nainstalovaného EXE, přítomnost backendu a spuštění přes existující desktop shortcut. Uživatelský datový adresář nemaže.
 
@@ -212,7 +212,7 @@ Na ploše a v nabídce Start vznikne **Ethical World Launcher**. Otevírá malé
 Při každém kliknutí:
 
 1. Pokud Ethical World už běží, launcher otevře/fokusuje existující aplikaci a upgrade odloží na další start po zavření.
-2. Ověří `origin` tohoto repozitáře, větev `dev/first-runnable` a čistý working tree. Používá Git Credential Manager nebo SSH agent nastavený pro Git na PC; token konektoru uvnitř aplikace s tímto přístupem nesdílí.
+2. Ověří `origin` tohoto repozitáře, větev `dev/first-runnable` a čistý working tree. Veřejný HTTPS origin čte bez přihlášení; SSH varianta vyžaduje nastavený klíč a agent. Token GitHub konektoru uvnitř aplikace se pro launcher nepoužívá.
 3. Provede fetch a pouze fast-forward merge. Lokální změny, vlastní commity, jiná větev nebo rozcházející se historie update zastaví. Žádný reset, clean, stash ani automatické přepínání větve.
 4. Pokud je daný commit už potvrzený jako nainstalovaný, otevře EXE bez opakování testů/buildu. První spuštění launcheru sestaví ověřenou verzi, protože původní instalace nemá potvrzení zdrojového commitu.
 5. Nový commit projde lokálním verify, backend testy, standalone buildem a instalací. Launcher zůstává během práce viditelný a nabízí živý log; okno nelze zavřít uprostřed instalace. Po otevření aplikačního okna uloží potvrzený commit a zavře se.
