@@ -3,7 +3,7 @@
 ![Desktop](https://img.shields.io/badge/desktop-Electron-47848F)
 ![Windows](https://img.shields.io/badge/target-Windows-0078D4)
 ![Packaging](https://img.shields.io/badge/package-Electron_Forge-111827)
-![Updates](https://img.shields.io/badge/updates-GitHub_Releases-7c3aed)
+![Updates](https://img.shields.io/badge/updates-Git_launcher-7c3aed)
 ![Security](https://img.shields.io/badge/contextIsolation-on-16a34a)
 
 Ethical World má desktop shell přes Electron. React/Vite renderer zůstává společný pro web i desktop, Electron přidává nativní okno, preload bridge, native context menu, packaging a auto-update.
@@ -37,7 +37,9 @@ Výstup je pod `out/`.
 
 ## Auto-update
 
-Repozitář je private. Veřejný Electron update service neumí autentizovat private Releases, proto je automatická kontrola aktualizací standardně vypnutá. Nový instalační balíček distribuujeme ručně přes přístup k private repozitáři. GitHub token nikdy nevkládáme do rendereru nebo instalátoru.
+Repozitář je private. Doporučená cesta je [launcher s automatickou aktualizací z Gitu](#launcher-s-automatickou-aktualizací-z-gitu): stáhne povolenou větev, provede lokální kontroly a sestaví i nainstaluje aplikaci na Windows. První instalaci od klonování popisuje [README.md](README.md#instalace-na-vlastním-pc).
+
+Vestavěný Electron updater pro GitHub Releases je samostatná možnost. Veřejný update service neumí autentizovat private Releases, proto je tato kontrola standardně vypnutá. GitHub token se nevkládá do rendereru nebo instalátoru.
 
 Pouze při vědomém přechodu na veřejné Releases lze zapnout `ETHICAL_WORLD_PUBLIC_UPDATES=1`. Nastavení CI/CD nebo placeného plánu není podmínkou lokálního ověření a sestavení.
 
@@ -74,7 +76,7 @@ npm run version:major
 
 ### Důležité
 
-Samotný `git pull` nainstalované EXE neaktualizuje. Desktop updater stahuje pouze hotové GitHub Releases s vyšší SemVer verzí. To brání tomu, aby si produkční aplikace stahovala neověřený zdrojový stav větve a pokoušela se sama přebuildovat.
+Samotný `git pull` nainstalované EXE neaktualizuje. Git launcher po stažení změn provede testy, build a instalaci; stejný postup lze vyvolat pomocí `npm run desktop:update`. Vestavěný Electron updater stahuje pouze hotové GitHub Releases s vyšší SemVer verzí a zdroje nesestavuje.
 
 Release nesmí být draft ani prerelease, pokud má být distribuován běžným stable updaterem.
 
