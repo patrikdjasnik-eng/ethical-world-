@@ -235,3 +235,8 @@ Desktop ukládá Notion master key přes OS secure storage. Existující `connec
 ### Postavička Máši
 
 Máša má v pravém dolním rohu žraločí postavičku. Kliknutím otevřeš chat; po minimalizaci uvidíš její aktuální stav práce. Tlačítkem **Pet** v horní liště ji můžeš skrýt nebo obnovit. Nastavení se uchovává lokálně. Pohyb respektuje systémové omezení animací a obrázek funguje i offline po instalaci aplikace. Postavička představuje stav asistenta; vlastní paměť nebo trénování modelu tímto krokem nevzniká.
+
+
+### Přidání více Markdown souborů
+
+V **Connectors → Local / VS Code workspace → Přidat Markdown soubory** vyber více `.md` nebo `.mdx` souborů pomocí Ctrl/Shift. Import vytváří nové poznámky a původní soubory nemění. Další dávka přidá další kopie; pro průběžnou synchronizaci stejného zdroje použij desktopový složkový konektor. Výběr i import složky podporuje až **100 000 souborů**, každý nejvýše **2 MiB**. U velmi velkých vaultů závisí doba importu a odezva rozhraní na velikosti obsahu a výkonu zařízení.

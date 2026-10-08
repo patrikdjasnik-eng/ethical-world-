@@ -319,9 +319,10 @@ export default function App() {
     const importedIds = new Set(incomingNotes.map((note) => note.id));
     await persistence.current.flush();
     const expected = new Map(expectedNotes.map((note) => [note.id, note]));
-    const isCurrent = () => incomingNotes.every((note) =>
-      JSON.stringify(notesRef.current.find((item) => item.id === note.id)) === JSON.stringify(expected.get(note.id))
-    );
+    const isCurrent = () => {
+      const current = new Map(notesRef.current.map((note) => [note.id, note]));
+      return incomingNotes.every((note) => JSON.stringify(current.get(note.id)) === JSON.stringify(expected.get(note.id)));
+    };
     const existingPaths = new Set(foldersRef.current.map((folder) => folder.path));
     const newFolders = inferFoldersFromNotes(incomingNotes).filter((folder) => !existingPaths.has(folder.path));
     await saveImportedWorkspace(incomingNotes, newFolders, expectedNotes, isCurrent);
@@ -338,7 +339,9 @@ export default function App() {
     setActiveNoteId(incomingNotes[0].id);
     setView("note");
 
-    await Promise.all(incomingNotes.map((note) => createCarrotCommit(note, currentUser, "Imported Markdown")));
+    for (let index = 0; index < incomingNotes.length; index += 8) {
+      await Promise.all(incomingNotes.slice(index, index + 8).map((note) => createCarrotCommit(note, currentUser, "Imported Markdown")));
+    }
   }, [currentUser, setNotes, setFolders]);
 
   const handleExportReceipts = useCallback(async (receipts: ExportReceipt[]) => {

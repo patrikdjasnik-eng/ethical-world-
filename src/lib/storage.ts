@@ -202,8 +202,19 @@ export async function saveImportedWorkspace(notes: Note[], folders: VaultFolder[
     let conflict = false;
     read.onsuccess = () => {
       const stored = new Map(read.result.map((note) => [note.id, note]));
+      const sourceKey = (note: Note) => note.source ? JSON.stringify([note.source.provider, note.source.connectionId, note.source.relativePath]) : null;
+      const owners = new Map<string, Set<string>>();
+      for (const item of read.result) {
+        const key = sourceKey(item);
+        if (key === null) continue;
+        const ids = owners.get(key) ?? new Set<string>();
+        ids.add(item.id);
+        owners.set(key, ids);
+      }
       if (!isCurrent() || notes.some((note) => {
-        const duplicateSource = note.source && read.result.some((item) => item.id !== note.id && item.source?.provider === note.source?.provider && item.source?.connectionId === note.source?.connectionId && item.source?.relativePath === note.source?.relativePath);
+        const key = sourceKey(note);
+        const ids = key === null ? undefined : owners.get(key);
+        const duplicateSource = ids !== undefined && (ids.size > 1 || !ids.has(note.id));
         return duplicateSource || JSON.stringify(stored.get(note.id)) !== JSON.stringify(expected.get(note.id));
       })) {
         conflict = true;

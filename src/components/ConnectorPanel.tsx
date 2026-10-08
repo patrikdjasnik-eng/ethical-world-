@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { markdownFilesToNotes, notesToMarkdownFiles, type ExportReceipt } from "../lib/markdownConnector";
+import { readMarkdownSelection } from "../lib/markdownSelection";
 import {
   disconnectNotion,
   getNotionStatus,
@@ -50,6 +51,25 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
   const [connection, setConnection] = useState<MarkdownConnection | null>(null);
   const [localBusy, setLocalBusy] = useState<"connect" | "import" | "export" | null>(null);
   const [localStatus, setLocalStatus] = useState("Vyber lokální workspace nebo složku s Markdown soubory.");
+  const fileInput = useRef<HTMLInputElement | null>(null);
+  const fileImportLock = useRef(false);
+  const importSelectedFiles = useCallback(async (files: File[]) => {
+    if (files.length === 0 || fileImportLock.current || localBusy !== null) return;
+    fileImportLock.current = true;
+    setLocalBusy("import");
+    setLocalStatus("Načítám Markdown soubory…");
+    try {
+      const selection = await readMarkdownSelection(files, (count) => setLocalStatus(`Načteno ${count.toLocaleString("cs-CZ")} / ${files.length.toLocaleString("cs-CZ")} souborů…`));
+      const imported = markdownFilesToNotes(selection, "upload:" + crypto.randomUUID(), notes);
+      await onImportNotes(imported, notes);
+      setLocalStatus(`Importováno ${imported.length.toLocaleString("cs-CZ")} poznámek. Zdrojové soubory zůstávají beze změny.`);
+    } catch (error) {
+      setLocalStatus(error instanceof Error ? error.message : "Import Markdown souborů selhal.");
+    } finally {
+      fileImportLock.current = false;
+      setLocalBusy(null);
+    }
+  }, [localBusy, notes, onImportNotes]);
 
   const [githubConfigured, setGithubConfigured] = useState(false);
   const [githubLogin, setGithubLogin] = useState<string | null>(null);
@@ -509,6 +529,12 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
           </p>
 
           <div className="connector-actions">
+            <input ref={fileInput} type="file" accept=".md,.mdx" multiple hidden aria-label="Markdown soubory" onChange={(event) => {
+              const files = Array.from(event.currentTarget.files ?? []);
+              event.currentTarget.value = "";
+              void importSelectedFiles(files);
+            }} />
+            <button type="button" onClick={() => fileInput.current?.click()} disabled={localBusy !== null}>Přidat Markdown soubory</button>
             <button type="button" onClick={() => void connectLocal()} disabled={localBusy !== null}>
               {localBusy === "connect" ? "Otevírám…" : connection ? "Změnit složku" : "Vybrat složku"}
             </button>
@@ -520,7 +546,8 @@ export const ConnectorPanel = memo(function ConnectorPanel({ notes, onImportNote
             </button>
           </div>
 
-          <small>{localStatus}</small>
+          <small role="status">{localStatus}</small>
+          <small>Vyber více souborů pomocí Ctrl nebo Shift. Limit importu: 100 000 souborů, nejvýše 2 MiB na soubor.</small>
         </section>
 
         <section className={"connector-card " + (githubLogin ? "connector-card-ready" : "")}>

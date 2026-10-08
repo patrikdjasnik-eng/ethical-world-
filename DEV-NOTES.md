@@ -1884,3 +1884,12 @@ Reference: https://docs.ollama.com/capabilities/structured-outputs
 - Postavičku lze skrýt a obnovit přes tlačítko Pet; preference přežije restart. Respektuje prefers-reduced-motion, ovládání klávesnicí a náhradní ikonu při selhání obrázku.
 - Dva nové integrační testy ověřují otevření/skrytí, obnovení preference a stavy skutečného požadavku při minimalizaci včetně zachování zadání po chybě.
 - Tento krok nepřidává paměť, zpětnou vazbu ani dotrénink modelu. Postavička nemění oprávnění asistenta.
+
+
+## 2026-10-08 — Vícenásobný import / Multiple Markdown import
+
+- Konektory mají samostatný výběr více `.md`/`.mdx` souborů; funguje v prohlížeči i Electronu. Výběr se resetuje, takže lze stejné soubory vybrat znovu. Každá ruční dávka tvoří nové kopie; nejde o synchronizaci zdrojových souborů.
+- Limit výběru i desktopového průchodu složkou je 100 000 souborů. Zachován limit 2 MiB na jeden soubor.
+- Čtení má nejvýše osm souběžných operací, průběh po 128 souborech. Nečitelný soubor nebo kolize cest zastaví ruční dávku před uložením.
+- Kontroly aktuálního snapshotu a duplicitních zdrojů používají mapy místo vnořeného hledání; tvorba Carrot historie má nejvýše osm souběžných operací.
+- Ověřeno více souborů, opakovaný výběr, kolize, chyba čtení, přijetí 2 001 souborů a odmítnutí 100 001 ještě před čtením. Limit 100 000 není benchmark plynulosti UI s takto velkým reálným vaultem.

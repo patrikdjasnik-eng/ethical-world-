@@ -401,11 +401,12 @@ function resolveInsideRoot(root, relativePath) {
 async function collectMarkdownFiles(root) {
   const files = [];
   const queue = [{ absolute: root, relative: "" }];
-  const maxFiles = 2000;
+  const maxFiles = 100_000;
   const maxBytesPerFile = 2 * 1024 * 1024;
 
-  while (queue.length > 0 && files.length < maxFiles) {
-    const current = queue.shift();
+  let directoryIndex = 0;
+  while (directoryIndex < queue.length && files.length < maxFiles) {
+    const current = queue[directoryIndex++];
     const entries = await fs.readdir(current.absolute, { withFileTypes: true });
 
     for (const entry of entries) {
