@@ -1865,3 +1865,11 @@ Reference: [Ollama Generate API — explicitní načtení a časování](https:/
 - Lokální ověření: 115 frontend, 77 Node/Electron a 56 backend testů (248 celkem), bez skipů; PowerShell 7 v PATH a GITHUB_ACTIONS=true, TypeScript a Vite build. Hosted Windows build a reálné cold/warm měření s modelovými vahami se posuzují samostatně podle výsledků CI a PC. React kontrola: efekty mají cleanup a ignorují stale výsledky, sdílená promise neblokuje chat, UI stav má role=status, lazy loading zůstává zachovaný.
 
 Reference: https://docs.ollama.com/capabilities/structured-outputs
+
+
+## 2026-10-08 — Čitelnější rozhraní / Clearer interface
+
+- Systémový font (Segoe UI ve Windows), výchozí velikost 14 px a výška řádku 1,5. Drobné popisky mají minimálně 11 px; mobilní tlačítka s ukrytým textem zůstávají ukrytá.
+- Plné tmavé pozadí horní lišty, Máši, Carrotu, nabídek a nástrojů grafu; odstraněno rozostřování pozadí panelů.
+- Vyšší kontrast pomocných popisků, cest a stavů. Zachováno nativní DPI, zoom i responzivní rozložení; nevynucujeme měřítko 1 na HiDPI displejích.
+- Ostrost na uživatelově monitoru je nutné ověřit po aktualizaci; CSS změny neopraví nesprávné rozlišení monitoru nebo systémové škálování bitmap.
