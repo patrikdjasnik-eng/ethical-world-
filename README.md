@@ -48,6 +48,15 @@ Desktop secrets are kept out of renderer storage. GitHub tokens use Electron OS 
 
 ## Development branch
 
+
+
+
+
+
+
+<img width="1919" height="1079" alt="Bez názvu" src="https://github.com/user-attachments/assets/9c49af1b-06f3-475b-8e98-4d0ace41920c" />
+
+
 The runnable development branch is:
 
 ```text
