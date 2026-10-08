@@ -240,3 +240,20 @@ Máša má v pravém dolním rohu žraločí postavičku. Kliknutím otevřeš c
 ### Přidání více Markdown souborů
 
 V **Connectors → Local / VS Code workspace → Přidat Markdown soubory** vyber více `.md` nebo `.mdx` souborů pomocí Ctrl/Shift. Import vytváří nové poznámky a původní soubory nemění. Další dávka přidá další kopie; pro průběžnou synchronizaci stejného zdroje použij desktopový složkový konektor. Výběr i import složky podporuje až **100 000 souborů**, každý nejvýše **2 MiB**. U velmi velkých vaultů závisí doba importu a odezva rozhraní na velikosti obsahu a výkonu zařízení.
+
+
+### Upozornění na nové registrace
+
+Nové registrace backendu ukládají upozornění pro **rabbithollowczech@gmail.com** do SQLite fronty ve stejné transakci jako účet. E-mail obsahuje jméno, e-mail, UTC čas a ID účtu; neobsahuje heslo ani token. Odesílání běží na pozadí přes ověřené TLS, po chybě se opakuje s odstupem až jedné hodiny a neodeslaná zpráva přežije restart. SMTP bez nakonfigurovaných přihlašovacích údajů nic neodesílá; zprávy zůstávají čekat. SMTP doručení může při pádu mezi odesláním a potvrzením vytvořit duplicitu, proto má zpráva stabilní Message-ID.
+
+Na Windows po aktualizaci aplikace zavři běžící Ethical World a z kořene repozitáře spusť:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-with-registration-mail.ps1
+```
+
+Skript vyžádá přihlašovací údaje odesílající schránky včetně [hesla aplikace Google](https://support.google.com/accounts/answer/185833); heslo nezapisuje na disk ani do příkazové historie a předá ho spuštěnému backendu přes prostředí procesu. Při dalším spuštění je zadáš znovu. Parametr `-Dev` místo nainstalovaného launcheru spustí vývojovou aplikaci.
+
+Pro spravovaný server nastav `ETHICAL_WORLD_SMTP_HOST`, `ETHICAL_WORLD_SMTP_PORT` (465 pro implicitní TLS, jinak STARTTLS), `ETHICAL_WORLD_SMTP_USER` a `ETHICAL_WORLD_SMTP_PASSWORD` jako serverové proměnné prostředí. `.env.example` slouží jako přehled; backend soubor `.env` automaticky nenačítá. Přihlašovací údaje nevkládej do distribuovaného EXE ani do frontendu.
+
+Účty jsou zatím lokální: upozornění zahrnují jen registrace backendu s nastaveným SMTP. Pro přehled registrací ze všech instalací je potřeba společný registrační server. Doručení do skutečné schránky je třeba ověřit po nastavení SMTP; automatické testy používají náhradu poštovní služby.

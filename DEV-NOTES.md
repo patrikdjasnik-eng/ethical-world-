@@ -1893,3 +1893,12 @@ Reference: https://docs.ollama.com/capabilities/structured-outputs
 - Čtení má nejvýše osm souběžných operací, průběh po 128 souborech. Nečitelný soubor nebo kolize cest zastaví ruční dávku před uložením.
 - Kontroly aktuálního snapshotu a duplicitních zdrojů používají mapy místo vnořeného hledání; tvorba Carrot historie má nejvýše osm souběžných operací.
 - Ověřeno více souborů, opakovaný výběr, kolize, chyba čtení, přijetí 2 001 souborů a odmítnutí 100 001 ještě před čtením. Limit 100 000 není benchmark plynulosti UI s takto velkým reálným vaultem.
+
+
+## 2026-10-08 — Registrační e-maily / Registration notifications
+
+- Příjemce: rabbithollowczech@gmail.com. Registrace i její událost se ukládají atomicky; opakovaná neúspěšná registrace negeneruje další e-mail.
+- Trvalá SQLite fronta, lease proti souběžným workerům, retry 30 s až 1 h, nejvýše 10 zpráv na průchod. TLS SMTP s timeoutem, žádná hesla/tokeny v těle nebo diagnostice.
+- Windows skript start-with-registration-mail.ps1 vyžádá Gmail app password a předá konfiguraci launcheru či vývojovému procesu bez zápisu hesla na disk.
+- Ověřeno šest nových backendových testů: atomicita, čekání bez konfigurace, opakování po chybě, lease/restart, TLS a obsah, funkční registrace při nedostupné poště. Celkem 62 backendových testů prošlo.
+- Reálné odesílání nebylo aktivováno ani ověřeno: chybí SMTP přístup. Fronta zachytí jen nové registrace na daném backendu, nikoli registrace ze všech lokálních instalací.

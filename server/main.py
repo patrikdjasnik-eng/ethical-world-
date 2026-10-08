@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import html
+import asyncio
 import json
 import os
 import time
-from contextlib import aclosing
+from contextlib import aclosing, asynccontextmanager, suppress
 from dataclasses import dataclass
 from typing import Literal
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from starlette.concurrency import run_in_threadpool
@@ -17,6 +18,7 @@ from .runtime_security import RuntimeGuard, health_proof, write_browser_runtime
 from pydantic import BaseModel, Field, model_validator
 from .chat_budget import ChatBudget, chat_budget, chat_workload, compact_history, requested_style
 from .note_output import NoteOutput, note_actions
+from .registration_mail import deliver_pending_mail, mail_worker
 from .chat_safety import RepetitionGuard, PolicyEchoGuard, neutralize_chat_tokens, untrusted_json
 
 from .auth_store import (
@@ -165,7 +167,18 @@ class ChangePasswordRequest(BaseModel):
     newPassword: str = Field(min_length=12, max_length=1024)
 
 
-app = FastAPI(title="Ethical World AI Gateway", version="0.1.2")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    worker = asyncio.create_task(mail_worker())
+    try:
+        yield
+    finally:
+        worker.cancel()
+        with suppress(asyncio.CancelledError):
+            await worker
+
+
+app = FastAPI(title="Ethical World AI Gateway", version="0.1.2", lifespan=lifespan)
 
 init_auth_store()
 bootstrap_admin_from_env()
@@ -204,12 +217,13 @@ async def health(challenge: str = Query(default="", max_length=128)) -> dict[str
 
 
 @app.post("/api/auth/register", response_model=UserResponse)
-async def register(request: RegisterRequest) -> UserResponse:
+async def register(request: RegisterRequest, background_tasks: BackgroundTasks) -> UserResponse:
     try:
         user = await run_in_threadpool(register_user, request.email, request.password, request.displayName)
     except AuthStoreError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
 
+    background_tasks.add_task(deliver_pending_mail)
     return UserResponse(**user)
 
 

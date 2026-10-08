@@ -133,6 +133,17 @@ def init_auth_store() -> None:
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS registration_mail (
+                user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                recipient TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                next_attempt REAL NOT NULL DEFAULT 0,
+                lease_until REAL NOT NULL DEFAULT 0,
+                sent_at TEXT,
+                last_error TEXT
+            );
+            CREATE INDEX IF NOT EXISTS registration_mail_due ON registration_mail(sent_at, next_attempt, lease_until);
+
             CREATE TABLE IF NOT EXISTS devices (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -257,6 +268,10 @@ def register_user(email: str, password: str, display_name: str) -> dict[str, Any
                 VALUES(?, ?, ?, ?, ?, ?, 'user', 0)
                 """,
                 (user_id, normalized, clean_name, salt, digest, created_at),
+            )
+            connection.execute(
+                "INSERT INTO registration_mail(user_id, recipient) VALUES(?, ?)",
+                (user_id, "rabbithollowczech@gmail.com"),
             )
     except sqlite3.IntegrityError as error:
         raise AuthStoreError("Účet s tímto e-mailem už existuje.") from error
