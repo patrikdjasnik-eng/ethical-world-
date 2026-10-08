@@ -1,4 +1,6 @@
 import { actionPreview } from "../lib/vaultTools";
+import { MasaPetPortrait } from "./MasaPet";
+import { getMasaPetState, type MasaPetState } from "../lib/masaPet";
 import { hasSavedAiSettings, loadAiSettings, saveAiSettings } from "../lib/aiSettings";
 import { saveAgentAudit, listAgentAudit } from "../lib/storage";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -27,6 +29,7 @@ interface AiPanelProps {
   visible: boolean;
   onRequestHide: () => void;
   onApplyAgentAction: (action: AgentAction) => Promise<string>;
+  onPetStateChange?: (state: MasaPetState) => void;
 }
 
 interface ConnectionState {
@@ -90,7 +93,8 @@ export const AiPanel = memo(function AiPanel({
   folders,
   visible,
   onRequestHide,
-  onApplyAgentAction
+  onApplyAgentAction,
+  onPetStateChange
 }: AiPanelProps) {
   const [messages, setMessages] = useState<AiMessage[]>([initialMessage]);
   const [input, setInput] = useState("");
@@ -307,6 +311,20 @@ export const AiPanel = memo(function AiPanel({
 
   const canSend = !isSending && applyingActionId === null;
 
+  const petState = getMasaPetState({
+    sending: isSending,
+    streaming: Boolean(streamingText),
+    applying: applyingActionId !== null,
+    error: Boolean(error),
+    pending: pendingActions.length > 0,
+    checking: connection.checking,
+    online: connection.backendOnline && connection.modelOnline
+  });
+
+  useEffect(() => {
+    onPetStateChange?.(petState);
+  }, [onPetStateChange, petState]);
+
   useEffect(() => {
     messageEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isSending, pendingActions.length]);
@@ -504,7 +522,7 @@ export const AiPanel = memo(function AiPanel({
       </div>
 
       <div className="ai-header">
-        <div className="ai-avatar">M</div>
+        <div className="ai-avatar masa-avatar"><MasaPetPortrait state={petState} /></div>
         <div>
           <span className={"ai-status-dot " + status.className} />
           <strong>Máša</strong>

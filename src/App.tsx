@@ -1,6 +1,8 @@
 import { changedNote } from "./lib/vaultTools";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityRail } from "./components/ActivityRail";
+import { MasaPet } from "./components/MasaPet";
+import type { MasaPetState } from "./lib/masaPet";
 import { EditorPane } from "./components/EditorPane";
 import { VaultSidebar, type WorkspaceView } from "./components/VaultSidebar";
 import {
@@ -82,6 +84,11 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiLoaded, setAiLoaded] = useState(false);
+  const [petState, setPetState] = useState<MasaPetState>("idle");
+  const [petVisible, setPetVisible] = useState(() => {
+    try { return localStorage.getItem("ethical-world-masa-pet-v1") !== "hidden"; }
+    catch { return true; }
+  });
   const [accountLocked, setAccountLocked] = useState(true);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [folderCreateNonce, setFolderCreateNonce] = useState(0);
@@ -459,6 +466,15 @@ export default function App() {
     });
   }, [accountLocked]);
 
+  const togglePet = useCallback(() => {
+    setPetVisible((current) => !current);
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem("ethical-world-masa-pet-v1", petVisible ? "visible" : "hidden"); }
+    catch { /* The companion still works when preference storage is unavailable. */ }
+  }, [petVisible]);
+
   useEffect(() => {
     const handleKeyboardShortcut = (event: KeyboardEvent) => {
       if (accountLocked) return;
@@ -558,6 +574,7 @@ export default function App() {
           <button type="button" onClick={toggleAiPanel} title="Máša panel (Ctrl+J)">
             {aiOpen ? "Hide Máša" : "Máša"}
           </button>
+          {!accountLocked && <button type="button" onClick={togglePet} aria-pressed={petVisible} title="Zobrazit nebo skrýt postavičku Máši">Pet</button>}
         </div>
       </header>
 
@@ -633,10 +650,13 @@ export default function App() {
               visible={aiOpen}
               onRequestHide={() => setAiOpen(false)}
               onApplyAgentAction={handleApplyAgentAction}
+              onPetStateChange={setPetState}
             />
           </Suspense>
         )}
       </div>
+
+      {!accountLocked && petVisible && !aiOpen && <MasaPet state={aiLoaded ? petState : "idle"} onOpen={toggleAiPanel} onHide={togglePet} />}
 
       <footer className="studio-credit">
         Created by Rabbithollow Code Studio™

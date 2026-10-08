@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "fake-indexeddb/auto";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import App from "../src/App";
 import { sendAiMessage } from "../src/lib/ai";
 import * as storage from "../src/lib/storage";
@@ -40,6 +40,43 @@ function send(text: string) {
   fireEvent.change(screen.getByRole("textbox", { name: "Zpráva Máše" }), { target: { value: text } });
   fireEvent.click(screen.getByRole("button", { name: "Send" }));
 }
+
+it("opens the chat from the companion and retains its hidden preference across reopening", async () => {
+  const view = render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: /Otevřít Mášu/ }));
+  await screen.findByText(/Online · fixture/);
+  expect(screen.queryByRole("button", { name: /Otevřít Mášu/ })).toBeNull();
+  fireEvent.click(screen.getByTitle("Minimalizovat Mášu do lišty"));
+  fireEvent.click(await screen.findByRole("button", { name: "Skrýt postavičku Máši" }));
+  expect(screen.queryByRole("button", { name: /Otevřít Mášu/ })).toBeNull();
+  view.unmount();
+  render(<App />);
+  await screen.findByRole("textbox", { name: "Obsah poznámky" });
+  expect(screen.queryByRole("button", { name: /Otevřít Mášu/ })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Pet" }));
+  expect(screen.getByRole("button", { name: /Otevřít Mášu/ })).toBeTruthy();
+});
+
+it("reflects a live request and its failure in the minimized companion without losing the draft", async () => {
+  let rejectRequest: (error: Error) => void = () => {};
+  let progress: ((content: string) => void) | undefined;
+  vi.mocked(sendAiMessage).mockImplementation((input) => {
+    progress = (content) => input.onProgress?.({ content, workload: "chat" });
+    return new Promise<Awaited<ReturnType<typeof sendAiMessage>>>((_resolve, reject) => { rejectRequest = reject; });
+  });
+  render(<App />);
+  await openMasa();
+  send("Vysvětli threat hunting");
+  await waitFor(() => expect(sendAiMessage).toHaveBeenCalled());
+  fireEvent.click(screen.getByTitle("Minimalizovat Mášu do lišty"));
+  await screen.findByRole("button", { name: "Otevřít Mášu · Přemýšlím…" });
+  act(() => { progress?.("První část odpovědi"); });
+  await screen.findByRole("button", { name: "Otevřít Mášu · Píšu odpověď…" });
+  await act(async () => { rejectRequest(new Error("Connection lost")); });
+  fireEvent.click(await screen.findByRole("button", { name: "Otevřít Mášu · Potřebuju tvoji pozornost" }));
+  expect((screen.getByRole("textbox", { name: "Zpráva Máše" }) as HTMLTextAreaElement).value).toBe("Vysvětli threat hunting");
+  expect(screen.getByRole("alert").textContent).toContain("Connection lost");
+});
 
 it("creates and updates actual Markdown notes after consent and retains them after reopening", async () => {
   const markdown = "# Malware\n\nŠkodlivý software.\n\n```python\nprint('demo')\n```\n\nLiteral </content> stays.";

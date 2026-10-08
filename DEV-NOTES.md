@@ -1873,3 +1873,14 @@ Reference: https://docs.ollama.com/capabilities/structured-outputs
 - Plné tmavé pozadí horní lišty, Máši, Carrotu, nabídek a nástrojů grafu; odstraněno rozostřování pozadí panelů.
 - Vyšší kontrast pomocných popisků, cest a stavů. Zachováno nativní DPI, zoom i responzivní rozložení; nevynucujeme měřítko 1 na HiDPI displejích.
 - Ostrost na uživatelově monitoru je nutné ověřit po aktualizaci; CSS změny neopraví nesprávné rozlišení monitoru nebo systémové škálování bitmap.
+
+
+## 2026-10-08 — Máša jako postavička / Máša companion
+
+- Máša má žraločí postavičku podle uživatelské obrazové předlohy: šedobílý komiksový žralok s velkým okem a háčkem. Průhledný PNG je v `src/assets/masa-shark.png`, zabalený do buildu a offline precache.
+- Generováno vestavěným imagegen; zadání: zachovat kresleného žraloka z předlohy, plné tělo, velké oko, šedobílou paletu, ostrou černou linku a háček, odstranit pozadí a bubliny, nepřidávat text ani rekvizity.
+- Kliknutí na postavičku otevře Mášu; při otevřeném panelu je portrét v hlavičce. Zavřený panel dál zachovává relaci a skutečný stav práce.
+- Sedm stavů: klid, přemýšlení, psaní, návrh ke kontrole, ukládání, offline a chyba. Animace rozhýbává jeden obrázek pomocí CSS; nejde o samostatné snímkové animace obličeje nebo ploutví.
+- Postavičku lze skrýt a obnovit přes tlačítko Pet; preference přežije restart. Respektuje prefers-reduced-motion, ovládání klávesnicí a náhradní ikonu při selhání obrázku.
+- Dva nové integrační testy ověřují otevření/skrytí, obnovení preference a stavy skutečného požadavku při minimalizaci včetně zachování zadání po chybě.
+- Tento krok nepřidává paměť, zpětnou vazbu ani dotrénink modelu. Postavička nemění oprávnění asistenta.

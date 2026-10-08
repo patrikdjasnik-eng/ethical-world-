@@ -230,3 +230,8 @@ Politika robots.txt je záměrně přísnější než RFC 9309: HTTP 200 se vyho
 Kanonický motiv je `public/ethical-world-mark.svg`. `npm run icons:generate` z něj vytvoří ICO se sedmi velikostmi (16–256 px) a PNG. Forge používá tuto ikonu pro `EthicalWorld.exe` i `EthicalWorldSetup.exe`, backend má stejnou ikonu a launcher ji kopíruje přímo ze zdrojů místo extrakce staré placeholder ikony. `scripts/test-desktop-icons.ps1` spouští kontrolu všech sedmi ikonových resource přímo v aplikačním EXE, instalátoru a zabaleném backendu; porovnává jejich bajty s kanonickým ICO bez převodu a škálování přes Windows Shell. Novou ikonu uvidíš po sestavení a instalaci aktualizované verze.
 
 Desktop ukládá Notion master key přes OS secure storage. Existující `connector.key` migruje beze změny klíče a plaintext odstraní až po ověřeném uložení. Samostatně spuštěný Python backend nadále potřebuje bezpečně dodaný `ETHICAL_WORLD_CONNECTOR_KEY`; po desktopové migraci nenechávej samostatný backend vygenerovat jiný klíč pro tutéž databázi.
+
+
+### Postavička Máši
+
+Máša má v pravém dolním rohu žraločí postavičku. Kliknutím otevřeš chat; po minimalizaci uvidíš její aktuální stav práce. Tlačítkem **Pet** v horní liště ji můžeš skrýt nebo obnovit. Nastavení se uchovává lokálně. Pohyb respektuje systémové omezení animací a obrázek funguje i offline po instalaci aplikace. Postavička představuje stav asistenta; vlastní paměť nebo trénování modelu tímto krokem nevzniká.
