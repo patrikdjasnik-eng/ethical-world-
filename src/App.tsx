@@ -14,6 +14,7 @@ import {
 import { NoteWriteQueue } from "./lib/notePersistence";
 import { createEmptyNote } from "./lib/notes";
 import { createCarrotCommit } from "./lib/carrot";
+import { loadAiSettings } from "./lib/aiSettings";
 import { initialiseAccount } from "./lib/auth";
 import {
   listFolders,
@@ -348,6 +349,24 @@ export default function App() {
       catch (error) { setWorkspaceError(String(error)); throw error; }
     }
   }, [setNotes]);
+
+  useEffect(() => {
+    if (accountLocked || !window.ethicalDesktop?.ensureBackendRuntime || !window.ethicalDesktop.ensureLocalModel) return;
+    let current = true;
+    const ensureBackend = window.ethicalDesktop.ensureBackendRuntime;
+    const ensureModel = window.ethicalDesktop.ensureLocalModel;
+    const settings = loadAiSettings();
+    if (settings.provider !== "ollama") return;
+    void ensureBackend().then(async (runtime) => {
+      if (!current || runtime.state !== "ready") return;
+      const selected = loadAiSettings();
+      if (selected.provider !== settings.provider || selected.model !== settings.model || selected.baseUrl !== settings.baseUrl) return;
+      await ensureModel({ model: settings.model, baseUrl: settings.baseUrl, warmup: true });
+    }).catch(() => {
+      // Panel přípravu zopakuje a zobrazí konkrétní chybu při otevření.
+    });
+    return () => { current = false; };
+  }, [accountLocked]);
 
   const handleApplyAgentAction = useCallback(async (action: AgentAction): Promise<string> => {
     await persistence.current.flush();

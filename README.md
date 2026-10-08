@@ -100,7 +100,16 @@ ollama list
 
 V nastavení Máši vyber **Ollama**, Base URL `http://127.0.0.1:11434` a přesný nainstalovaný model, například `qwen2.5:7b`. Výchozí alias `masa-cyber:latest` je vlastní lokální model; nový počítač ho automaticky nemá. Můžeš vybrat libovolný již nainstalovaný podporovaný chatový model z výpisu `ollama list`.
 
-Desktop spouští FastAPI backend sám. Máša připraví lokální Ollamu nebo využije již běžící službu; model načte první skutečný chat. Ruční `uvicorn` vedle desktopu není potřeba. Pokud příprava selže, panel ukáže chybu a tlačítko **Zkontrolovat znovu** provede nový pokus. Modely se samy nestahují.
+Desktop spouští FastAPI backend sám. Máša připraví lokální Ollamu nebo využije již běžící službu; vybraný model přednačte na pozadí po odemčení aplikace. Panel ukazuje stav přednačtení; zprávu lze odeslat i během něj. První zpráva může stále čekat na fyzické načtení modelu, pokud přednačtení ještě neskončilo. Ruční `uvicorn` vedle desktopu není potřeba. Pokud příprava selže, panel ukáže chybu a tlačítko **Zkontrolovat znovu** provede nový pokus. Modely se samy nestahují.
+
+### Skutečné poznámky vytvořené Mášou
+
+V ASSIST zadej například „Vytvoř Markdown poznámku o malware ve složce Cybersecurity“. Ollama vrátí strukturovaný návrh. Obsah se zobrazí pod **Navržené akce → Náhled změny**, místo samotného dokumentu v chatu. Tlačítko **Použít** zapíše poznámku do lokálního vaultu; **Použít vše** provede navržené složky před jejich poznámkami. Potvrzení úspěchu vzniká až po dokončeném zápisu. Poznámka se otevře v editoru a zůstává uložená po restartu.
+
+Pro doplnění otevři cílovou poznámku a požádej například „Doplň tuto poznámku o detekci“. Přepis vyžaduje úplný obsah cíle a nezměněný původní stav; při konfliktu připrav nový návrh. Neplatný, neúplný nebo tokenovým limitem ukončený návrh se neprovede. READ změny nepovoluje; AGENT zachovává omezený grant pro nové poznámky a jinak vyžaduje potvrzení. Obsah a faktickou správnost před potvrzením zkontroluj.
+
+Strukturované návrhy používají lokální Ollama JSON schema API; OpenAI-compatible provider nadále používá dosavadní protokol návrhů. Žádné modelové váhy se automaticky nestahují. Poznámka ve vaultu není automatický export `.md` na disk; k tomu slouží Markdown konektor.
+
 
 ### Další aktualizace
 

@@ -282,3 +282,20 @@ it("does not let an offline status probe silently block an actual chat attempt",
   expect(sendAiMessage).toHaveBeenCalledTimes(1);
   expect((input as HTMLTextAreaElement).value).toBe("Zkus spojení");
 });
+
+it("does not block a foreground message while background preloading is pending", async () => {
+  saveAiSettings({ provider: "ollama", model: "fixture", baseUrl: "http://localhost:11434", apiKey: "", responseStyle: "fast" });
+  let finish!: (result: { state: "ready"; model: string; message: string }) => void;
+  const preload = new Promise<{ state: "ready"; model: string; message: string }>((resolve) => { finish = resolve; });
+  const ensure = vi.fn(({ warmup }: { warmup?: boolean }) => warmup ? preload : Promise.resolve({ state: "ready" as const, model: "fixture", message: "ready" }));
+  window.ethicalDesktop = { ensureLocalModel: ensure } as unknown as EthicalDesktopApi;
+  vi.mocked(sendAiMessage).mockResolvedValueOnce({ content: "Ahoj!", provider: "ollama", model: "fixture", completeNoteIds: [] });
+  await setup();
+  await screen.findByText(/Přednačítám model na pozadí/);
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "Ahoj" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await screen.findByText("Ahoj!");
+  expect(sendAiMessage).toHaveBeenCalledTimes(1);
+  finish({ state: "ready", model: "fixture", message: "ready" });
+  await screen.findByText("Model je přednačtený.");
+});

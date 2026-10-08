@@ -80,3 +80,28 @@ class PolicyEchoGuard:
         self.check(self.pending)
         result, self.pending = self.pending, ""
         return result
+
+
+class RepetitionGuard:
+    """Stop exact consecutive prose loops; deliberately disabled for documents."""
+
+    error = "Model se začal opakovat. Generování bylo zastaveno; nic se neprovedlo. Zadání zůstává rozepsané."
+
+    def __init__(self):
+        self.tail = ""
+        self.since_check = 0
+
+    def check(self, content: str) -> None:
+        words = _words(content)
+        for size in range(12, min(96, len(words) // 4) + 1):
+            for start in range(len(words) - size * 4 + 1):
+                block = words[start:start + size]
+                if len(set(block)) >= 8 and all(words[start + size * repeat:start + size * (repeat + 1)] == block for repeat in (1, 2, 3)):
+                    raise ProviderError(self.error)
+
+    def feed(self, delta: str) -> None:
+        self.tail = self.tail[-6000:] + delta
+        self.since_check += len(delta)
+        if self.since_check >= 128:
+            self.check(self.tail)
+            self.since_check = 0

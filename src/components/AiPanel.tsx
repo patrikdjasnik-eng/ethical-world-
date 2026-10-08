@@ -8,7 +8,7 @@ import {
   checkProviderStatus,
   sendAiMessage
 } from "../lib/ai";
-import { describeAgentAction, parseAgentResponse } from "../lib/agentTools";
+import { describeAgentAction, parseAgentResponse, parseStructuredNoteResponse } from "../lib/agentTools";
 import { automaticCreationGrant, canAutomaticallyCreate, type AutomaticCreationGrant } from "../lib/agentPolicy";
 import type {
   AgentAction,
@@ -104,6 +104,8 @@ export const AiPanel = memo(function AiPanel({
   const connectionLock = useRef(false);
   const useInitialDetection = useRef(!hasSavedAiSettings());
   const [runtimeMessage, setRuntimeMessage] = useState<string | null>(null);
+  const [warmupMessage, setWarmupMessage] = useState<string | null>(null);
+  const warmupFlight = useRef<{ key: string; flight: Promise<{ state: string }> } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [permissionMode, setPermissionMode] = useState<AiPermissionMode>("assist");
@@ -269,6 +271,23 @@ export const AiPanel = memo(function AiPanel({
     return () => window.clearInterval(interval);
   }, [refreshConnection]);
 
+  useEffect(() => {
+    if (!connection.backendOnline || !connection.modelOnline || settings.provider !== "ollama" || sendLock.current || !window.ethicalDesktop?.ensureLocalModel) return;
+    const key = JSON.stringify([settings.provider, settings.baseUrl, settings.model]);
+    if (warmupFlight.current?.key !== key) {
+      warmupFlight.current = { key, flight: window.ethicalDesktop.ensureLocalModel({ model: settings.model, baseUrl: settings.baseUrl, warmup: true }) };
+    }
+    let current = true;
+    setWarmupMessage("Přednačítám model na pozadí… Můžeš už odeslat zprávu.");
+    void warmupFlight.current.flight
+      .then((result) => {
+        if (current && sameConnection(settingsRef.current, settings)) setWarmupMessage(result.state === "ready" ? "Model je přednačtený." : "Přednačtení se nepodařilo; model načte první zpráva.");
+      }).catch(() => {
+        if (current) setWarmupMessage("Přednačtení se nepodařilo; model načte první zpráva.");
+      });
+    return () => { current = false; };
+  }, [connection.backendOnline, connection.modelOnline, settings.provider, settings.baseUrl, settings.model]);
+
   const updateProvider = useCallback((provider: AiProvider) => {
     setSettings((current) => ({
       ...current,
@@ -367,7 +386,9 @@ export const AiPanel = memo(function AiPanel({
       if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
       setIsGenerating(false);
       requestController.current = null;
-      const parsed = parseAgentResponse(response.content, notes);
+      const parsed = response.actions != null
+        ? parseStructuredNoteResponse(response.content, response.actions, notes)
+        : parseAgentResponse(response.content, notes);
       if (parsed.warning) setError(parsed.warning);
       if (response.metrics?.truncated) {
         parsed.actions = [];
@@ -493,6 +514,8 @@ export const AiPanel = memo(function AiPanel({
           ⚙
         </button>
       </div>
+
+      {warmupMessage && <p role="status" className="ai-runtime-message">{warmupMessage}</p>}
 
       {showSettings && (
         <div className="ai-settings">

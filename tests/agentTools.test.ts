@@ -218,3 +218,14 @@ describe("Máša batch wiki links", () => {
     expect(contents[1]).toContain("[[Malware Script - Ransomware]]");
   });
 });
+
+it("validates a structured proposal as one batch and captures update conflicts", async () => {
+  const { parseStructuredNoteResponse } = await import("../src/lib/agentTools");
+  const current = { id: "target", title: "TLS", folder: "Lab", content: "original", createdAt: "old", updatedAt: "old" };
+  const update = { type: "update_note", noteId: current.id, content: "# TLS\n\nUpdated", title: "TLS", folder: "Lab" };
+  const parsed = parseStructuredNoteResponse("proposal", [update], [current]);
+  expect(parsed.actions[0]).toMatchObject({ type: "update_note", expectedUpdatedAt: "old", expectedSnapshot: JSON.stringify([current.title, current.folder, current.content]) });
+  for (const bad of [{ ...update, noteId: "missing" }, { ...update, content: "" }, { type: "shell", command: "delete" }]) {
+    expect(parseStructuredNoteResponse("proposal", [update, bad], [current]).actions).toEqual([]);
+  }
+});
