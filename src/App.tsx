@@ -1,6 +1,8 @@
 import { changedNote } from "./lib/vaultTools";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityRail } from "./components/ActivityRail";
+import { MasaPet } from "./components/MasaPet";
+import type { MasaPetState } from "./lib/masaPet";
 import { EditorPane } from "./components/EditorPane";
 import { VaultSidebar, type WorkspaceView } from "./components/VaultSidebar";
 import {
@@ -14,6 +16,7 @@ import {
 import { NoteWriteQueue } from "./lib/notePersistence";
 import { createEmptyNote } from "./lib/notes";
 import { createCarrotCommit } from "./lib/carrot";
+import { loadAiSettings } from "./lib/aiSettings";
 import { initialiseAccount } from "./lib/auth";
 import {
   listFolders,
@@ -81,6 +84,11 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiLoaded, setAiLoaded] = useState(false);
+  const [petState, setPetState] = useState<MasaPetState>("idle");
+  const [petVisible, setPetVisible] = useState(() => {
+    try { return localStorage.getItem("ethical-world-masa-pet-v1") !== "hidden"; }
+    catch { return true; }
+  });
   const [accountLocked, setAccountLocked] = useState(true);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [folderCreateNonce, setFolderCreateNonce] = useState(0);
@@ -311,9 +319,10 @@ export default function App() {
     const importedIds = new Set(incomingNotes.map((note) => note.id));
     await persistence.current.flush();
     const expected = new Map(expectedNotes.map((note) => [note.id, note]));
-    const isCurrent = () => incomingNotes.every((note) =>
-      JSON.stringify(notesRef.current.find((item) => item.id === note.id)) === JSON.stringify(expected.get(note.id))
-    );
+    const isCurrent = () => {
+      const current = new Map(notesRef.current.map((note) => [note.id, note]));
+      return incomingNotes.every((note) => JSON.stringify(current.get(note.id)) === JSON.stringify(expected.get(note.id)));
+    };
     const existingPaths = new Set(foldersRef.current.map((folder) => folder.path));
     const newFolders = inferFoldersFromNotes(incomingNotes).filter((folder) => !existingPaths.has(folder.path));
     await saveImportedWorkspace(incomingNotes, newFolders, expectedNotes, isCurrent);
@@ -330,7 +339,9 @@ export default function App() {
     setActiveNoteId(incomingNotes[0].id);
     setView("note");
 
-    await Promise.all(incomingNotes.map((note) => createCarrotCommit(note, currentUser, "Imported Markdown")));
+    for (let index = 0; index < incomingNotes.length; index += 8) {
+      await Promise.all(incomingNotes.slice(index, index + 8).map((note) => createCarrotCommit(note, currentUser, "Imported Markdown")));
+    }
   }, [currentUser, setNotes, setFolders]);
 
   const handleExportReceipts = useCallback(async (receipts: ExportReceipt[]) => {
@@ -348,6 +359,24 @@ export default function App() {
       catch (error) { setWorkspaceError(String(error)); throw error; }
     }
   }, [setNotes]);
+
+  useEffect(() => {
+    if (accountLocked || !window.ethicalDesktop?.ensureBackendRuntime || !window.ethicalDesktop.ensureLocalModel) return;
+    let current = true;
+    const ensureBackend = window.ethicalDesktop.ensureBackendRuntime;
+    const ensureModel = window.ethicalDesktop.ensureLocalModel;
+    const settings = loadAiSettings();
+    if (settings.provider !== "ollama") return;
+    void ensureBackend().then(async (runtime) => {
+      if (!current || runtime.state !== "ready") return;
+      const selected = loadAiSettings();
+      if (selected.provider !== settings.provider || selected.model !== settings.model || selected.baseUrl !== settings.baseUrl) return;
+      await ensureModel({ model: settings.model, baseUrl: settings.baseUrl, warmup: true });
+    }).catch(() => {
+      // Panel přípravu zopakuje a zobrazí konkrétní chybu při otevření.
+    });
+    return () => { current = false; };
+  }, [accountLocked]);
 
   const handleApplyAgentAction = useCallback(async (action: AgentAction): Promise<string> => {
     await persistence.current.flush();
@@ -439,6 +468,15 @@ export default function App() {
       return next;
     });
   }, [accountLocked]);
+
+  const togglePet = useCallback(() => {
+    setPetVisible((current) => !current);
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem("ethical-world-masa-pet-v1", petVisible ? "visible" : "hidden"); }
+    catch { /* The companion still works when preference storage is unavailable. */ }
+  }, [petVisible]);
 
   useEffect(() => {
     const handleKeyboardShortcut = (event: KeyboardEvent) => {
@@ -539,6 +577,7 @@ export default function App() {
           <button type="button" onClick={toggleAiPanel} title="Máša panel (Ctrl+J)">
             {aiOpen ? "Hide Máša" : "Máša"}
           </button>
+          {!accountLocked && <button type="button" onClick={togglePet} aria-pressed={petVisible} title="Zobrazit nebo skrýt postavičku Máši">Pet</button>}
         </div>
       </header>
 
@@ -614,10 +653,13 @@ export default function App() {
               visible={aiOpen}
               onRequestHide={() => setAiOpen(false)}
               onApplyAgentAction={handleApplyAgentAction}
+              onPetStateChange={setPetState}
             />
           </Suspense>
         )}
       </div>
+
+      {!accountLocked && petVisible && !aiOpen && <MasaPet state={aiLoaded ? petState : "idle"} onOpen={toggleAiPanel} onHide={togglePet} />}
 
       <footer className="studio-credit">
         Created by Rabbithollow Code Studio™

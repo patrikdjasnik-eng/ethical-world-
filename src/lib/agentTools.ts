@@ -323,6 +323,29 @@ export function parseAgentResponse(raw: string, notes: Note[] = []): ParsedAgent
   };
 }
 
+export function parseStructuredNoteResponse(content: string, values: unknown[], notes: Note[]): ParsedAgentResponse {
+  const invalid = (): ParsedAgentResponse => ({ content: "Návrh změny není platný.", actions: [], warning: "Model vrátil neplatný návrh poznámek. Nic se neprovedlo." });
+  if (values.length === 0 || values.length > 8) return invalid();
+  const actions = values.map(validateAgentAction);
+  if (actions.some((action) => !action || !["create_note", "update_note", "create_folder"].includes(action.type))) return invalid();
+  const titles = actions.flatMap((action) => action && "title" in action && action.title ? [action.title] : []);
+  const result: AgentAction[] = [];
+  for (const action of actions) {
+    if (action?.type === "create_folder") {
+      result.push(action);
+      continue;
+    }
+    if (!action || (action.type !== "create_note" && action.type !== "update_note") || !action.content?.trim()) return invalid();
+    const note = action.type === "update_note" ? notes.find((item) => item.id === action.noteId) : undefined;
+    if (action.type === "update_note" && !note) return invalid();
+    const title = action.title || note?.title || "";
+    if (!title.trim()) return invalid();
+    result.push({ ...action, content: finalizeKnowledgeMarkdown(action.content, title, notes, titles), knowledgeNote: true,
+      ...(note ? { expectedUpdatedAt: note.updatedAt, expectedSnapshot: JSON.stringify([note.title, note.folder, note.content]) } : {}) });
+  }
+  return { content, actions: result };
+}
+
 export function describeAgentAction(action: AgentAction, notes: Note[]): string {
   if (action.type === "create_note") {
     return (action.knowledgeNote ? "Vytvořit kompletní knowledge note „" : "Vytvořit poznámku „") + action.title + "“";

@@ -1,9 +1,11 @@
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   color: #d7d7dc;
   background: #121214;
   font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  text-rendering: auto;
+  font-size: 14px;
+  line-height: 1.5;
   --chrome: #0f0f11;
   --rail: #111114;
   --sidebar: #17171a;
@@ -67,7 +69,7 @@ button { color: inherit; }
   border-radius: 6px;
   background: #24202c;
   color: #d6ccfb;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
 }
 
@@ -81,8 +83,8 @@ button { color: inherit; }
   min-width: 0;
   justify-content: center;
   gap: 6px;
-  color: #666670;
-  font-size: 10px;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .topbar-context span,
@@ -92,7 +94,7 @@ button { color: inherit; }
   white-space: nowrap;
 }
 
-.topbar-context strong { color: #95959e; font-weight: 500; }
+.topbar-context strong { color: var(--muted); font-weight: 500; }
 .topbar-context b { color: #45454d; font-weight: 400; }
 
 .topbar-actions { gap: 4px; }
@@ -103,7 +105,7 @@ button { color: inherit; }
   background: transparent;
   color: #73737d;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .topbar-actions button:hover {
@@ -189,7 +191,7 @@ button { color: inherit; }
   border-radius: 50%;
   background: #262130;
   color: #c3b5f7;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -220,7 +222,7 @@ button { color: inherit; }
 
 .pane-eyebrow {
   color: #5c5c65;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .12em;
 }
@@ -338,7 +340,7 @@ button { color: inherit; }
 
 .root-folder-row small {
   color: #505059;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .root-folder-row:hover,
@@ -397,7 +399,7 @@ button { color: inherit; }
   white-space: nowrap;
 }
 
-.folder-icon { color: #74658f; font-size: 10px; }
+.folder-icon { color: #74658f; font-size: 11px; }
 .folder-row.selected .folder-open { color: #d2cae8; }
 
 .tree-actions { display: flex; opacity: 0; }
@@ -414,7 +416,7 @@ button { color: inherit; }
   background: transparent;
   color: #5b5b63;
   cursor: pointer;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .tree-actions button:hover,
@@ -460,7 +462,7 @@ button { color: inherit; }
   text-align: left;
 }
 
-.tree-note-open span { color: #575760; font-size: 10px; }
+.tree-note-open span { color: #575760; font-size: 11px; }
 
 .tree-note-open strong {
   overflow: hidden;
@@ -479,7 +481,7 @@ button { color: inherit; }
 .tree-empty {
   padding: 16px 10px;
   color: #55555d;
-  font-size: 10px;
+  font-size: 11px;
   text-align: center;
 }
 
@@ -492,7 +494,7 @@ button { color: inherit; }
   padding: 0 10px;
   border-top: 1px solid var(--border-soft);
   color: #53535c;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .sidebar-footer span {
@@ -598,8 +600,8 @@ button { color: inherit; }
   align-items: center;
   gap: 6px;
   overflow: hidden;
-  color: #606069;
-  font-size: 10px;
+  color: var(--muted);
+  font-size: 11px;
   white-space: nowrap;
 }
 
@@ -627,10 +629,10 @@ button { color: inherit; }
   background: #141417;
   color: #707079;
   outline: none;
-  font-size: 9px;
+  font-size: 11px;
 }
 
-.save-state { color: #68746b; font-size: 9px; }
+.save-state { color: var(--muted); font-size: 11px; }
 
 .mode-switch,
 .graph-scope-switch {
@@ -650,7 +652,7 @@ button { color: inherit; }
   background: transparent;
   color: #62626b;
   cursor: pointer;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .mode-switch button.selected,
@@ -693,8 +695,8 @@ button { color: inherit; }
   align-items: center;
   gap: 7px;
   margin-bottom: 31px;
-  color: #595961;
-  font-size: 10px;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .document-meta span:first-child { color: #8d78d3; }
@@ -717,7 +719,7 @@ button { color: inherit; }
 }
 
 .markdown-preview {
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: "Segoe UI", system-ui, sans-serif;
 }
 
 .markdown-preview h1,
@@ -763,7 +765,7 @@ button { color: inherit; }
 .relations-panel h3 {
   margin: 0 0 9px;
   color: #5f5f68;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .1em;
   text-transform: uppercase;
@@ -778,11 +780,11 @@ button { color: inherit; }
   background: #232129;
   color: #9c89df;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .chip:hover { border-color: #4b405c; background: #292630; }
-.muted { color: #56565f; font-size: 10px; }
+.muted { color: var(--muted); font-size: 11px; }
 
 .graph-pane {
   display: grid;
@@ -810,7 +812,7 @@ button { color: inherit; }
 
 .graph-kicker {
   color: #595962;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .14em;
 }
@@ -823,7 +825,7 @@ button { color: inherit; }
 
 .graph-title-block small {
   color: #595962;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .graph-toolbar {
@@ -885,13 +887,13 @@ button { color: inherit; }
   max-width: 320px;
   margin: 0;
   color: #666670;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.55;
 }
 
 .graph-empty-overlay small {
   color: #505059;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .graph-empty-overlay code { color: #a08ce6; }
@@ -939,7 +941,7 @@ button { color: inherit; }
   border-radius: 5px;
   background: rgba(18,18,21,.75);
   color: #505059;
-  font-size: 8px;
+  font-size: 11px;
   pointer-events: none;
 }
 
@@ -960,7 +962,7 @@ button { color: inherit; }
   align-items: center;
   gap: 11px;
   color: #56565f;
-  font-size: 9px;
+  font-size: 11px;
   white-space: nowrap;
 }
 
@@ -987,7 +989,7 @@ button { color: inherit; }
   border-bottom: 1px solid var(--border-soft);
   background: #121214;
   color: #595962;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .1em;
   text-transform: uppercase;
@@ -1013,7 +1015,7 @@ button { color: inherit; }
   border-radius: 50%;
   background: #27212f;
   color: #c6b7f6;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -1033,7 +1035,7 @@ button { color: inherit; }
 .ai-header small {
   overflow: hidden;
   color: #5e5e67;
-  font-size: 9px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1077,7 +1079,7 @@ button { color: inherit; }
   display: grid;
   gap: 4px;
   color: #61616a;
-  font-size: 9px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .06em;
 }
@@ -1096,7 +1098,7 @@ button { color: inherit; }
 .ai-settings select {
   padding: 7px 8px;
   border-radius: 5px;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .secondary-button {
@@ -1106,11 +1108,11 @@ button { color: inherit; }
   background: #1d1d22;
   color: #898992;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .secondary-button:hover { color: #c5c5cb; }
-.ai-settings p { margin: 0; color: #505059; font-size: 9px; line-height: 1.45; }
+.ai-settings p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
 
 .ai-offline-banner {
   display: grid;
@@ -1122,8 +1124,8 @@ button { color: inherit; }
   background: #211d17;
 }
 
-.ai-offline-banner strong { color: #c4ad72; font-size: 10px; }
-.ai-offline-banner span { color: #786f5f; font-size: 9px; line-height: 1.45; }
+.ai-offline-banner strong { color: #c4ad72; font-size: 11px; }
+.ai-offline-banner span { color: #786f5f; font-size: 11px; line-height: 1.45; }
 
 .ai-offline-banner button {
   width: fit-content;
@@ -1133,7 +1135,7 @@ button { color: inherit; }
   background: #292219;
   color: #a08c60;
   cursor: pointer;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .ai-context {
@@ -1147,12 +1149,12 @@ button { color: inherit; }
 }
 
 .ai-context span,
-.ai-context small { color: #52525b; font-size: 9px; }
+.ai-context small { color: var(--muted); font-size: 11px; }
 
 .ai-context strong {
   overflow: hidden;
   color: #96969f;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1181,7 +1183,7 @@ button { color: inherit; }
 
 .message span {
   color: #8d7acd;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .1em;
   text-transform: uppercase;
@@ -1202,7 +1204,7 @@ button { color: inherit; }
   border-radius: 5px;
   background: #251a1e;
   color: #c8838b;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .chat-composer {
@@ -1217,7 +1219,7 @@ button { color: inherit; }
   resize: none;
   padding: 10px 10px 32px;
   border-radius: 7px;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
@@ -1231,7 +1233,7 @@ button { color: inherit; }
   background: #2c2933;
   color: #a393df;
   cursor: pointer;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .chat-composer .primary-button:disabled { opacity: .35; cursor: default; }
@@ -1299,7 +1301,7 @@ button { color: inherit; }
 @media (max-width: 620px) {
   .topbar-brand strong { display: none; }
   .topbar-actions button { font-size: 0; }
-  .topbar-actions button::after { font-size: 10px; content: "◧"; }
+  .topbar-actions button::after { font-size: 11px; content: "◧"; }
 
   .graph-topbar {
     align-items: flex-start;
@@ -1326,8 +1328,8 @@ button { color: inherit; }
   --border: #23232b;
   --border-soft: #1b1b22;
   --text: #e5e5ea;
-  --muted: #8a8a96;
-  --faint: #575762;
+  --muted: #a1a1af;
+  --faint: #9393a2;
   --accent: #8b7cf6;
   --accent-2: #b7abff;
   --accent-soft: rgba(139, 124, 246, 0.12);
@@ -1339,8 +1341,7 @@ body,
 }
 
 .app-topbar {
-  background: rgba(11, 11, 14, 0.94);
-  backdrop-filter: blur(18px);
+  background: #0b0b0e;
   border-bottom-color: #202027;
 }
 
@@ -1370,7 +1371,7 @@ body,
 }
 
 .title-input {
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: "Segoe UI", system-ui, sans-serif;
   font-weight: 720;
   letter-spacing: -0.045em;
 }
@@ -1398,7 +1399,7 @@ body,
   background: #121218;
   color: #8f8f9b;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 11px;
   transition:
     background 120ms ease,
     border-color 120ms ease,
@@ -1408,7 +1409,7 @@ body,
 
 .document-insertbar button span {
   color: #746bc0;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -1438,11 +1439,10 @@ body,
   overflow: hidden;
   border: 1px solid #2a2932;
   border-radius: 12px;
-  background: rgba(14, 14, 19, 0.985);
+  background: #0e0e13;
   box-shadow:
     0 20px 60px rgba(0,0,0,0.42),
     0 0 0 1px rgba(255,255,255,0.012) inset;
-  backdrop-filter: blur(20px);
 }
 
 .insert-popover-heading {
@@ -1463,7 +1463,7 @@ body,
 
 .insert-popover-heading span {
   color: #5d5d68;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .13em;
 }
@@ -1476,7 +1476,7 @@ body,
 
 .insert-popover-heading small {
   color: #5c5c67;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .insert-action-grid {
@@ -1515,13 +1515,13 @@ body,
 
 .insert-action-grid strong {
   color: #cfcfd5;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
 }
 
 .insert-action-grid small {
   color: #5d5d67;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .insert-action-icon {
@@ -1533,7 +1533,7 @@ body,
   border-radius: 7px;
   background: #1a1821;
   color: #9d8cf6;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -1556,7 +1556,7 @@ body,
   outline: 0;
   background: transparent;
   color: #d2d2d8;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .insert-note-list {
@@ -1585,7 +1585,7 @@ body,
 
 .insert-note-icon {
   color: #7568bc;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .insert-note-list > button > div {
@@ -1598,7 +1598,7 @@ body,
 .insert-note-list strong {
   overflow: hidden;
   color: #cfcfd5;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 550;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1607,14 +1607,14 @@ body,
 .insert-note-list small {
   overflow: hidden;
   color: #5d5d67;
-  font-size: 8px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .insert-note-arrow {
   color: #4f4f59;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .insert-language-grid {
@@ -1635,7 +1635,7 @@ body,
   background: transparent;
   color: #a7a7b0;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .insert-language-grid button:hover {
@@ -1653,14 +1653,14 @@ body,
   border-radius: 6px;
   background: #19171f;
   color: #9484e3;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 700;
 }
 
 .insert-empty {
   padding: 18px 10px;
   color: #5d5d67;
-  font-size: 10px;
+  font-size: 11px;
   text-align: center;
 }
 
@@ -1701,7 +1701,7 @@ body,
   background: #121217;
   color: #777782;
   cursor: pointer;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .graph-fit-button:hover {
@@ -1719,9 +1719,8 @@ body,
   padding: 5px;
   border: 1px solid rgba(45,45,55,0.82);
   border-radius: 8px;
-  background: rgba(11,11,15,0.78);
+  background: #0b0b0f;
   box-shadow: 0 8px 28px rgba(0,0,0,0.18);
-  backdrop-filter: blur(14px);
 }
 
 .graph-floating-tools button {
@@ -1730,9 +1729,9 @@ body,
   border: 1px solid transparent;
   border-radius: 5px;
   background: transparent;
-  color: #63636e;
+  color: var(--muted);
   cursor: pointer;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .graph-floating-tools button:hover {
@@ -1753,12 +1752,11 @@ body,
   padding: 7px 10px;
   border: 1px solid #292932;
   border-radius: 7px;
-  background: rgba(12,12,16,0.82);
-  color: #666671;
-  font-size: 9px;
+  background: #0c0c10;
+  color: var(--muted);
+  font-size: 11px;
   transform: translateX(-50%);
   pointer-events: none;
-  backdrop-filter: blur(12px);
 }
 
 .graph-orphan-hint code {
@@ -1779,9 +1777,8 @@ body,
   padding: 6px;
   border: 1px solid #2d2b36;
   border-radius: 9px;
-  background: rgba(13,13,17,0.985);
+  background: #0d0d11;
   box-shadow: 0 18px 55px rgba(0,0,0,0.44);
-  backdrop-filter: blur(18px);
 }
 
 .graph-context-heading {
@@ -1795,8 +1792,8 @@ body,
 }
 
 .graph-context-heading span {
-  color: #555560;
-  font-size: 7px;
+  color: var(--muted);
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .12em;
 }
@@ -1804,7 +1801,7 @@ body,
 .graph-context-heading strong {
   overflow: hidden;
   color: #d3d3da;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1822,7 +1819,7 @@ body,
   background: transparent;
   color: #8c8c97;
   cursor: pointer;
-  font-size: 9px;
+  font-size: 11px;
   text-align: left;
 }
 
@@ -1833,7 +1830,7 @@ body,
 
 .graph-context-menu > button span {
   color: #8171cc;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 @media (max-width: 700px) {
@@ -1939,7 +1936,7 @@ body,
   outline: 0;
   background: transparent;
   color: #c8c8c8;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .obsidian-search input::placeholder {
@@ -1958,7 +1955,7 @@ body,
   background: #252525;
   box-shadow: 0 12px 30px rgba(0,0,0,.28);
   color: #bdbdbd;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .obsidian-graph-settings > label {
@@ -1998,7 +1995,7 @@ body,
   background: #202020;
   color: #999;
   cursor: pointer;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .obsidian-settings-row button.active {
@@ -2022,7 +2019,7 @@ body,
   left: 9px;
   z-index: 5;
   color: #666;
-  font-size: 9px;
+  font-size: 11px;
   pointer-events: none;
 }
 
@@ -2035,7 +2032,7 @@ body,
   border-radius: 4px;
   background: rgba(30,30,30,.78);
   color: #777;
-  font-size: 9px;
+  font-size: 11px;
   transform: translateX(-50%);
   pointer-events: none;
 }
@@ -2104,7 +2101,7 @@ body,
 
 .agent-actions-heading strong {
   color: #8f82bd;
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: .06em;
   text-transform: uppercase;
 }
@@ -2114,7 +2111,7 @@ body,
   background: transparent;
   color: #595963;
   cursor: pointer;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .agent-actions-heading button:hover { color: #aaaab4; }
@@ -2130,7 +2127,7 @@ body,
 
 .agent-action-card > span {
   color: #6f638f;
-  font-size: 7px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -2138,7 +2135,7 @@ body,
 
 .agent-action-card > strong {
   color: #c5c1d0;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   line-height: 1.4;
 }
@@ -2155,7 +2152,7 @@ body,
   background: #202027;
   color: #85858f;
   cursor: pointer;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .agent-action-card button:hover:not(:disabled) { color: #d2d2d8; }
@@ -2187,7 +2184,7 @@ body,
   background: transparent;
   color: #54545e;
   cursor: pointer;
-  font-size: 8px;
+  font-size: 11px;
   opacity: 0;
   transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
 }
@@ -2210,7 +2207,7 @@ body,
 .message-metrics {
   margin-top: 8px;
   color: #a5a5b6;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.6;
 }
 
@@ -2219,7 +2216,7 @@ body,
 .chat-token-total {
   padding: 6px 12px;
   color: #a5a5b6;
-  font-size: 10px;
+  font-size: 11px;
   border-top: 1px solid #33333f;
 }
 
@@ -2244,7 +2241,7 @@ body,
 
 .connector-heading span {
   color: #6f63a8;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .14em;
 }
@@ -2259,7 +2256,7 @@ body,
 .connector-heading p {
   margin: 0;
   color: #666672;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .connector-grid {
@@ -2308,7 +2305,7 @@ body,
 .connector-card-head span,
 .connector-card > small {
   color: #64646f;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .connector-icon {
@@ -2321,14 +2318,14 @@ body,
   border-radius: 8px;
   background: #1d1a25;
   color: #9f90e9;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 750;
 }
 
 .connector-card p {
   margin: 0;
   color: #797984;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.55;
 }
 
@@ -2351,7 +2348,7 @@ body,
   background: #1b1a20;
   color: #96969f;
   cursor: pointer;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .connector-actions button:first-child {
@@ -2371,7 +2368,7 @@ body,
   border: 1px solid #2c2c34;
   border-radius: 999px;
   color: #64646e;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 @media (max-width: 980px) {
@@ -2389,7 +2386,7 @@ body,
   border-radius: 6px;
   background: #111116;
   color: #c3b7f5 !important;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: .08em;
 }
 
@@ -2397,7 +2394,7 @@ body,
   display: grid;
   gap: 5px;
   color: #666671;
-  font-size: 8px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .06em;
 }
@@ -2411,7 +2408,7 @@ body,
   outline: 0;
   background: #101014;
   color: #b4b4bd;
-  font-size: 9px;
+  font-size: 11px;
   text-transform: none;
   letter-spacing: 0;
 }
@@ -2437,7 +2434,7 @@ body,
 
 .account-heading span {
   color: #6f63a8;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .14em;
 }
@@ -2453,7 +2450,7 @@ body,
 .account-status {
   margin: 0;
   color: #686873;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
@@ -2484,7 +2481,7 @@ body,
   background: transparent;
   color: #72727d;
   cursor: pointer;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .account-tabs button.active {
@@ -2497,7 +2494,7 @@ body,
   display: grid;
   gap: 5px;
   color: #666671;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 650;
   letter-spacing: .06em;
   text-transform: uppercase;
@@ -2511,7 +2508,7 @@ body,
   outline: 0;
   background: #0f0f13;
   color: #d0d0d7;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0;
   text-transform: none;
 }
@@ -2530,7 +2527,7 @@ body,
   background: #211d2a;
   color: #b9abea;
   cursor: pointer;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .account-submit:disabled {
@@ -2574,7 +2571,7 @@ body,
 .account-profile small {
   overflow: hidden;
   color: #696974;
-  font-size: 8px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2587,12 +2584,12 @@ body,
 
 .account-security strong {
   color: #9f94c8;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .account-security span {
   color: #6c6c77;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .account-status {
@@ -2627,7 +2624,7 @@ body,
 
 .guide-heading span {
   color: #7165aa;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 750;
   letter-spacing: .14em;
 }
@@ -2642,7 +2639,7 @@ body,
 .guide-heading p {
   margin: 0;
   color: #6e6e79;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.55;
 }
 
@@ -2661,7 +2658,7 @@ body,
   background: #15151a;
   color: #6f6f79;
   cursor: pointer;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .guide-language button.active,
@@ -2701,7 +2698,7 @@ body,
 .guide-card p {
   margin: 7px 0 0;
   color: #777782;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.65;
 }
 
@@ -2719,7 +2716,7 @@ body,
 .guide-tips span,
 .update-items span {
   color: #85818f;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.45;
 }
 
@@ -2729,8 +2726,8 @@ body,
 }
 
 .updates-title {
-  color: #696974;
-  font-size: 9px;
+  color: var(--muted);
+  font-size: 11px;
   font-weight: 650;
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -2745,12 +2742,12 @@ body,
 
 .update-meta strong {
   color: #9f91df;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .update-meta span {
-  color: #5d5d67;
-  font-size: 8px;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 @media (max-width: 700px) {
@@ -2777,7 +2774,7 @@ body,
 .account-password-required > p {
   margin: 0;
   color: #777380;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.55;
 }
 
@@ -2788,7 +2785,7 @@ body,
   border-radius: 999px;
   color: #b7a8ed;
   background: #201b29;
-  font-size: 7px;
+  font-size: 11px;
   font-weight: 750;
   letter-spacing: .1em;
 }
@@ -2815,11 +2812,10 @@ body,
   overflow: hidden;
   border: 1px solid #2e2b38;
   border-radius: 14px;
-  background: rgba(13, 13, 17, .985);
+  background: #0d0d11;
   box-shadow:
     0 24px 70px rgba(0, 0, 0, .52),
     0 0 0 1px rgba(255, 255, 255, .018) inset;
-  backdrop-filter: blur(18px);
 }
 
 .ai-panel .pane-titlebar {
@@ -2866,7 +2862,7 @@ body,
 
 .ai-panel .message p {
   margin-top: 4px;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.48;
 }
 
@@ -2962,7 +2958,7 @@ body,
   background: #151419;
   color: #8a858f;
   cursor: pointer;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .carrot-toggle:hover,
@@ -2997,23 +2993,23 @@ body,
 
 .carrot-history-head span {
   color: #c68b58;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 750;
   letter-spacing: .1em;
 }
 
 .carrot-history-head strong {
-  color: #77717b;
-  font-size: 9px;
+  color: var(--muted);
+  font-size: 11px;
   font-weight: 500;
 }
 
 .carrot-history-head button {
   border: 0;
   background: transparent;
-  color: #716a75;
+  color: var(--muted);
   cursor: pointer;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .carrot-grid {
@@ -3047,7 +3043,7 @@ body,
 
 .carrot-list span {
   color: #b9b3bd;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .carrot-list strong,
@@ -3060,18 +3056,18 @@ body,
 
 .carrot-list strong {
   color: #7e7782;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 600;
 }
 
 .carrot-list small {
   color: #55505a;
-  font-size: 7px;
+  font-size: 11px;
 }
 
 .carrot-list i {
   color: #786855;
-  font-size: 7px;
+  font-size: 11px;
   font-style: normal;
 }
 
@@ -3084,8 +3080,8 @@ body,
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  color: #5f5963;
-  font-size: 7px;
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .carrot-preview h3 {
@@ -3111,7 +3107,7 @@ body,
   margin: 0;
   padding: 18px 12px;
   color: #625d66;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 @media (max-width: 760px) {
@@ -3135,7 +3131,7 @@ body,
   bottom: 5px;
   max-width: calc(100vw - 130px);
   color: #45424b;
-  font-size: 7px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: .035em;
   pointer-events: none;
@@ -3146,7 +3142,7 @@ body,
   .studio-credit {
     left: 54px;
     bottom: 3px;
-    font-size: 6px;
+    font-size: 11px;
   }
 }
 
@@ -3165,11 +3161,10 @@ body,
   overflow: hidden;
   border-color: #3a3028;
   border-radius: 12px;
-  background: rgba(14, 13, 16, .985);
+  background: #0e0d10;
   box-shadow:
     0 28px 80px rgba(0, 0, 0, .58),
     0 0 0 1px rgba(255,255,255,.018) inset;
-  backdrop-filter: blur(18px);
 }
 
 .carrot-floating .carrot-history-head {
@@ -3198,7 +3193,7 @@ body,
 
 .carrot-floating .carrot-history-head small {
   color: #4f4950;
-  font-size: 7px;
+  font-size: 11px;
   font-weight: 500;
 }
 
@@ -3216,7 +3211,7 @@ body,
   background: transparent;
   color: #746d76;
   cursor: pointer;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .carrot-window-actions button:hover:not(:disabled) {
@@ -3309,7 +3304,7 @@ body,
   align-items: center;
   gap: 7px;
   color: #777;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .graph-link-legend i {
@@ -3363,7 +3358,7 @@ body,
 .mermaid-error figcaption {
   margin-bottom: 10px;
   color: #d58d98;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .mermaid-error pre {

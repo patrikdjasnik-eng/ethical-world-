@@ -17,6 +17,7 @@ interface SendAiMessageInput {
 
 interface ChatResponse {
   completeNoteIds: string[];
+  actions?: unknown[] | null;
   content: string;
   provider: string;
   model: string;

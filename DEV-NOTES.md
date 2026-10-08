@@ -1854,3 +1854,51 @@ Reference: [Ollama Generate API — explicitní načtení a časování](https:/
 - Fallback je omezený na síťové chyby před HTTP odpovědí. TLS/certifikát, HTTP stav, přerušené tělo a abort se neobcházejí dalším socketem. Celkový 60sekundový limit sběru zůstává aktivní.
 - README výslovně popisuje přísnější robots.txt politiku: 200 vyhodnotí pravidla, 404 povolí chybějící soubor, ostatní stavy včetně 403 a síťové chyby sběr zastaví. Regrese pokrývá 200/404/401/403/429/500/503.
 - Lokální ověření: 109 frontend, 76 Node/Electron a 46 backend testů prošlo, TypeScript/Vite build a git diff --check prošly. Jeden PowerShell test se na Linuxu přeskočil. Pět nových regresí pokrývá IPv6 fallback, privátní DNS/TLS, vyčerpání adres/abort, robots stavy a HTTP/body chyby. CI předchozího headu ea0bc804 prošlo včetně Windows balení a ikon; výsledek nového commitu se ověřuje samostatně.
+
+## 2026-10-08 — Máša: strukturované dokumenty a skutečný zápis do vaultu
+
+- Ollama používá pro dokumentové požadavky JSON schema a teplotu 0. Návrh obsahuje celé Markdown dokumenty a případné nové složky; backend před předáním validuje celý batch, pořadí složek, přesné cesty, neprázdné dokumenty, limit osmi akcí a pouze úplné cíle aktualizací. Při tokenovém limitu nebo neplatném návrhu se žádná akce nepředá. Raw JSON se během streamování nezobrazuje v chatu; počet tokenů a čas prvního provider tokenu zůstávají naměřené.
+- Renderer přijímá strukturované akce přímo, doplní knowledge hlavičku a wiki odkazy a zachytí původní snapshot pro konflikt. ASSIST náhled/potvrzení, READ zákaz zápisu, omezený izolovaný AGENT grant a auditní log zůstávají aktivní. Chybějící složky se nabídnou před závislými poznámkami. U OpenAI-compatible provideru zůstává původní envelope protokol.
+- Integrační regrese používá skutečný App, AiPanel a IndexedDB: před potvrzením nic nevznikne, po potvrzení se uloží Markdown včetně kódu a doslovného `</content>`, doplnění zachová původní obsah a poznámka přežije nové namountování aplikace. Další testy ověřují selhání zápisu bez falešného úspěchu a vytvoření složky před poznámkou. Modelové odpovědi jsou fixtures; nejde o měření skutečného masa-cyber ani garanci faktické správnosti.
+- Desktop přednačítá vybranou lokální Ollamu po odemčení aplikace, i bez otevření AI panelu. Panel zobrazuje průběh; foreground zpráva nečeká na renderer promise přednačtení. Samotné fyzické načtení či provider fronta mohou první zprávu stále zdržet. Změna nastavení a unmount ignorují pozdní UI výsledky; runtime nadále deduplikuje souběžná přednačtení a nic nestahuje.
+- Běžný chat zastaví čtyři přesně opakované souvislé bloky 12–96 slov (alespoň osm různých slov), zavře stream, nepředá finální odpověď/akce a zachová zadání. Dokumentové a vault požadavky tento prose guard nepoužívají, aby neblokoval opakující se code blocks. Nejde o detektor parafrází ani všech opakování.
+- Lokální ověření: 115 frontend, 77 Node/Electron a 56 backend testů (248 celkem), bez skipů; PowerShell 7 v PATH a GITHUB_ACTIONS=true, TypeScript a Vite build. Hosted Windows build a reálné cold/warm měření s modelovými vahami se posuzují samostatně podle výsledků CI a PC. React kontrola: efekty mají cleanup a ignorují stale výsledky, sdílená promise neblokuje chat, UI stav má role=status, lazy loading zůstává zachovaný.
+
+Reference: https://docs.ollama.com/capabilities/structured-outputs
+
+
+## 2026-10-08 — Čitelnější rozhraní / Clearer interface
+
+- Systémový font (Segoe UI ve Windows), výchozí velikost 14 px a výška řádku 1,5. Drobné popisky mají minimálně 11 px; mobilní tlačítka s ukrytým textem zůstávají ukrytá.
+- Plné tmavé pozadí horní lišty, Máši, Carrotu, nabídek a nástrojů grafu; odstraněno rozostřování pozadí panelů.
+- Vyšší kontrast pomocných popisků, cest a stavů. Zachováno nativní DPI, zoom i responzivní rozložení; nevynucujeme měřítko 1 na HiDPI displejích.
+- Ostrost na uživatelově monitoru je nutné ověřit po aktualizaci; CSS změny neopraví nesprávné rozlišení monitoru nebo systémové škálování bitmap.
+
+
+## 2026-10-08 — Máša jako postavička / Máša companion
+
+- Máša má žraločí postavičku podle uživatelské obrazové předlohy: šedobílý komiksový žralok s velkým okem a háčkem. Průhledný PNG je v `src/assets/masa-shark.png`, zabalený do buildu a offline precache.
+- Generováno vestavěným imagegen; zadání: zachovat kresleného žraloka z předlohy, plné tělo, velké oko, šedobílou paletu, ostrou černou linku a háček, odstranit pozadí a bubliny, nepřidávat text ani rekvizity.
+- Kliknutí na postavičku otevře Mášu; při otevřeném panelu je portrét v hlavičce. Zavřený panel dál zachovává relaci a skutečný stav práce.
+- Sedm stavů: klid, přemýšlení, psaní, návrh ke kontrole, ukládání, offline a chyba. Animace rozhýbává jeden obrázek pomocí CSS; nejde o samostatné snímkové animace obličeje nebo ploutví.
+- Postavičku lze skrýt a obnovit přes tlačítko Pet; preference přežije restart. Respektuje prefers-reduced-motion, ovládání klávesnicí a náhradní ikonu při selhání obrázku.
+- Dva nové integrační testy ověřují otevření/skrytí, obnovení preference a stavy skutečného požadavku při minimalizaci včetně zachování zadání po chybě.
+- Tento krok nepřidává paměť, zpětnou vazbu ani dotrénink modelu. Postavička nemění oprávnění asistenta.
+
+
+## 2026-10-08 — Vícenásobný import / Multiple Markdown import
+
+- Konektory mají samostatný výběr více `.md`/`.mdx` souborů; funguje v prohlížeči i Electronu. Výběr se resetuje, takže lze stejné soubory vybrat znovu. Každá ruční dávka tvoří nové kopie; nejde o synchronizaci zdrojových souborů.
+- Limit výběru i desktopového průchodu složkou je 100 000 souborů. Zachován limit 2 MiB na jeden soubor.
+- Čtení má nejvýše osm souběžných operací, průběh po 128 souborech. Nečitelný soubor nebo kolize cest zastaví ruční dávku před uložením.
+- Kontroly aktuálního snapshotu a duplicitních zdrojů používají mapy místo vnořeného hledání; tvorba Carrot historie má nejvýše osm souběžných operací.
+- Ověřeno více souborů, opakovaný výběr, kolize, chyba čtení, přijetí 2 001 souborů a odmítnutí 100 001 ještě před čtením. Limit 100 000 není benchmark plynulosti UI s takto velkým reálným vaultem.
+
+
+## 2026-10-08 — Registrační e-maily / Registration notifications
+
+- Příjemce: rabbithollowczech@gmail.com. Registrace i její událost se ukládají atomicky; opakovaná neúspěšná registrace negeneruje další e-mail.
+- Trvalá SQLite fronta, lease proti souběžným workerům, retry 30 s až 1 h, nejvýše 10 zpráv na průchod. TLS SMTP s timeoutem, žádná hesla/tokeny v těle nebo diagnostice.
+- Windows skript start-with-registration-mail.ps1 vyžádá Gmail app password a předá konfiguraci launcheru či vývojovému procesu bez zápisu hesla na disk.
+- Ověřeno šest nových backendových testů: atomicita, čekání bez konfigurace, opakování po chybě, lease/restart, TLS a obsah, funkční registrace při nedostupné poště. Celkem 62 backendových testů prošlo.
+- Reálné odesílání nebylo aktivováno ani ověřeno: chybí SMTP přístup. Fronta zachytí jen nové registrace na daném backendu, nikoli registrace ze všech lokálních instalací.

@@ -148,10 +148,11 @@ def ollama_metrics(payload: dict) -> dict[str, int | float | bool]:
   return result
 
 
-async def chat_ollama(base_url: str, model: str, messages: list[dict[str, str]], max_output_tokens: int = 2048, *, metrics: dict | None = None) -> str:
+async def chat_ollama(base_url: str, model: str, messages: list[dict[str, str]], max_output_tokens: int = 2048, *, metrics: dict | None = None, output_schema: dict | None = None) -> str:
   payload = await request_json(base_url, "/api/chat", timeout=240, body={
     "model": model, "messages": messages, "stream": False, "keep_alive": "15m", "truncate": False, "shift": False,
-    "options": {"temperature": 0.25, "num_predict": max_output_tokens}
+    "options": {"temperature": 0 if output_schema else 0.25, "num_predict": max_output_tokens},
+    **({"format": output_schema} if output_schema else {})
   })
   message = payload.get("message")
   content = message.get("content") if isinstance(message, dict) else None
@@ -192,10 +193,11 @@ async def provider_json_lines(base_url: str, suffix: str, body: dict) -> AsyncIt
     raise ProviderError("Provider stream selhal nebo vrátil neplatný JSON.") from error
 
 
-async def stream_ollama(base_url: str, model: str, messages: list[dict[str, str]], max_output_tokens: int) -> AsyncIterator[dict]:
+async def stream_ollama(base_url: str, model: str, messages: list[dict[str, str]], max_output_tokens: int, *, output_schema: dict | None = None) -> AsyncIterator[dict]:
   async with aclosing(provider_json_lines(base_url, "/api/chat", {
     "model": model, "messages": messages, "stream": True, "keep_alive": "15m", "truncate": False, "shift": False,
-    "options": {"temperature": 0.25, "num_predict": max_output_tokens}
+    "options": {"temperature": 0 if output_schema else 0.25, "num_predict": max_output_tokens},
+    **({"format": output_schema} if output_schema else {})
   })) as lines:
     async for payload in lines:
       if payload.get("error"):

@@ -100,7 +100,16 @@ ollama list
 
 V nastavení Máši vyber **Ollama**, Base URL `http://127.0.0.1:11434` a přesný nainstalovaný model, například `qwen2.5:7b`. Výchozí alias `masa-cyber:latest` je vlastní lokální model; nový počítač ho automaticky nemá. Můžeš vybrat libovolný již nainstalovaný podporovaný chatový model z výpisu `ollama list`.
 
-Desktop spouští FastAPI backend sám. Máša připraví lokální Ollamu nebo využije již běžící službu; model načte první skutečný chat. Ruční `uvicorn` vedle desktopu není potřeba. Pokud příprava selže, panel ukáže chybu a tlačítko **Zkontrolovat znovu** provede nový pokus. Modely se samy nestahují.
+Desktop spouští FastAPI backend sám. Máša připraví lokální Ollamu nebo využije již běžící službu; vybraný model přednačte na pozadí po odemčení aplikace. Panel ukazuje stav přednačtení; zprávu lze odeslat i během něj. První zpráva může stále čekat na fyzické načtení modelu, pokud přednačtení ještě neskončilo. Ruční `uvicorn` vedle desktopu není potřeba. Pokud příprava selže, panel ukáže chybu a tlačítko **Zkontrolovat znovu** provede nový pokus. Modely se samy nestahují.
+
+### Skutečné poznámky vytvořené Mášou
+
+V ASSIST zadej například „Vytvoř Markdown poznámku o malware ve složce Cybersecurity“. Ollama vrátí strukturovaný návrh. Obsah se zobrazí pod **Navržené akce → Náhled změny**, místo samotného dokumentu v chatu. Tlačítko **Použít** zapíše poznámku do lokálního vaultu; **Použít vše** provede navržené složky před jejich poznámkami. Potvrzení úspěchu vzniká až po dokončeném zápisu. Poznámka se otevře v editoru a zůstává uložená po restartu.
+
+Pro doplnění otevři cílovou poznámku a požádej například „Doplň tuto poznámku o detekci“. Přepis vyžaduje úplný obsah cíle a nezměněný původní stav; při konfliktu připrav nový návrh. Neplatný, neúplný nebo tokenovým limitem ukončený návrh se neprovede. READ změny nepovoluje; AGENT zachovává omezený grant pro nové poznámky a jinak vyžaduje potvrzení. Obsah a faktickou správnost před potvrzením zkontroluj.
+
+Strukturované návrhy používají lokální Ollama JSON schema API; OpenAI-compatible provider nadále používá dosavadní protokol návrhů. Žádné modelové váhy se automaticky nestahují. Poznámka ve vaultu není automatický export `.md` na disk; k tomu slouží Markdown konektor.
+
 
 ### Další aktualizace
 
@@ -221,3 +230,30 @@ Politika robots.txt je záměrně přísnější než RFC 9309: HTTP 200 se vyho
 Kanonický motiv je `public/ethical-world-mark.svg`. `npm run icons:generate` z něj vytvoří ICO se sedmi velikostmi (16–256 px) a PNG. Forge používá tuto ikonu pro `EthicalWorld.exe` i `EthicalWorldSetup.exe`, backend má stejnou ikonu a launcher ji kopíruje přímo ze zdrojů místo extrakce staré placeholder ikony. `scripts/test-desktop-icons.ps1` spouští kontrolu všech sedmi ikonových resource přímo v aplikačním EXE, instalátoru a zabaleném backendu; porovnává jejich bajty s kanonickým ICO bez převodu a škálování přes Windows Shell. Novou ikonu uvidíš po sestavení a instalaci aktualizované verze.
 
 Desktop ukládá Notion master key přes OS secure storage. Existující `connector.key` migruje beze změny klíče a plaintext odstraní až po ověřeném uložení. Samostatně spuštěný Python backend nadále potřebuje bezpečně dodaný `ETHICAL_WORLD_CONNECTOR_KEY`; po desktopové migraci nenechávej samostatný backend vygenerovat jiný klíč pro tutéž databázi.
+
+
+### Postavička Máši
+
+Máša má v pravém dolním rohu žraločí postavičku. Kliknutím otevřeš chat; po minimalizaci uvidíš její aktuální stav práce. Tlačítkem **Pet** v horní liště ji můžeš skrýt nebo obnovit. Nastavení se uchovává lokálně. Pohyb respektuje systémové omezení animací a obrázek funguje i offline po instalaci aplikace. Postavička představuje stav asistenta; vlastní paměť nebo trénování modelu tímto krokem nevzniká.
+
+
+### Přidání více Markdown souborů
+
+V **Connectors → Local / VS Code workspace → Přidat Markdown soubory** vyber více `.md` nebo `.mdx` souborů pomocí Ctrl/Shift. Import vytváří nové poznámky a původní soubory nemění. Další dávka přidá další kopie; pro průběžnou synchronizaci stejného zdroje použij desktopový složkový konektor. Výběr i import složky podporuje až **100 000 souborů**, každý nejvýše **2 MiB**. U velmi velkých vaultů závisí doba importu a odezva rozhraní na velikosti obsahu a výkonu zařízení.
+
+
+### Upozornění na nové registrace
+
+Nové registrace backendu ukládají upozornění pro **rabbithollowczech@gmail.com** do SQLite fronty ve stejné transakci jako účet. E-mail obsahuje jméno, e-mail, UTC čas a ID účtu; neobsahuje heslo ani token. Odesílání běží na pozadí přes ověřené TLS, po chybě se opakuje s odstupem až jedné hodiny a neodeslaná zpráva přežije restart. SMTP bez nakonfigurovaných přihlašovacích údajů nic neodesílá; zprávy zůstávají čekat. SMTP doručení může při pádu mezi odesláním a potvrzením vytvořit duplicitu, proto má zpráva stabilní Message-ID.
+
+Na Windows po aktualizaci aplikace zavři běžící Ethical World a z kořene repozitáře spusť:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-with-registration-mail.ps1
+```
+
+Skript vyžádá přihlašovací údaje odesílající schránky včetně [hesla aplikace Google](https://support.google.com/accounts/answer/185833); heslo nezapisuje na disk ani do příkazové historie a předá ho spuštěnému backendu přes prostředí procesu. Při dalším spuštění je zadáš znovu. Parametr `-Dev` místo nainstalovaného launcheru spustí vývojovou aplikaci.
+
+Pro spravovaný server nastav `ETHICAL_WORLD_SMTP_HOST`, `ETHICAL_WORLD_SMTP_PORT` (465 pro implicitní TLS, jinak STARTTLS), `ETHICAL_WORLD_SMTP_USER` a `ETHICAL_WORLD_SMTP_PASSWORD` jako serverové proměnné prostředí. `.env.example` slouží jako přehled; backend soubor `.env` automaticky nenačítá. Přihlašovací údaje nevkládej do distribuovaného EXE ani do frontendu.
+
+Účty jsou zatím lokální: upozornění zahrnují jen registrace backendu s nastaveným SMTP. Pro přehled registrací ze všech instalací je potřeba společný registrační server. Doručení do skutečné schránky je třeba ověřit po nastavení SMTP; automatické testy používají náhradu poštovní služby.

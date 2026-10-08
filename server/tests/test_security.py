@@ -51,12 +51,12 @@ class SecurityTests(unittest.TestCase):
 
   def test_agent_mode_receives_tools_and_complete_context_metadata(self):
     payload = {"provider": "ollama", "model": "demo", "baseUrl": "http://localhost:11434", "permissionMode": "agent", "messages": [{"role": "user", "content": "vytvor poznamku"}], "vaultContext": [{"id": "full", "title": "Full", "content": "complete"}, {"id": "partial", "title": "Partial", "content": "excerpt", "complete": False}]}
-    with patch.object(main, "chat_ollama", AsyncMock(return_value="demo")) as model:
+    with patch.object(main, "chat_ollama", AsyncMock(return_value=json.dumps({"notes": [{"operation": "create", "noteId": "", "title": "Test", "folder": "", "content": "# Test"}]}))) as model:
       response = self.client.post("/api/chat", json=payload, headers=self.capability)
       self.assertEqual(response.status_code, 200)
       self.assertEqual(response.json()["completeNoteIds"], ["full"])
       prompt = model.call_args.args[2][0]["content"]
-      self.assertIn("KNOWLEDGE NOTE MODE", prompt)
+      self.assertIn("JSON schema", prompt)
       data = json.loads(model.call_args.args[2][1]["content"].split("\n", 1)[1])
       self.assertIn("ČÁSTEČNÝ OBSAH", data["notes"][1]["content"])
 
@@ -130,9 +130,11 @@ class SecurityTests(unittest.TestCase):
     prompt = prepared.messages[0]["content"]
     self.assertEqual(prepared.workload, "document")
     self.assertEqual(prepared.budget.output_tokens, 6144)
-    self.assertIn("KNOWLEDGE NOTE MODE", prompt)
-    self.assertIn("<ethical-note>", prompt)
-    self.assertIn("NAVAZUJÍCÍ EDITACE", prompt)
+    self.assertIsNotNone(prepared.output_schema)
+    self.assertIn("JSON schema", prompt)
+    self.assertIn("zachovej původní obsah", prompt)
+    request.provider = "openai-compatible"
+    self.assertIn("<ethical-note>", main.prepare_chat(request).messages[0]["content"])
     data = json.loads(prepared.messages[1]["content"].split("\n", 1)[1])
     self.assertEqual(data["index"][0]["title"], "TLS")
     self.assertEqual(data["notes"][0]["content"], "Exact note body")
