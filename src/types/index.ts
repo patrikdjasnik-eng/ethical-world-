@@ -1,10 +1,11 @@
-export type NoteSourceProvider = "local-markdown" | "github" | "notion";
+export type NoteSourceProvider = "local-markdown" | "github" | "notion" | "web-research";
 
 export interface NoteSource {
   provider: NoteSourceProvider;
   connectionId: string;
   relativePath: string;
   baselineContent?: string;
+  incomplete?: boolean;
 }
 
 export interface Note {

@@ -1,4 +1,5 @@
 import type { AgentAuditEntry, CarrotCommit, Note, VaultFolder } from "../types";
+import { carrotHead, orderCarrotHistory } from "./carrotOrder";
 
 const databaseName = "ethical-world";
 const databaseVersion = 4;
@@ -156,16 +157,24 @@ export async function listCarrotCommits(noteId: string): Promise<CarrotCommit[]>
   await done;
   database.close();
 
-  return commits.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  return orderCarrotHistory(commits);
 }
 
 export async function saveCarrotCommit(commit: CarrotCommit): Promise<void> {
   const database = await openDatabase();
   const transaction = database.transaction(carrotStore, "readwrite");
   const done = transactionDone(transaction);
-  transaction.objectStore(carrotStore).put(commit);
-  await done;
-  database.close();
+  const store = transaction.objectStore(carrotStore);
+  const request = store.index("noteId").getAll(IDBKeyRange.only(commit.noteId)) as IDBRequest<CarrotCommit[]>;
+  let conflict: unknown;
+  request.onsuccess = () => {
+    try {
+      const head = carrotHead(request.result);
+      if ((head?.id ?? null) !== commit.parentId || (head?.commitHash ?? null) !== commit.parentCommitHash) throw new Error("Carrot historie se během podpisu změnila. Zkus uložení znovu.");
+      store.add(commit);
+    } catch (error) { conflict = error; transaction.abort(); }
+  };
+  try { await done; } catch (error) { throw conflict ?? error; } finally { database.close(); }
 }
 
 export async function saveWorkspace(notes: Note[], folders: VaultFolder[]): Promise<void> {
@@ -179,6 +188,40 @@ export async function saveWorkspace(notes: Note[], folders: VaultFolder[]): Prom
   } finally {
     database.close();
   }
+}
+
+// Compare and write in one transaction, including absent notes and concurrent tabs.
+export async function saveImportedWorkspace(notes: Note[], folders: VaultFolder[], expectedNotes: Note[], isCurrent: () => boolean): Promise<void> {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction([notesStore, foldersStore], "readwrite");
+    const done = transactionDone(transaction);
+    const store = transaction.objectStore(notesStore);
+    const expected = new Map(expectedNotes.map((note) => [note.id, note]));
+    const read = store.getAll() as IDBRequest<Note[]>;
+    let conflict = false;
+    read.onsuccess = () => {
+      const stored = new Map(read.result.map((note) => [note.id, note]));
+      if (!isCurrent() || notes.some((note) => {
+        const duplicateSource = note.source && read.result.some((item) => item.id !== note.id && item.source?.provider === note.source?.provider && item.source?.connectionId === note.source?.connectionId && item.source?.relativePath === note.source?.relativePath);
+        return duplicateSource || JSON.stringify(stored.get(note.id)) !== JSON.stringify(expected.get(note.id));
+      })) {
+        conflict = true;
+        transaction.abort();
+        return;
+      }
+      for (const note of notes) store.put(note);
+      const folderStore = transaction.objectStore(foldersStore);
+      for (const folder of folders) {
+        const existing = folderStore.index("path").get(folder.path);
+        existing.onsuccess = () => { if (!existing.result) folderStore.put(folder); };
+      }
+    };
+    try { await done; } catch (error) {
+      if (conflict) throw new Error("Konflikt importu: vault se během načítání změnil. Zkus import znovu; lokální změny zůstaly zachované.");
+      throw error;
+    }
+  } finally { database.close(); }
 }
 
 

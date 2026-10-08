@@ -108,3 +108,20 @@ test("fake healthy backend never receives a capability or a password", async () 
     await assert.rejects(gatewayRequest(base, "secret", { path: "/api/auth/../anything", method: "GET" }), /Blocked/);
   } finally { await new Promise((resolve) => server.close(resolve)); }
 });
+
+test("partial Markdown export reports only paths actually written", async (t) => fixture(async (root) => {
+  await fs.writeFile(path.join(root, "one.md"), "old one");
+  await fs.writeFile(path.join(root, "two.md"), "old two");
+  const baselines = new Map([["one.md", contentHash("old one")], ["two.md", contentHash("old two")]]);
+  const rename = fs.rename;
+  t.mock.method(fs, "rename", async (from, to) => {
+    if (to === path.join(root, "two.md")) throw new Error("fixture disk failure");
+    return rename(from, to);
+  });
+  const result = await writeMarkdownBatch(root, [{ relativePath: "one.md", content: "new one" }, { relativePath: "two.md", content: "new two" }], baselines);
+  assert.equal(result.written, 1);
+  assert.deepEqual(result.paths, ["one.md"]);
+  assert.match(result.error, /disk failure/);
+  assert.equal(await fs.readFile(path.join(root, "one.md"), "utf8"), "new one");
+  assert.equal(await fs.readFile(path.join(root, "two.md"), "utf8"), "old two");
+}));

@@ -67,6 +67,7 @@ function createTokenPrompt({ BrowserWindow, ipcMain, owner, directory }) {
     if (pending) return pending;
     pending = new Promise((resolve, reject) => {
       const prompt = new BrowserWindow({
+        icon: path.join(directory, "..", "assets", "icons", process.platform === "win32" ? "EthicalWorld.ico" : "EthicalWorld.png"),
         width: 600, height: 490, parent: owner(), modal: true, show: false, resizable: false,
         autoHideMenuBar: true, backgroundColor: '#101116',
         webPreferences: { preload: path.join(directory, 'github-token-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true },

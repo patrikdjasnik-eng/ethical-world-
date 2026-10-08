@@ -5,13 +5,28 @@ export async function gatewayFetch(path: string, init: RequestInit = {}): Promis
 
   if (window.ethicalDesktop) {
     if (init.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    const desktop = window.ethicalDesktop;
+    const id = crypto.randomUUID();
     const headers = Object.fromEntries(new Headers(init.headers).entries());
-    const result = await window.ethicalDesktop.gatewayRequest({
+    const task = desktop.gatewayRequest({
+      id,
       path,
       method: init.method === "POST" ? "POST" : "GET",
       headers,
       body: typeof init.body === "string" ? init.body : undefined
     });
+    let cancel = () => {};
+    const aborted = new Promise<never>((_resolve, reject) => {
+      cancel = () => {
+        void desktop.cancelGatewayRequest?.(id).catch(() => undefined);
+        reject(new DOMException("Aborted", "AbortError"));
+      };
+      init.signal?.addEventListener("abort", cancel, { once: true });
+      if (init.signal?.aborted) cancel();
+    });
+    let result;
+    try { result = await Promise.race([task, aborted]); }
+    finally { init.signal?.removeEventListener("abort", cancel); }
     return new Response(result.body, {
       status: result.status,
       headers: { "Content-Type": "application/json" }

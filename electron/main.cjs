@@ -6,6 +6,10 @@ const crypto = require("node:crypto");
 const { createSecureStore, createSigner } = require("./secure-store.cjs");
 const { gatewayRequest, gatewayStreamRequest } = require("./backend-runtime.cjs");
 const chatStreams = new Map();
+const gatewayRequests = new Map();
+function cancelRequests() {
+  for (const controller of [...chatStreams.values(), ...gatewayRequests.values()]) controller.abort();
+}
 const { createBackendManager } = require("./backend-manager.cjs");
 const { createModelRuntime } = require("./model-runtime.cjs");
 const modelRuntime = createModelRuntime();
@@ -16,6 +20,11 @@ const { createGitHubAuthRuntime } = require("./github-auth-runtime.cjs");
 const squirrelStartup = require("electron-squirrel-startup");
 const { updateElectronApp, UpdateSourceType } = require("update-electron-app");
 
+let research = null;
+function researchStore() {
+  if (!research) research = require("./research-runtime.cjs").createResearchRuntime({ directory: path.join(app.getPath("userData"), "research") });
+  return research;
+}
 let mainWindow = null;
 const requestGitHubToken = createTokenPrompt({ BrowserWindow, ipcMain, owner: () => mainWindow, directory: __dirname });
 const markdownRoots = new Map();
@@ -123,7 +132,17 @@ function backendLogPath() {
   return path.join(app.getPath("userData"), "logs", "backend-startup.log");
 }
 
+let connectorKeyProvider;
 const backendRuntime = createBackendManager({
+  getEnv: async () => {
+    if (process.env.ETHICAL_WORLD_CONNECTOR_KEY) return {};
+    const directory = process.env.ETHICAL_WORLD_DATA_DIR ?? path.join(require("node:os").homedir(), ".ethical-world");
+    if (!(process.env.ETHICAL_NOTION_CLIENT_ID && process.env.ETHICAL_NOTION_CLIENT_SECRET) && !fsSync.existsSync(path.join(directory, "connector.key"))) return {};
+    if (!connectorKeyProvider) connectorKeyProvider = require("./connector-key.cjs").createConnectorKeyProvider({
+      store: secretsStore(), directory
+    });
+    return connectorKeyProvider();
+  },
   getCandidates: backendCandidates, token: backendToken,
   port: process.env.ETHICAL_WORLD_DESKTOP_PORT ?? 8787,
   startupMs: app.isPackaged ? 45000 : 15000,
@@ -440,6 +459,7 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
       height: 930,
       minWidth: 980,
       minHeight: 680,
+      icon: path.join(__dirname, "..", "assets", "icons", process.platform === "win32" ? "EthicalWorld.ico" : "EthicalWorld.png"),
       backgroundColor: "#09090b",
       autoHideMenuBar: true,
       show: false,
@@ -451,9 +471,9 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
       }
     });
 
-    mainWindow.once("closed", () => { githubAuth.cancel(); mainWindow = null; });
-    mainWindow.webContents.on("render-process-gone", () => githubAuth.cancel());
-    mainWindow.webContents.on("did-navigate", () => githubAuth.cancel());
+    mainWindow.once("closed", () => { githubAuth.cancel(); cancelRequests(); mainWindow = null; });
+    mainWindow.webContents.on("render-process-gone", () => { githubAuth.cancel(); cancelRequests(); });
+    mainWindow.webContents.on("did-start-navigation", (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) { githubAuth.cancel(); cancelRequests(); } });
     mainWindow.once("ready-to-show", () => {
       mainWindow?.show();
     });
@@ -616,12 +636,31 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
     return carrotVerifyPayload(payload, signature, publicKey);
   });
 
+  handleTrusted("desktop:research-start", async (_event, urls) => researchStore().start(urls));
+  handleTrusted("desktop:research-list", async () => researchStore().list());
+  handleTrusted("desktop:research-read", async (_event, id) => researchStore().read(id));
+  handleTrusted("desktop:research-cancel", async (_event, id) => researchStore().cancel(id));
+  handleTrusted("desktop:research-remove", async (_event, id) => researchStore().remove(id));
+
   handleTrusted("desktop:gateway-request", async (_event, request) => {
-    if (request?.path !== "/health") {
-      const runtime = await backendRuntime.ensure();
-      if (runtime.state !== "ready") throw new Error(runtime.message);
+    const id = request?.id;
+    if (typeof id !== "string" || !/^[a-z0-9-]{1,80}$/i.test(id) || gatewayRequests.has(id) || gatewayRequests.size >= 64) throw new Error("Blocked gateway session.");
+    const controller = new AbortController();
+    gatewayRequests.set(id, controller);
+    try {
+      if (request.path !== "/health") {
+        const runtime = await backendRuntime.ensure();
+        controller.signal.throwIfAborted();
+        if (runtime.state !== "ready") throw new Error(runtime.message);
+      }
+      return await gatewayRequest(backendRuntime.baseUrl, backendToken, request, controller.signal);
+    } finally {
+      gatewayRequests.delete(id);
     }
-    return gatewayRequest(backendRuntime.baseUrl, backendToken, request);
+  });
+
+  handleTrusted("desktop:gateway-request-cancel", async (_event, id) => {
+    if (typeof id === "string") gatewayRequests.get(id)?.abort();
   });
 
   handleTrusted("desktop:gateway-stream", async (event, id, request) => {
@@ -689,8 +728,8 @@ if (!squirrelStartup && app.requestSingleInstanceLock()) {
     if (backendStopping) return;
     backendStopping = true;
     githubAuth.cancel();
-    for (const controller of chatStreams.values()) controller.abort();
-    void Promise.all([backendRuntime.stop(), modelRuntime.stop()]).then(() => {
+    cancelRequests();
+    void Promise.all([backendRuntime.stop(), modelRuntime.stop(), research?.stop()]).then(() => {
       backendStopped = true;
       app.quit();
     }).catch((error) => {

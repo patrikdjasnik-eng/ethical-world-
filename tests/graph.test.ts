@@ -130,3 +130,11 @@ describe("related graph edges", () => {
     expect(buildKnowledgeGraph(relatedNotes, false).links).toHaveLength(0);
   });
 });
+
+it("bounds inferred relationships in a 2000-note vault with a shared tag", () => {
+  const large = Array.from({ length: 2000 }, (_, index) => ({ ...notes[0], id: String(index), title: "Topic " + index, content: "#security\n" + "body ".repeat(1200) }));
+  const graph = buildKnowledgeGraph(large);
+  expect(graph.links).toHaveLength(0);
+  large[0].content += "\n[[Topic 1999]]";
+  expect(buildKnowledgeGraph(large).links).toHaveLength(1);
+});

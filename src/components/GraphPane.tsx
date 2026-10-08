@@ -11,6 +11,7 @@ import {
   buildKnowledgeGraph,
   buildLocalKnowledgeGraph,
   getConnectedNodeIds,
+  type KnowledgeGraphData,
   type KnowledgeGraphNode
 } from "../lib/graph";
 import type { Note } from "../types";
@@ -134,10 +135,21 @@ export const GraphPane = memo(function GraphPane({
     }
   }, [activeNoteId, localRootId]);
 
-  const globalGraph = useMemo(
-    () => buildKnowledgeGraph(notes, showRelated),
-    [notes, showRelated]
-  );
+  const [globalGraph, setGlobalGraph] = useState<KnowledgeGraphData>({ nodes: [], links: [] });
+  const [graphError, setGraphError] = useState<string | null>(null);
+  useEffect(() => {
+    setGraphError(null);
+    if (typeof Worker === "undefined") {
+      setGlobalGraph(buildKnowledgeGraph(notes, showRelated));
+      return;
+    }
+    const worker = new Worker(new URL("../lib/graph.worker.ts", import.meta.url), { type: "module" });
+    let current = true;
+    worker.onmessage = (event: MessageEvent<KnowledgeGraphData>) => { if (current) setGlobalGraph(event.data); };
+    worker.onerror = () => { if (current) setGraphError("Graf se nepodařilo vypočítat. Zkus jej otevřít znovu."); };
+    worker.postMessage({ notes, includeRelated: showRelated });
+    return () => { current = false; worker.terminate(); };
+  }, [notes, showRelated]);
   const scopedGraph = useMemo(
     () => scope === "local"
       ? buildLocalKnowledgeGraph(globalGraph, localRootId)
@@ -311,6 +323,7 @@ export const GraphPane = memo(function GraphPane({
 
   return (
     <main className="graph-pane obsidian-graph">
+      {graphError && <p role="alert">{graphError}</p>}
       <div
         className="graph-stage obsidian-graph-stage"
         ref={containerRef}

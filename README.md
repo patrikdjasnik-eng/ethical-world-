@@ -7,9 +7,9 @@
 
 Ethical World je local-first knowledge workspace inspirovaný nástroji jako Obsidian, ale AI vrstva je součástí architektury od prvního dne.
 
-> **Stav CI — ověřeno 7. 10. 2026:** GitHub Actions jsou blokované kvůli problému s účtováním GitHub účtu. [Ověřený běh](https://github.com/patrikdjasnik-eng/ethical-world-/actions/runs/37629754595) skončil před spuštěním testů s hláškou „The job was not started because your account is locked due to a billing issue.“ = 7.10 19:37 problém vyřešen 🆗
+> **CI:** Poslední ověřený běh původního základu `0403da0` je [37660876897](https://github.com/patrikdjasnik-eng/ethical-world-/actions/runs/37660876897): frontend i backend prošly na Ubuntu 24.04 a Windows 2022. Stav konkrétních nových změn ověřuj v jejich PR.
 >
-> Lokálně prošlo 201 testů a produkční build. Hosted CI zůstává neověřené do odstranění blokace v GitHub Billing a opakování běhu. Podrobnosti: [AUDIT.md](AUDIT.md#ci-a-github-device-oauth) a [postup pro CI](#ci-a-github-připojení).
+> Opravy druhého hloubkového auditu: [AUDIT-REMEDIATION.md](AUDIT-REMEDIATION.md). Windows CI navíc balí aplikaci a kontroluje skutečné ikony EXE a instalátoru.
 
 Cílem je mít jedno místo pro poznámky, projekty, wiki odkazy a kontextovou AI agentku, která umí pracovat nad aktuálním vaultem bez nutnosti odesílat všechna data do cloudu.
 
@@ -204,3 +204,20 @@ Git clone a launcher nevyžadují přihlášení do GitHub konektoru. Pro Markdo
 Poznámky jsou data uživatele. AI je pomocná vrstva nad nimi, ne vlastník dat. Destruktivní agentní operace budou vždy navržené tak, aby měly preview, diff nebo explicitní potvrzení.
 
 Webový vývoj používá Vite `/api` proxy do ověřeného lokálního backendu. Backend a Vite musí mít stejný `ETHICAL_WORLD_DATA_DIR` (výchozí `~/.ethical-world`). Desktop spouští vlastní backend a komunikuje přes omezené IPC; samostatný backend před spuštěním desktopu zastav.
+
+
+## Web Research a poděkování Apify
+
+Desktopový konektor **Web Research** používá [Crawlee od Apify](https://github.com/apify/crawlee) (Apache 2.0). Děkujeme Apify za jejich open-source práci. Fronta, průběh, opakování a výsledky úloh jsou inspirované také Apify Actors; aplikace běží lokálně a nepotřebuje Apify účet ani cloudový token. [Licence a přehled atribuce](THIRD_PARTY_NOTICES.md) jsou součástí distribuce.
+
+V Connectors zadej 1–10 veřejných HTTPS adres. Úloha má omezenou souběžnost, nejvýše dvě opakování a uložený průběh. **Výsledky** nejdřív zobrazí získaný text a zdroje; teprve **Importovat výsledky do vaultu** vytvoří poznámky. Úlohu lze zastavit, spustit znovu nebo smazat. Rozběhnuté úlohy po restartu zůstanou označené jako přerušené a samy neobnoví síťový provoz. Ukládá se nejvýše 20 úloh.
+
+Sběr respektuje robots.txt, používá identifikovatelný User-Agent a nepoužívá přihlášení, cookies ani obcházení ochrany webu. Stahuje pouze HTML/text ze zadaných adres, bez spouštění skriptů a automatického procházení odkazů. DNS a každý redirect procházejí kontrolou veřejné adresy; adresa je připnutá k socketu. Limit je 2 MiB na odpověď, 100 000 znaků extrahovaného textu na stránku a 1 MiB výsledného textu na úlohu. Zkrácené výsledky se předávají AI jako neúplné. JavaScriptové a placené stránky mohou vyžadovat ruční import.
+Politika robots.txt je záměrně přísnější než RFC 9309: HTTP 200 se vyhodnotí podle pravidel, HTTP 404 znamená chybějící pravidla. Jakýkoli jiný stav (včetně 401, 403, 429 a 5xx), síťová chyba nebo timeout sběr zastaví. Nepoužíváme obecné povolení pro všechny 4xx. Weby s nedostupnými pravidly lze zpracovat ručním importem. Při chybě připojení se vyzkouší další veřejná adresa z ověřeného DNS snapshotu; chyby TLS, HTTP a čtení těla tento fallback nespouštějí.
+
+
+## Ikony desktopové aplikace
+
+Kanonický motiv je `public/ethical-world-mark.svg`. `npm run icons:generate` z něj vytvoří ICO se sedmi velikostmi (16–256 px) a PNG. Forge používá tuto ikonu pro `EthicalWorld.exe` i `EthicalWorldSetup.exe`, backend má stejnou ikonu a launcher ji kopíruje přímo ze zdrojů místo extrakce staré placeholder ikony. `scripts/test-desktop-icons.ps1` spouští kontrolu všech sedmi ikonových resource přímo v aplikačním EXE, instalátoru a zabaleném backendu; porovnává jejich bajty s kanonickým ICO bez převodu a škálování přes Windows Shell. Novou ikonu uvidíš po sestavení a instalaci aktualizované verze.
+
+Desktop ukládá Notion master key přes OS secure storage. Existující `connector.key` migruje beze změny klíče a plaintext odstraní až po ověřeném uložení. Samostatně spuštěný Python backend nadále potřebuje bezpečně dodaný `ETHICAL_WORLD_CONNECTOR_KEY`; po desktopové migraci nenechávej samostatný backend vygenerovat jiný klíč pro tutéž databázi.

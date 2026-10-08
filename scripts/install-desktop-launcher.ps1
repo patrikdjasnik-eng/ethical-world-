@@ -34,20 +34,11 @@ $launcherConfig = [ordered]@{
 [IO.File]::WriteAllText((Join-Path $launcherDirectory "config.json"), ($launcherConfig | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
 
 $shortcutShell = New-Object -ComObject WScript.Shell
-$installedIcon = Get-ChildItem -LiteralPath $launcherConfig.installRoot -Filter "EthicalWorld.exe" -File -Recurse -ErrorAction SilentlyContinue |
-  Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+# Use the canonical artwork even when upgrading an old EXE with the Electron icon.
 $launcherIconPath = Join-Path $launcherDirectory "EthicalWorld.ico"
-if ($installedIcon) {
-  try {
-    Add-Type -AssemblyName System.Drawing
-    $applicationIcon = [Drawing.Icon]::ExtractAssociatedIcon($installedIcon.FullName)
-    $iconStream = [IO.File]::Create("$launcherIconPath.tmp")
-    try { $applicationIcon.Save($iconStream) } finally { $iconStream.Dispose(); $applicationIcon.Dispose() }
-    Move-Item -LiteralPath "$launcherIconPath.tmp" -Destination $launcherIconPath -Force
-  } catch {
-    Write-Warning "The launcher icon could not be refreshed; its existing/default icon will be used."
-  }
-}
+$sourceIconPath = Join-Path $projectRoot "assets\icons\EthicalWorld.ico"
+if (-not (Test-Path -LiteralPath $sourceIconPath -PathType Leaf)) { throw "Application icon is missing: $sourceIconPath" }
+Copy-Item -LiteralPath $sourceIconPath -Destination $launcherIconPath -Force
 $shortcutDirectories = @([Environment]::GetFolderPath("Desktop"), [Environment]::GetFolderPath("Programs")) | Select-Object -Unique
 foreach ($shortcutDirectory in $shortcutDirectories) {
   if (-not $shortcutDirectory) { continue }

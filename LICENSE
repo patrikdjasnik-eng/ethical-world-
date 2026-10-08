@@ -117,3 +117,15 @@ rights, and derivative-development rights require separate written permission.
 
 For licensing requests, contact the repository owner through the official
 Rabbithollow Code Studio / Ethical World project channels.
+
+12. THIRD-PARTY COMPONENTS
+
+Third-party libraries and components distributed with the Software remain
+subject to their own licenses, copyright notices, and attribution notices.
+Those components are excluded from the proprietary license grant and
+restrictions above to the extent governed by their respective licenses.
+Nothing in this License limits rights independently granted to you under a
+third-party component's license. These rights do not grant additional rights
+to the Ethical World application or its proprietary components.
+
+See THIRD_PARTY_NOTICES.md and the licenses distributed with the components.

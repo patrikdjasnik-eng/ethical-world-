@@ -18,10 +18,10 @@ async function reservePort() {
   });
 }
 
-async function verifyBackend(baseUrl, token) {
+async function verifyBackend(baseUrl, token, signal) {
   try {
     const challenge = crypto.randomBytes(32).toString("hex");
-    const response = await fetch(baseUrl + "/health?challenge=" + challenge, { signal: AbortSignal.timeout(1500), redirect: "error" });
+    const response = await fetch(baseUrl + "/health?challenge=" + challenge, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(1500)]) : AbortSignal.timeout(1500), redirect: "error" });
     const payload = await response.json();
     const expected = crypto.createHmac("sha256", token).update(challenge).digest();
     const supplied = Buffer.from(String(payload.proof ?? ""), "hex");
@@ -29,20 +29,28 @@ async function verifyBackend(baseUrl, token) {
   } catch { return false; }
 }
 
-async function gatewayRequest(baseUrl, token, request) {
+async function gatewayOpenResponse(baseUrl, token, request, signal) {
   if (!request || !gatewayPaths.has(request.path) || !["GET", "POST"].includes(request.method)) throw new Error("Blocked gateway request.");
   const body = request.body;
   if (body !== undefined && (typeof body !== "string" || Buffer.byteLength(body) > 2 * 1024 * 1024)) throw new Error("Gateway payload je příliš velký.");
-  if (!await verifyBackend(baseUrl, token)) throw new Error("Backend identity verification failed.");
+  if (!await verifyBackend(baseUrl, token, signal)) {
+    signal?.throwIfAborted();
+    throw new Error("Backend identity verification failed.");
+  }
   const headers = { "X-Ethical-Capability": token, "Content-Type": "application/json" };
   const authorization = request.headers?.Authorization ?? request.headers?.authorization;
   if (typeof authorization === "string" && authorization.length <= 2048) headers.Authorization = authorization;
-  const response = await fetch(baseUrl + request.path, {
+  const timeout = AbortSignal.timeout(request.path.startsWith("/api/chat") ? 250000 : 60000);
+  return fetch(baseUrl + request.path, {
     method: request.method, headers,
     body: request.method === "POST" ? body : undefined,
-    signal: AbortSignal.timeout(request.path === "/api/chat" ? 250000 : 60000),
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     redirect: "error"
   });
+}
+
+async function gatewayRequest(baseUrl, token, request, signal) {
+  const response = await gatewayOpenResponse(baseUrl, token, request, signal);
   const reader = response.body?.getReader();
   const chunks = [];
   let length = 0;
@@ -62,7 +70,10 @@ async function gatewayRequest(baseUrl, token, request) {
 
 async function gatewayStreamRequest(baseUrl, token, request, onEvent, signal) {
   if (!request || request.path !== "/api/chat/stream" || request.method !== "POST" || typeof request.body !== "string" || Buffer.byteLength(request.body) > 2 * 1024 * 1024) throw new Error("Blocked streaming request.");
-  if (!await verifyBackend(baseUrl, token)) throw new Error("Backend identity verification failed.");
+  if (!await verifyBackend(baseUrl, token, signal)) {
+    signal?.throwIfAborted();
+    throw new Error("Backend identity verification failed.");
+  }
   const response = await fetch(baseUrl + request.path, {
     method: "POST", headers: { "X-Ethical-Capability": token, "Content-Type": "application/json" }, body: request.body,
     signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(250000)]) : AbortSignal.timeout(250000), redirect: "error"
@@ -108,4 +119,4 @@ async function gatewayStreamRequest(baseUrl, token, request, onEvent, signal) {
   } finally { await reader.cancel(); }
 }
 
-module.exports = { reservePort, verifyBackend, gatewayRequest, gatewayStreamRequest };
+module.exports = { reservePort, verifyBackend, gatewayRequest, gatewayOpenResponse, gatewayStreamRequest };

@@ -1,4 +1,5 @@
 import { listCarrotCommits, saveCarrotCommit } from "./storage";
+import { carrotHead, orderCarrotHistory } from "./carrotOrder";
 import type { CarrotCommit, Note, UserProfile } from "../types";
 
 const encoder = new TextEncoder();
@@ -166,60 +167,34 @@ export async function verifyCarrotCommit(commit: CarrotCommit): Promise<boolean 
 }
 
 export async function verifyCarrotHistory(
-  commits: CarrotCommit[]
+  commits: CarrotCommit[], noteId: string | undefined = commits[0]?.noteId
 ): Promise<Record<string, boolean | null>> {
-  const byId = new Map(commits.map((commit) => [commit.id, commit]));
+  let head: CarrotCommit | null;
+  try { head = carrotHead(commits); } catch {
+    return { $history: false, ...Object.fromEntries(commits.map((commit) => [commit.id, false])) };
+  }
   const ownVerification = new Map<string, boolean | null>();
-
-  await Promise.all(commits.map(async (commit) => {
-    ownVerification.set(commit.id, await verifyCarrotCommit(commit));
-  }));
-
+  for (let offset = 0; offset < commits.length; offset += 16) {
+    await Promise.all(commits.slice(offset, offset + 16).map(async (commit) => {
+      ownVerification.set(commit.id, await verifyCarrotCommit(commit));
+    }));
+  }
   const chainCache = new Map<string, boolean>();
-
-  const chainIsValid = (commit: CarrotCommit, visiting = new Set<string>()): boolean => {
-    const cached = chainCache.get(commit.id);
-    if (cached !== undefined) return cached;
-
-    if (visiting.has(commit.id) || ownVerification.get(commit.id) === false) {
-      chainCache.set(commit.id, false);
-      return false;
-    }
-
-    if (commit.parentId === null) {
-      const validRoot = commit.parentCommitHash === null;
-      chainCache.set(commit.id, validRoot);
-      return validRoot;
-    }
-
-    const parent = byId.get(commit.parentId);
-    if (
-      !parent ||
-      parent.noteId !== commit.noteId ||
-      parent.commitHash !== commit.parentCommitHash ||
-      parent.createdAt > commit.createdAt
-    ) {
-      chainCache.set(commit.id, false);
-      return false;
-    }
-
-    const nextVisiting = new Set(visiting);
-    nextVisiting.add(commit.id);
-    const valid = chainIsValid(parent, nextVisiting);
-    chainCache.set(commit.id, valid);
-    return valid;
-  };
-
-  if (typeof window !== "undefined" && window.ethicalDesktop?.carrotVerifyHead && commits.length > 0) {
-    const latest = [...commits].sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
-    const trustedHead = await window.ethicalDesktop.carrotVerifyHead(latest.noteId, latest.commitHash);
-    if (trustedHead === false) return Object.fromEntries(commits.map((commit) => [commit.id, false]));
+  for (const commit of orderCarrotHistory(commits).reverse()) {
+    const validParent = commit.parentId === null
+      ? commit.parentCommitHash === null
+      : chainCache.get(commit.parentId) === true;
+    chainCache.set(commit.id, validParent && ownVerification.get(commit.id) !== false);
+  }
+  if (typeof window !== "undefined" && window.ethicalDesktop?.carrotVerifyHead && noteId) {
+    const trustedHead = await window.ethicalDesktop.carrotVerifyHead(noteId, head?.commitHash ?? "");
+    if (trustedHead === false) return { $history: false, ...Object.fromEntries(commits.map((commit) => [commit.id, false])) };
   }
 
   return Object.fromEntries(
     commits.map((commit) => [
       commit.id,
-      chainIsValid(commit) ? ownVerification.get(commit.id) ?? null : false
+      chainCache.get(commit.id) ? ownVerification.get(commit.id) ?? null : false
     ])
   );
 }

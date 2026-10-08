@@ -3423,3 +3423,24 @@ body,
   overflow: auto;
   font-size: 12px;
 }
+
+.connector-card textarea {
+  display: block;
+  width: 100%;
+  margin: 8px 0 12px;
+  padding: 10px;
+  color: var(--text-primary, #eee);
+  background: var(--bg-primary, #13121b);
+  border: 1px solid #373342;
+  border-radius: 8px;
+  resize: vertical;
+}
+
+.research-jobs { padding-left: 20px; }
+.research-jobs li { margin: 12px 0; }
+.research-preview pre {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

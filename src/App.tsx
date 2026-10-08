@@ -26,6 +26,8 @@ import {
   saveNotes,
   saveWorkspace
 } from "./lib/storage";
+import { saveImportedWorkspace } from "./lib/storage";
+import type { ExportReceipt } from "./lib/markdownConnector";
 import type { AgentAction, Note, UserProfile, VaultFolder } from "./types";
 
 const AiPanel = lazy(() => import("./components/AiPanel"));
@@ -303,31 +305,49 @@ export default function App() {
     setView("note");
   }, []);
 
-  const handleImportConnectorNotes = useCallback(async (incomingNotes: Note[]) => {
+  const handleImportConnectorNotes = useCallback(async (incomingNotes: Note[], expectedNotes: Note[] = notesRef.current) => {
     if (incomingNotes.length === 0) return;
 
     const importedIds = new Set(incomingNotes.map((note) => note.id));
-    const mergedNotes = [
-      ...incomingNotes,
-      ...notes.filter((note) => !importedIds.has(note.id))
-    ];
-
-    const inferredFolders = inferFoldersFromNotes(incomingNotes);
-    const existingPaths = new Set(folders.map((folder) => folder.path));
-    const newFolders = inferredFolders.filter((folder) => !existingPaths.has(folder.path));
-
     await persistence.current.flush();
-    await saveWorkspace(incomingNotes, newFolders);
-    setNotes(mergedNotes);
+    const expected = new Map(expectedNotes.map((note) => [note.id, note]));
+    const isCurrent = () => incomingNotes.every((note) =>
+      JSON.stringify(notesRef.current.find((item) => item.id === note.id)) === JSON.stringify(expected.get(note.id))
+    );
+    const existingPaths = new Set(foldersRef.current.map((folder) => folder.path));
+    const newFolders = inferFoldersFromNotes(incomingNotes).filter((folder) => !existingPaths.has(folder.path));
+    await saveImportedWorkspace(incomingNotes, newFolders, expectedNotes, isCurrent);
+    if (!isCurrent()) {
+      // Edits queued after the transaction must win over the imported snapshot.
+      await persistence.current.flush();
+      throw new Error("Konflikt importu: poznámka se během ukládání změnila. Lokální změny zůstaly zachované.");
+    }
+    setNotes((current) => [...incomingNotes, ...current.filter((note) => !importedIds.has(note.id))]);
     setFolders((current) => [
       ...current,
       ...newFolders
     ].sort((left, right) => left.path.localeCompare(right.path, "cs")));
-    setActiveNoteId(incomingNotes[0]?.id ?? activeNoteId);
+    setActiveNoteId(incomingNotes[0].id);
     setView("note");
 
     await Promise.all(incomingNotes.map((note) => createCarrotCommit(note, currentUser, "Imported Markdown")));
-  }, [activeNoteId, currentUser, folders, notes]);
+  }, [currentUser, setNotes, setFolders]);
+
+  const handleExportReceipts = useCallback(async (receipts: ExportReceipt[]) => {
+    for (const receipt of receipts) {
+      const current = notesRef.current.find((note) => note.id === receipt.note.id);
+      if (!current) continue;
+      const source = current.source;
+      if (source && (source.provider !== receipt.provider || source.connectionId !== receipt.connectionId || source.relativePath !== receipt.relativePath)) continue;
+      const updated = { ...current, source: {
+        provider: receipt.provider, connectionId: receipt.connectionId,
+        relativePath: receipt.relativePath, baselineContent: receipt.note.content, incomplete: false
+      } };
+      setNotes((items) => items.map((note) => note.id === current.id ? updated : note));
+      try { await persistence.current.enqueue(updated); }
+      catch (error) { setWorkspaceError(String(error)); throw error; }
+    }
+  }, [setNotes]);
 
   const handleApplyAgentAction = useCallback(async (action: AgentAction): Promise<string> => {
     await persistence.current.flush();
@@ -561,7 +581,7 @@ export default function App() {
           </Suspense>
         ) : view === "connectors" ? (
           <Suspense fallback={<main className="connector-pane loading-screen">Načítám konektory…</main>}>
-            <ConnectorPanel notes={notes} onImportNotes={handleImportConnectorNotes} />
+            <ConnectorPanel notes={notes} onImportNotes={handleImportConnectorNotes} onExportReceipts={handleExportReceipts} />
           </Suspense>
         ) : view === "guide" ? (
           <Suspense fallback={<main className="guide-pane loading-screen">Načítám návod…</main>}>

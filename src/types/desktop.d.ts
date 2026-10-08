@@ -1,3 +1,5 @@
+import type { ResearchJob } from "./research";
+
 export interface DesktopContextMenuItem {
   id?: string;
   label?: string;
@@ -48,6 +50,11 @@ export type DesktopGitHubLoginPoll =
 
 export interface EthicalDesktopApi {
   isDesktop: true;
+  researchStart?: (urls: string[]) => Promise<string>;
+  researchList?: () => Promise<ResearchJob[]>;
+  researchRead?: (id: string) => Promise<ResearchJob>;
+  researchCancel?: (id: string) => Promise<void>;
+  researchRemove?: (id: string) => Promise<void>;
   gatewayStreamRequest?: (id: string, request: { path: string; method: "POST"; body: string }, onEvent: (event: unknown) => void) => Promise<unknown>;
   cancelGatewayStream?: (id: string) => Promise<void>;
   ensureBackendRuntime?: () => Promise<{
@@ -62,11 +69,13 @@ export interface EthicalDesktopApi {
     warmupMs?: number;
   }>;
   gatewayRequest: (request: {
+    id?: string;
     path: string;
     method: "GET" | "POST";
     headers: Record<string, string>;
     body?: string;
   }) => Promise<{ status: number; body: string }>;
+  cancelGatewayRequest?: (id: string) => Promise<void>;
   carrotConfirmSaved: (payload: string, signature: string, publicKey: string) => Promise<boolean>;
   carrotVerifyHead: (noteId: string, commitHash: string) => Promise<boolean | null>;
   platform: string;
@@ -74,7 +83,7 @@ export interface EthicalDesktopApi {
   selectVaultFolder: () => Promise<string | null>;
   selectMarkdownFolder: () => Promise<DesktopMarkdownConnection | null>;
   readMarkdownFiles: (connectionId: string) => Promise<{ files: DesktopMarkdownFile[]; truncated: boolean }>;
-  writeMarkdownFiles: (connectionId: string, files: DesktopMarkdownFile[]) => Promise<{ written: number }>;
+  writeMarkdownFiles: (connectionId: string, files: DesktopMarkdownFile[]) => Promise<{ written: number; paths?: string[]; error?: string }>;
   githubStatus: () => Promise<DesktopGitHubStatus>;
   githubStartLogin: (scope?: "public_repo" | "repo") => Promise<DesktopGitHubLoginStart>;
   githubConnectToken: () => Promise<{ connected: boolean; login: string | null; error?: string }>;

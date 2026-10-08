@@ -1,8 +1,16 @@
-import type { Note } from "../types";
+import type { Note, NoteSourceProvider } from "../types";
 
 export interface MarkdownFile {
   relativePath: string;
   content: string;
+  incomplete?: boolean;
+}
+
+export interface ExportReceipt {
+  note: Note;
+  provider: "local-markdown" | "github" | "notion";
+  connectionId: string;
+  relativePath: string;
 }
 
 function normalizeRelativePath(value: string): string {
@@ -27,29 +35,38 @@ export function markdownFilesToNotes(
   files: MarkdownFile[],
   connectionId: string,
   existingNotes: Note[],
-  provider: "local-markdown" | "github" | "notion" = "local-markdown"
+  provider: NoteSourceProvider = "local-markdown"
 ): Note[] {
   const bySource = new Map<string, Note>();
-  const sourceKey = (path: string) => provider === "github" || provider === "notion"
+  const sourceKey = (path: string) => provider !== "local-markdown"
     ? path
     : path.toLocaleLowerCase("en-US");
 
   for (const note of existingNotes) {
     if (note.source?.provider === provider && note.source.connectionId === connectionId) {
-      bySource.set(sourceKey(note.source.relativePath), note);
+      const key = sourceKey(note.source.relativePath);
+      if (bySource.has(key)) throw new Error("Kolize cest importu: „" + note.source.relativePath + "“. Nejdřív přejmenuj soubory lišící se pouze velikostí písmen.");
+      bySource.set(key, note);
     }
   }
 
   const timestamp = new Date().toISOString();
+  const seen = new Set<string>();
 
   return files
     .filter((file) => /\.(md|mdx)$/i.test(file.relativePath))
     .map((file) => {
       const relativePath = normalizeRelativePath(file.relativePath);
+      const key = sourceKey(relativePath);
+      if (seen.has(key)) throw new Error("Kolize cest importu: „" + relativePath + "“. Žádná poznámka nebyla přepsána.");
+      seen.add(key);
       const parts = relativePath.split("/");
       const fileName = parts.pop() ?? "Untitled.md";
       const folder = parts.join("/");
       const previous = bySource.get(sourceKey(relativePath));
+      if (file.incomplete && previous && !previous.source?.incomplete) {
+        throw new Error("Neúplný import nesmí nahradit úplnou poznámku „" + previous.title + "“.");
+      }
 
       if (previous?.source?.baselineContent !== undefined &&
           previous.content !== previous.source.baselineContent &&
@@ -59,16 +76,17 @@ export function markdownFilesToNotes(
 
       return {
         id: previous?.id ?? crypto.randomUUID(),
-        title: stripMarkdownExtension(fileName) || "Untitled",
+        title: previous?.title ?? (stripMarkdownExtension(fileName) || "Untitled"),
         content: file.content,
-        folder,
+        folder: previous?.folder ?? folder,
         createdAt: previous?.createdAt ?? timestamp,
         updatedAt: timestamp,
         source: {
           provider,
           connectionId,
           relativePath,
-          baselineContent: file.content
+          baselineContent: file.incomplete ? undefined : file.content,
+          incomplete: file.incomplete ?? false
         }
       };
     });
@@ -77,7 +95,7 @@ export function markdownFilesToNotes(
 export function notesToMarkdownFiles(
   notes: Note[],
   connectionId: string,
-  provider: "local-markdown" | "github" | "notion" = "local-markdown"
+  provider: NoteSourceProvider = "local-markdown"
 ): MarkdownFile[] {
   const usedPaths = new Set<string>();
 

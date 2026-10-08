@@ -43,6 +43,8 @@ export const EditorPane = memo(function EditorPane({
   const [carrotSelectedId, setCarrotSelectedId] = useState<string | null>(null);
   const [carrotVerified, setCarrotVerified] = useState<Record<string, boolean | null>>({});
   const [carrotLoading, setCarrotLoading] = useState(false);
+  const [carrotError, setCarrotError] = useState<string | null>(null);
+  const carrotLoadVersion = useRef(0);
   const [carrotPosition, setCarrotPosition] = useState<{ x: number; y: number } | null>(null);
   const carrotPanelRef = useRef<HTMLElement | null>(null);
   const carrotDragOffsetRef = useRef<{ x: number; y: number } | null>(null);
@@ -51,10 +53,13 @@ export const EditorPane = memo(function EditorPane({
 
   const loadCarrotHistory = useCallback(async () => {
     if (!note) return;
-
+    const version = ++carrotLoadVersion.current;
     setCarrotLoading(true);
+    setCarrotError(null);
     try {
       const commits = await listCarrotCommits(note.id);
+      const verified = await verifyCarrotHistory(commits, note.id);
+      if (version !== carrotLoadVersion.current) return;
       setCarrotCommits(commits);
       setCarrotSelectedId((current) =>
         current && commits.some((commit) => commit.id === current)
@@ -62,17 +67,23 @@ export const EditorPane = memo(function EditorPane({
           : commits[0]?.id ?? null
       );
 
-      setCarrotVerified(await verifyCarrotHistory(commits));
+      setCarrotVerified(verified);
+      if (verified.$history === false) setCarrotError("Carrot historie neodpovídá důvěryhodnému checkpointu. Commity mohou chybět nebo být změněné.");
+    } catch (error) {
+      if (version === carrotLoadVersion.current) setCarrotError(error instanceof Error ? error.message : "Carrot historii se nepodařilo ověřit.");
     } finally {
-      setCarrotLoading(false);
+      if (version === carrotLoadVersion.current) setCarrotLoading(false);
     }
   }, [note?.id]);
 
   useEffect(() => {
+    carrotLoadVersion.current += 1;
+    setCarrotLoading(false);
     setCarrotOpen(false);
     setCarrotCommits([]);
     setCarrotSelectedId(null);
     setCarrotVerified({});
+    setCarrotError(null);
     setCarrotPosition(null);
   }, [note?.id]);
 
@@ -262,7 +273,8 @@ export const EditorPane = memo(function EditorPane({
                 </div>
               </div>
 
-              {carrotCommits.length === 0 ? (
+              {carrotError && <p role="alert" className="carrot-empty">{carrotError}</p>}
+              {carrotCommits.length === 0 && !carrotError ? (
                 <p className="carrot-empty">Pro tuto poznámku zatím není žádný Carrot commit.</p>
               ) : (
                 <div className="carrot-grid">

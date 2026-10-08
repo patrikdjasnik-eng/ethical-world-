@@ -12,6 +12,7 @@ module.exports = {
   packagerConfig: {
     ...(packageVersion ? { appVersion: packageVersion } : {}),
     asar: true,
+    icon: path.join(__dirname, "assets", "icons", "EthicalWorld"),
     ignore: [/^\/out(?:\/|$)/, /^\/\.venv(?:\/|$)/, /^\/resources(?:\/|$)/, /^\/\.git(?:\/|$)/, /^\/\.env(?:\.|$)/],
     name: "Ethical World",
     executableName: "EthicalWorld",
@@ -29,6 +30,7 @@ module.exports = {
         title: "Ethical World",
         exe: "EthicalWorld.exe",
         setupExe: "EthicalWorldSetup.exe",
+        setupIcon: path.join(__dirname, "assets", "icons", "EthicalWorld.ico"),
         noMsi: true
       }
     },
