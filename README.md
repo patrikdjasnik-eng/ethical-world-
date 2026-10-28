@@ -5,7 +5,7 @@
 ![React](https://img.shields.io/badge/React-19-61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6)
 ![AI](https://img.shields.io/badge/AI-local--first-111827)
-![License](https://img.shields.io/badge/license-source--available-f59e0b)
+![License](https://img.shields.io/badge/license-AGPL--3.0--only-blue)
 
 **Ethical World** is a local-first knowledge workspace built around Markdown, connected notes, a visual knowledge graph and an integrated AI copilot called **Máša**.
 
@@ -76,12 +76,15 @@ Developer documentation currently lives there:
 
 Ethical World is created by **Rabbithollow Code Studio™**.
 
-The Ethical World name, visual identity and Rabbithollow Code Studio™ branding are not granted for rebranding or derivative distribution by publication of this repository.
+The **Ethical World** name, logos and visual identity, as well as the **Rabbithollow Code Studio** name and logos, are project trademarks/branding and are not licensed by the software license. You may truthfully refer to the project and identify your fork, but do not imply that an independent fork is the official project or use our branding in a way that suggests endorsement. See [TRADEMARKS.md](TRADEMARKS.md).
 
 ## License
 
-This repository is **source-available, not open source**.
+Ethical World is licensed under the **GNU Affero General Public License v3.0 only (AGPL-3.0-only)**. You can use, study, modify, and redistribute the software, including commercially, provided you comply with the license. If you distribute a modified version or make it available for users to interact with over a network, the AGPL's corresponding-source requirements may apply.
 
-Use of Ethical World is permitted only under the terms in the repository's `LICENSE`. Publication of the source code does not grant permission to rebrand, redistribute modified versions, create derivative products, or continue development under another identity without written permission from the copyright holder.
+The license keeps covered derivative versions under the same copyleft terms; it does **not** prohibit commercial use, forks, or rebranding by itself. Project names, logos and branding are separate from the software license; see [TRADEMARKS.md](TRADEMARKS.md).
 
-Copyright © 2026 Rabbithollow Code Studio™. All rights reserved.
+- Full license text: [LICENSE](LICENSE)
+- SPDX identifier: `AGPL-3.0-only`
+
+Copyright © 2026 Patrik Djasník / Rabbithollow Code Studio.
