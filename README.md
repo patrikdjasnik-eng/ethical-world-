@@ -221,3 +221,10 @@ Politika robots.txt je záměrně přísnější než RFC 9309: HTTP 200 se vyho
 Kanonický motiv je `public/ethical-world-mark.svg`. `npm run icons:generate` z něj vytvoří ICO se sedmi velikostmi (16–256 px) a PNG. Forge používá tuto ikonu pro `EthicalWorld.exe` i `EthicalWorldSetup.exe`, backend má stejnou ikonu a launcher ji kopíruje přímo ze zdrojů místo extrakce staré placeholder ikony. `scripts/test-desktop-icons.ps1` spouští kontrolu všech sedmi ikonových resource přímo v aplikačním EXE, instalátoru a zabaleném backendu; porovnává jejich bajty s kanonickým ICO bez převodu a škálování přes Windows Shell. Novou ikonu uvidíš po sestavení a instalaci aktualizované verze.
 
 Desktop ukládá Notion master key přes OS secure storage. Existující `connector.key` migruje beze změny klíče a plaintext odstraní až po ověřeném uložení. Samostatně spuštěný Python backend nadále potřebuje bezpečně dodaný `ETHICAL_WORLD_CONNECTOR_KEY`; po desktopové migraci nenechávej samostatný backend vygenerovat jiný klíč pro tutéž databázi.
+## Licence a ochranné známky
+
+Ethical World je distribuován pod licencí **GNU Affero General Public License v3.0 only (AGPL-3.0-only)**. Úplné znění licence je v souboru [`LICENSE`](LICENSE).
+
+Použití, úpravy, distribuce a komerční využití softwaru se řídí podmínkami AGPL-3.0-only, včetně povinností při distribuci a zpřístupnění upravených verzí provozovaných jako síťová služba.
+
+Názvy **Ethical World™** a **RabbitHollow Code Studio™**, loga a související vizuální identita se řídí samostatnými pravidly v [`TRADEMARKS.md`](TRADEMARKS.md). Licence softwaru sama o sobě neuděluje právo vydávat nezávislé projekty za oficiální produkt nebo projekt.
