@@ -1,0 +1,119 @@
+[CmdletBinding()]
+param(
+  [switch]$noLaunch,
+  [string]$packageVersion = "",
+  [string]$expectedCommit = "",
+  [string]$receiptPath = ""
+)
+
+$ErrorActionPreference = "Stop"
+
+if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
+  throw "Installed EXE updates must be built and applied on Windows."
+}
+
+$projectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+Set-Location $projectRoot
+
+# Zavřená aplikace dokončí zápisy před nahrazením instalace.
+if (Get-Process -Name "EthicalWorld" -ErrorAction SilentlyContinue) {
+  throw "Close Ethical World first, then run npm run desktop:update again."
+}
+
+# Starší onefile backend může po zavření okna zůstat jako samostatný proces.
+$ownedBackendRoots = @(
+  (Join-Path $projectRoot "out"),
+  (Join-Path $projectRoot "resources\backend"),
+  (Join-Path $env:LOCALAPPDATA "ethical_world")
+) | ForEach-Object { [IO.Path]::GetFullPath($_).TrimEnd('\') + '\' }
+foreach ($backend in @(Get-Process -Name "EthicalWorldBackend" -ErrorAction SilentlyContinue)) {
+  $backendPath = $backend.Path
+  if ($backendPath -and ($ownedBackendRoots | Where-Object { $backendPath.StartsWith($_, [StringComparison]::OrdinalIgnoreCase) })) {
+    Write-Host "Stopping leftover Ethical World backend PID $($backend.Id): $backendPath"
+    Stop-Process -InputObject $backend -ErrorAction Stop
+  }
+}
+
+function Invoke-Checked {
+  param([string]$Executable, [string[]]$CommandArguments)
+  & $Executable @CommandArguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "$Executable failed with exit code $LASTEXITCODE. Update stopped."
+  }
+}
+
+$sourceCommit = & git rev-parse HEAD
+if ($LASTEXITCODE -ne 0) { throw "Unable to read the source Git commit." }
+if ($expectedCommit -and $sourceCommit -ne $expectedCommit) { throw "Source commit changed before the build." }
+if ($expectedCommit) {
+  $treeStatus = & git status --porcelain --untracked-files=normal
+  if ($LASTEXITCODE -ne 0 -or $treeStatus) { throw "Source tree has local changes or cannot be verified." }
+}
+$targetVersion = $packageVersion
+if (-not $targetVersion) {
+  $targetVersion = & node (Join-Path $PSScriptRoot "launcher-core.cjs") --package-version $projectRoot
+  if ($LASTEXITCODE -ne 0) { throw "Unable to derive a desktop version from Git." }
+}
+if ($targetVersion -notmatch '^\d+\.\d+\.\d+$') {
+  throw "Desktop update requires a stable semantic package version."
+}
+
+Write-Host "Building and installing Ethical World $targetVersion" -ForegroundColor Cyan
+Invoke-Checked -Executable "npm.cmd" -CommandArguments @("ci")
+
+$updatePython = Join-Path $projectRoot ".venv\Scripts\python.exe"
+if (-not (Test-Path -LiteralPath $updatePython)) {
+  Invoke-Checked -Executable "python" -CommandArguments @("-m", "venv", ".venv")
+}
+Invoke-Checked -Executable $updatePython -CommandArguments @("-m", "pip", "install", "-r", "server\requirements.lock.txt")
+Invoke-Checked -Executable "npm.cmd" -CommandArguments @("run", "verify")
+& $updatePython -m server.test_runner
+if ($LASTEXITCODE -ne 0) {
+  throw "Backend tests failed. Full tracebacks are saved in out\diagnostics\backend-tests.log. Update stopped before installation."
+}
+Invoke-Checked -Executable "npm.cmd" -CommandArguments @("run", "desktop:backend:build")
+
+# Každý pokus balí do vlastní složky; starý build může být otevřený či zamčený.
+$buildId = [guid]::NewGuid().ToString("N")
+$buildOutput = Join-Path $projectRoot "out\updates\$buildId"
+$previousBuildDir = $env:ETHICAL_WORLD_BUILD_DIR
+$previousPackageVersion = $env:ETHICAL_WORLD_PACKAGE_VERSION
+$env:ETHICAL_WORLD_BUILD_DIR = $buildOutput
+$env:ETHICAL_WORLD_PACKAGE_VERSION = $targetVersion
+$makeStarted = (Get-Date).ToUniversalTime()
+try {
+  Invoke-Checked -Executable "npm.cmd" -CommandArguments @("exec", "--", "electron-forge", "make", "--targets", "@electron-forge/maker-squirrel")
+} finally {
+  if ($null -eq $previousBuildDir) {
+    Remove-Item Env:ETHICAL_WORLD_BUILD_DIR -ErrorAction SilentlyContinue
+  } else {
+    $env:ETHICAL_WORLD_BUILD_DIR = $previousBuildDir
+  }
+  if ($null -eq $previousPackageVersion) {
+    Remove-Item Env:ETHICAL_WORLD_PACKAGE_VERSION -ErrorAction SilentlyContinue
+  } else {
+    $env:ETHICAL_WORLD_PACKAGE_VERSION = $previousPackageVersion
+  }
+}
+$setup = Get-ChildItem -Path (Join-Path $buildOutput "make") -Filter "EthicalWorldSetup.exe" -File -Recurse |
+  Sort-Object LastWriteTimeUtc -Descending |
+  Select-Object -First 1
+if (-not $setup -or $setup.LastWriteTimeUtc -lt $makeStarted.AddSeconds(-2)) {
+  throw "No fresh installer was produced. Existing installation was not touched."
+}
+
+$finalCommit = & git rev-parse HEAD
+if ($LASTEXITCODE -ne 0 -or $finalCommit -ne $sourceCommit) { throw "Source commit changed during the build. Installation was not started." }
+if ($expectedCommit) {
+  $treeStatus = & git status --porcelain --untracked-files=normal
+  if ($LASTEXITCODE -ne 0 -or $treeStatus) { throw "Source tree changed or cannot be verified. Installation was not started." }
+}
+& (Join-Path $PSScriptRoot "test-desktop-install.ps1") -SkipMake -Launch:(-not $noLaunch) -ExpectedVersion $targetVersion -RequireBundledBackend -InstallerPath $setup.FullName
+if ($receiptPath) {
+  $installReceipt = @{ commit = $sourceCommit; version = $targetVersion; installedAt = (Get-Date).ToUniversalTime().ToString("o") }
+  [IO.File]::WriteAllText($receiptPath, ($installReceipt | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
+}
+if ($env:ETHICAL_WORLD_LAUNCHER_DIR) {
+  & (Join-Path $PSScriptRoot "install-desktop-launcher.ps1") -LauncherDirectory $env:ETHICAL_WORLD_LAUNCHER_DIR
+}
+Write-Host "Installed Ethical World $targetVersion updated successfully." -ForegroundColor Green

@@ -1,0 +1,11 @@
+{
+  "name": "Ethical World",
+  "short_name": "Ethical World",
+  "lang": "cs",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "icons": [{ "src": "ethical-world-mark.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
