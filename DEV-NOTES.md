@@ -1,8 +1,8 @@
 # Development Notes
 
 ![Dev Notes](https://img.shields.io/badge/dev--notes-live-0ea5e9)
-![Branch](https://img.shields.io/badge/branch-dev%2Ffirst--runnable-6f42c1)
-![Date](https://img.shields.io/badge/date-2026--10--04-334155)
+![Branch](https://img.shields.io/badge/branch-main-6f42c1)
+![Date](https://img.shields.io/badge/date-2026--10--29-334155)
 
 ## 2026-10-03
 
@@ -1854,3 +1854,13 @@ Reference: [Ollama Generate API — explicitní načtení a časování](https:/
 - Fallback je omezený na síťové chyby před HTTP odpovědí. TLS/certifikát, HTTP stav, přerušené tělo a abort se neobcházejí dalším socketem. Celkový 60sekundový limit sběru zůstává aktivní.
 - README výslovně popisuje přísnější robots.txt politiku: 200 vyhodnotí pravidla, 404 povolí chybějící soubor, ostatní stavy včetně 403 a síťové chyby sběr zastaví. Regrese pokrývá 200/404/401/403/429/500/503.
 - Lokální ověření: 109 frontend, 76 Node/Electron a 46 backend testů prošlo, TypeScript/Vite build a git diff --check prošly. Jeden PowerShell test se na Linuxu přeskočil. Pět nových regresí pokrývá IPv6 fallback, privátní DNS/TLS, vyčerpání adres/abort, robots stavy a HTTP/body chyby. CI předchozího headu ea0bc804 prošlo včetně Windows balení a ikon; výsledek nového commitu se ověřuje samostatně.
+
+
+## 2026-10-29 — sloučení běžící implementace do main
+
+- PR [#3 — Merge dev/first-runnable into main](https://github.com/patrikdjasnik-eng/ethical-world-/pull/3) byl sloučen do hlavní větve. Merge commit: [`716fbb8`](https://github.com/patrikdjasnik-eng/ethical-world-/commit/716fbb8594c429d11d5b1cc3d6f951739094551f). Přeneseno 114 commitů a 156 změněných souborů z vývojové větve.
+- Před sloučením byl přes PR [#4 — Sync main license policy](https://github.com/patrikdjasnik-eng/ethical-world-/pull/4) sjednocen licenční základ: `AGPL-3.0-only`, README a pravidla ochranných známek v `TRADEMARKS.md`. Sloučení PR #3 zachovalo tuto politiku.
+- Kontroly GitHub Actions na PR #3 byly podle výsledku ověřeného při sloučení zelené. Workflow kontroluje frontend na Ubuntu 24.04 a Windows 2022 a backend na stejných platformách. Aktuální stav dalších běhů sleduj přes [GitHub Actions](https://github.com/patrikdjasnik-eng/ethical-world-/actions/workflows/ci.yml).
+- `main` nyní obsahuje běžící implementaci, desktopové balení, dokumentaci a testy z `dev/first-runnable`. Tento záznam dokumentuje povýšení větve; sám o sobě netvrdí, že byl proveden nový lokální testovací běh nebo ruční Windows GUI smoke test.
+- Následující dokumentační aktualizace upravuje úvod README a metadata tohoto deníku. Instalační pokyny pro launcher zůstávají beze změny, protože nadále výslovně používají `dev/first-runnable`.
+
