@@ -7,11 +7,13 @@
 
 Ethical World je local-first knowledge workspace inspirovaný nástroji jako Obsidian, ale AI vrstva je součástí architektury od prvního dne.
 
-> **CI:** Poslední ověřený běh původního základu `0403da0` je [37660876897](https://github.com/patrikdjasnik-eng/ethical-world-/actions/runs/37660876897): frontend i backend prošly na Ubuntu 24.04 a Windows 2022. Stav konkrétních nových změn ověřuj v jejich PR.
->
-> Opravy druhého hloubkového auditu: [AUDIT-REMEDIATION.md](AUDIT-REMEDIATION.md). Windows CI navíc balí aplikaci a kontroluje skutečné ikony EXE a instalátoru.
+[![CI — main](https://github.com/patrikdjasnik-eng/ethical-world-/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/patrikdjasnik-eng/ethical-world-/actions/workflows/ci.yml)
+
+> **Stav k 29. 10. 2026:** Implementace z `dev/first-runnable` je sloučená do `main` přes [PR #3](https://github.com/patrikdjasnik-eng/ethical-world-/pull/3); kontroly tohoto PR prošly. Badge výše ukazuje průběžný stav CI na `main`. Opravy druhého hloubkového auditu: [AUDIT-REMEDIATION.md](AUDIT-REMEDIATION.md). Windows CI navíc balí aplikaci a kontroluje skutečné ikony EXE a instalátoru.
 
 Cílem je mít jedno místo pro poznámky, projekty, wiki odkazy a kontextovou AI agentku, která umí pracovat nad aktuálním vaultem bez nutnosti odesílat všechna data do cloudu.
+
+> **Poznámka k instalaci:** `main` nyní obsahuje sloučenou běžící implementaci. Níže uvedený návod pro Ethical World Launcher záměrně používá větev `dev/first-runnable`, protože tak je v návodu nastavený instalační a aktualizační workflow.
 
 ## Aktuální v0.1
 
