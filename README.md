@@ -6,6 +6,7 @@
 ![Storage](https://img.shields.io/badge/storage-IndexedDB-f59e0b)
 
 Ethical World je local-first knowledge workspace inspirovaný nástroji jako Obsidian, ale AI vrstva je součástí architektury od prvního dne.
+<img width="1919" height="1034" alt="image" src="https://github.com/user-attachments/assets/6c4a6d2e-1150-4243-91ec-6ec61f0cf64a" />
 
 [![CI — main](https://github.com/patrikdjasnik-eng/ethical-world-/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/patrikdjasnik-eng/ethical-world-/actions/workflows/ci.yml)
 
