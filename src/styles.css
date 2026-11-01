@@ -3994,3 +3994,19 @@ button:active { transform: scale(.97); }
   }
   .activity-more-menu button strong { font-size: 13px; font-weight: 600; }
 }
+
+.activity-more-backdrop { display: none; }
+@media (max-width: 620px) {
+  .activity-more-backdrop {
+    position: fixed;
+    z-index: 99;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .activity-rail { z-index: 100; }
+}
