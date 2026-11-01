@@ -16,10 +16,6 @@ const CALLOUT_TYPES = new Set([
   "ABSTRACT", "TODO"
 ]);
 
-function textContent(node: MarkdownNode): string {
-  if (node.type === "text") return node.value ?? "";
-  return (node.children ?? []).map(textContent).join("");
-}
 
 function makeInlineNode(value: string, className: string): MarkdownNode {
   return {
@@ -64,11 +60,17 @@ function transformText(node: MarkdownNode): MarkdownNode[] {
 function transformNode(node: MarkdownNode): void {
   if (node.type === "blockquote" && node.children?.length) {
     const firstParagraph = node.children[0];
-    if (firstParagraph.type === "paragraph") {
-      const firstLine = textContent(firstParagraph);
-      const match = /^\s*\[!([A-Z]+)\](?:[ \t]+(.*))?\s*$/i.exec(firstLine);
-      const type = match?.[1]?.toUpperCase();
-      if (type && CALLOUT_TYPES.has(type)) {
+    if (firstParagraph.type === "paragraph" && firstParagraph.children?.length) {
+      const firstTextIndex = firstParagraph.children.findIndex((child) =>
+        child.type === "text" && /^\\s*\\[![A-Z]+\\]/i.test(child.value ?? "")
+      );
+      const firstText = firstTextIndex >= 0 ? firstParagraph.children[firstTextIndex] : null;
+      const marker = firstText
+        ? /^\\s*\\[!([A-Z]+)\\](?:[ \\t]+([^\\n]*))?/i.exec(firstText.value ?? "")
+        : null;
+      const type = marker?.[1]?.toUpperCase();
+
+      if (marker && type && CALLOUT_TYPES.has(type) && firstText) {
         node.data = {
           ...node.data,
           hName: "aside",
@@ -78,10 +80,23 @@ function transformNode(node: MarkdownNode): void {
             "data-callout": type.toLowerCase()
           }
         };
-        const title = match[2]?.trim();
-        firstParagraph.children = title
-          ? [{ type: "strong", children: [{ type: "text", value: title }] }]
-          : [];
+
+        const remainder = (firstText.value ?? "").slice(marker[0].length);
+        const newline = remainder.indexOf("\\n");
+        firstText.value = newline >= 0 ? remainder.slice(newline + 1) : remainder;
+        const title = marker[2]?.trim();
+        if (!firstText.value) {
+          firstParagraph.children.splice(firstTextIndex, 1);
+          if (firstParagraph.children[firstTextIndex]?.type === "break") {
+            firstParagraph.children.splice(firstTextIndex, 1);
+          }
+        }
+        if (title) {
+          firstParagraph.children.unshift({
+            type: "strong",
+            children: [{ type: "text", value: title }]
+          });
+        }
       }
     }
   }
