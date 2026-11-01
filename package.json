@@ -4,7 +4,7 @@
   "description": "Local-first knowledge workspace with AI-assisted notes and cybersecurity workflows.",
   "author": "patrikdjasnik-eng",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "main": "electron/main.cjs",
   "repository": {
