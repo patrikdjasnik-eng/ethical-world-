@@ -69,7 +69,7 @@ if (mode !== "--web-only") {
 
   const colors = `<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#09090B</color>
+    <color name="ic_launcher_background">#07110D</color>
 </resources>
 `;
   const colorsPath = path.join(androidRes, "values", "ic_launcher_background.xml");
