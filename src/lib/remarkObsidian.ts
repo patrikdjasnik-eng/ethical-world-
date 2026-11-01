@@ -62,11 +62,11 @@ function transformNode(node: MarkdownNode): void {
     const firstParagraph = node.children[0];
     if (firstParagraph.type === "paragraph" && firstParagraph.children?.length) {
       const firstTextIndex = firstParagraph.children.findIndex((child) =>
-        child.type === "text" && /^\\s*\\[![A-Z]+\\]/i.test(child.value ?? "")
+        child.type === "text" && /^\s*\[![A-Z]+\]/i.test(child.value ?? "")
       );
       const firstText = firstTextIndex >= 0 ? firstParagraph.children[firstTextIndex] : null;
       const marker = firstText
-        ? /^\\s*\\[!([A-Z]+)\\](?:[ \\t]+([^\\n]*))?/i.exec(firstText.value ?? "")
+        ? /^\s*\[!([A-Z]+)\](?:[ \t]+([^\n]*))?/i.exec(firstText.value ?? "")
         : null;
       const type = marker?.[1]?.toUpperCase();
 
@@ -82,7 +82,7 @@ function transformNode(node: MarkdownNode): void {
         };
 
         const remainder = (firstText.value ?? "").slice(marker[0].length);
-        const newline = remainder.indexOf("\\n");
+        const newline = remainder.indexOf("\n");
         firstText.value = newline >= 0 ? remainder.slice(newline + 1) : remainder;
         const title = marker[2]?.trim();
         if (!firstText.value) {
