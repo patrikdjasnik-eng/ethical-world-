@@ -5,11 +5,14 @@ const { Resvg } = require("@resvg/resvg-js");
 const root = path.resolve(__dirname, "..");
 const sourcePath = path.join(root, "public", "ethical-world-mark.svg");
 if (!fs.existsSync(sourcePath)) throw new Error("Chybí zdrojová ikona: " + sourcePath);
-const source = fs.readFileSync(sourcePath);
+const source = fs.readFileSync(sourcePath, "utf8");
+const adaptiveSource = source
+  .replace('<rect width="512" height="512" rx="112" fill="url(#bg)"/>', "")
+  .replace('<rect x="3" y="3" width="506" height="506" rx="109" fill="none" stroke="#a4ffd0" stroke-opacity=".2" stroke-width="6"/>', "");
 const mode = process.argv[2] ?? "all";
 
-function renderPng(size) {
-  return new Resvg(source, {
+function renderPng(size, svg = source) {
+  return new Resvg(svg, {
     fitTo: { mode: "width", value: size },
     font: { loadSystemFonts: false }
   }).render().asPng();
