@@ -1,6 +1,7 @@
 import { changedNote } from "./lib/vaultTools";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityRail } from "./components/ActivityRail";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { EditorPane } from "./components/EditorPane";
 import { VaultSidebar, type WorkspaceView } from "./components/VaultSidebar";
 import {
@@ -530,6 +531,7 @@ export default function App() {
         if (!target.closest(".ai-panel")) setAiOpen(false);
       }}
     >
+      <UpdateBanner />
       {workspaceError && <div role="alert" className="workspace-error">
         {workspaceError}
         <button type="button" onClick={() => vaultLoadFailed ? window.location.reload() : setWorkspaceError(null)}>
