@@ -65,6 +65,9 @@ jobs:
       - name: Install Capacitor toolchain
         run: npm install --no-save --package-lock=false @capacitor/core@8.6.0 @capacitor/cli@8.6.0 @capacitor/android@8.6.0
 
+      - name: Generate PWA icons
+        run: node scripts/generate-android-icons.cjs --web-only
+
       - name: Verify frontend
         run: npm run verify
 
@@ -73,6 +76,9 @@ jobs:
 
       - name: Generate Android project
         run: npx cap add android
+
+      - name: Generate Ethical World launcher icons
+        run: node scripts/generate-android-icons.cjs --android-only
 
       - name: Generate Ethical World launcher icons
         run: node scripts/generate-android-icons.cjs
