@@ -432,8 +432,7 @@ export const GraphPane = memo(function GraphPane({
             event?.stopPropagation?.();
             const node = rawNode as RenderNode;
             focusNode(node);
-            const clickCount = (event as MouseEvent | undefined)?.detail ?? 0;
-            if (clickCount >= 2) onOpenNote(node.id);
+            onOpenNote(node.id);
           }}
           onNodeRightClick={(rawNode, event) => {
             event?.preventDefault?.();
