@@ -303,6 +303,12 @@ export default function App() {
   const handleOpenGraphNote = useCallback((noteId: string) => {
     setActiveNoteId(noteId);
     setView("note");
+    setSidebarOpen(false);
+  }, []);
+
+  const handleSelectSidebarNote = useCallback((noteId: string) => {
+    setActiveNoteId(noteId);
+    setSidebarOpen(false);
   }, []);
 
   const handleImportConnectorNotes = useCallback(async (incomingNotes: Note[], expectedNotes: Note[] = notesRef.current) => {
@@ -564,7 +570,7 @@ export default function App() {
             folderCreateNonce={folderCreateNonce}
             onViewChange={(nextView) => setView(accountLocked ? "account" : nextView)}
             onQueryChange={setQuery}
-            onSelectNote={setActiveNoteId}
+            onSelectNote={handleSelectSidebarNote}
             onSelectFolder={setSelectedFolderPath}
             onCreateNote={handleCreateNote}
             onCreateFolder={handleCreateFolder}
