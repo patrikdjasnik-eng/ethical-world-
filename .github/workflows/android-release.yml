@@ -117,11 +117,11 @@ jobs:
           RUN_NUMBER: ${{ github.run_number }}
         run: |
           set -euo pipefail
-          TAG="android-v\${VERSION}-\${RUN_NUMBER}"
+          TAG="android-v${VERSION}-${RUN_NUMBER}"
           APK="android/app/build/outputs/apk/release/app-release.apk"
           SHA="$(sha256sum "$APK" | awk '{print $1}')"
           SIZE="$(stat -c '%s' "$APK")"
-          URL="https://github.com/\${REPOSITORY}/releases/download/\${TAG}/ethical-world.apk"
+          URL="https://github.com/${REPOSITORY}/releases/download/\${TAG}/ethical-world.apk"
           jq -n \
             --arg version "$VERSION" \
             --argjson versionCode "$VERSION_CODE" \
@@ -144,7 +144,7 @@ jobs:
           gh release create "$TAG" \
             android/app/build/outputs/apk/release/app-release.apk#ethical-world.apk \
             latest.json#latest.json \
-            --title "Ethical World \${VERSION}" \
+            --title "Ethical World ${VERSION}" \
             --notes "Podepsaná Android aktualizace. Aplikace ověřuje SHA-256 a instalaci předává systémovému instalátoru Android."
 
       - name: Report missing release signing key
