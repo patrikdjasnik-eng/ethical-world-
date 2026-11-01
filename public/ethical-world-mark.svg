@@ -1,26 +1,56 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
   <title id="title">Ethical World</title>
-  <desc id="desc">A violet knowledge graph protected by a shield.</desc>
+  <desc id="desc">Stylizovaný králík uvnitř zelené znalostní sféry.</desc>
   <defs>
-    <linearGradient id="ew-gradient" x1="14" y1="10" x2="52" y2="55" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#c4b5fd"/>
-      <stop offset=".48" stop-color="#8b7cf6"/>
-      <stop offset="1" stop-color="#6554d9"/>
+    <radialGradient id="bg" cx="50%" cy="38%" r="72%">
+      <stop offset="0" stop-color="#123b2a"/>
+      <stop offset=".58" stop-color="#081b14"/>
+      <stop offset="1" stop-color="#050b09"/>
+    </radialGradient>
+    <linearGradient id="mint" x1="110" y1="70" x2="390" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c8ffe1"/>
+      <stop offset=".38" stop-color="#55f29b"/>
+      <stop offset="1" stop-color="#16a765"/>
     </linearGradient>
+    <linearGradient id="rabbit" x1="175" y1="60" x2="360" y2="355" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f0fff7"/>
+      <stop offset=".52" stop-color="#a7f5c8"/>
+      <stop offset="1" stop-color="#48c987"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop stop-color="#39e88b" stop-opacity=".3"/>
+      <stop offset="1" stop-color="#39e88b" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
   </defs>
-  <rect x="3" y="3" width="58" height="58" rx="16" fill="#0d0d12" stroke="#292633" stroke-width="2"/>
-  <path d="M32 9.5 49 16.2v14.2c0 11.2-6.7 19.6-17 24.2-10.3-4.6-17-13-17-24.2V16.2L32 9.5Z" fill="#17141f" stroke="url(#ew-gradient)" stroke-width="2.4" stroke-linejoin="round"/>
-  <g fill="none" stroke="#7768d9" stroke-width="1.8" stroke-linecap="round" opacity=".88">
-    <path d="m24 24 8-5 8 5M24 24l4 10m12-10-4 10m-8 0h8m-8 0 4 10m4-10-4 10"/>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="250" r="202" fill="url(#glow)"/>
+  <circle cx="256" cy="256" r="188" fill="none" stroke="#55e99a" stroke-opacity=".16" stroke-width="2"/>
+  <circle cx="256" cy="256" r="158" fill="none" stroke="url(#mint)" stroke-opacity=".62" stroke-width="3"/>
+  <path d="M98 256h316M256 98v316M145 145l222 222M367 145 145 367" fill="none" stroke="#53dc91" stroke-opacity=".14" stroke-width="2"/>
+  <ellipse cx="256" cy="256" rx="75" ry="158" fill="none" stroke="#53dc91" stroke-opacity=".18" stroke-width="2"/>
+  <ellipse cx="256" cy="256" rx="158" ry="65" fill="none" stroke="#53dc91" stroke-opacity=".18" stroke-width="2"/>
+  <g fill="#07140e" stroke="url(#mint)" stroke-width="3">
+    <circle cx="256" cy="98" r="7"/><circle cx="414" cy="256" r="7"/>
+    <circle cx="256" cy="414" r="7"/><circle cx="98" cy="256" r="7"/>
   </g>
-  <g fill="#0d0d12" stroke="url(#ew-gradient)" stroke-width="2">
-    <circle cx="32" cy="19" r="3.2"/>
-    <circle cx="24" cy="24" r="3.2"/>
-    <circle cx="40" cy="24" r="3.2"/>
-    <circle cx="28" cy="34" r="3.2"/>
-    <circle cx="36" cy="34" r="3.2"/>
-    <circle cx="32" cy="44" r="3.2"/>
+  <circle cx="256" cy="248" r="122" fill="#07140e" fill-opacity=".42" filter="url(#soft-glow)"/>
+  <g fill="url(#rabbit)" stroke="#e0fff0" stroke-opacity=".55" stroke-width="2" stroke-linejoin="round">
+    <path d="M211 205C186 163 158 100 169 72c5-14 18-17 29-5 22 25 34 91 42 132Z"/>
+    <path d="M251 190c-1-52 10-116 34-128 13-7 27 1 29 17 4 35-14 88-31 126Z"/>
+    <path d="M205 194c22-32 66-45 104-27 39 19 57 58 48 99-8 38-39 67-78 72-44 6-83-20-94-59-8-29-1-62 20-85Z"/>
+    <path d="M242 318c-28 13-54 39-63 68-5 16 3 29 20 30l105 0c23 0 37-16 28-36-12-28-42-53-72-63Z"/>
+    <path d="M338 250c16-8 31-5 39 3-6 12-19 18-35 15Z"/>
   </g>
-  <circle cx="32" cy="19" r="1.1" fill="#ddd6fe"/>
-  <circle cx="32" cy="44" r="1.1" fill="#ddd6fe"/>
+  <path d="M204 80c17 27 27 61 31 96M281 82c-8 28-14 59-16 89" fill="none" stroke="#fff" stroke-opacity=".52" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="318" cy="226" r="6" fill="#062116"/>
+  <circle cx="320" cy="224" r="2" fill="#effff5"/>
+  <path d="M287 276c14 4 26 1 36-7" fill="none" stroke="#0c5935" stroke-width="4" stroke-linecap="round"/>
+  <path d="M153 371c20-20 42-29 65-30-4 24-19 43-43 52-11 4-21-7-22-22Z" fill="#53e99a"/>
+  <path d="M169 384c14-16 29-27 49-38" fill="none" stroke="#d9ffea" stroke-opacity=".8" stroke-width="3" stroke-linecap="round"/>
+  <path d="M344 365c17-16 35-23 55-22-3 20-16 36-37 43-10 3-18-7-18-21Z" fill="#1bbd70"/>
+  <path d="M354 378c13-13 25-22 42-31" fill="none" stroke="#d9ffea" stroke-opacity=".72" stroke-width="3" stroke-linecap="round"/>
+  <rect x="3" y="3" width="506" height="506" rx="109" fill="none" stroke="#a4ffd0" stroke-opacity=".2" stroke-width="6"/>
 </svg>

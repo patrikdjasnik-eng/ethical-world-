@@ -6,6 +6,7 @@ on:
       - dev/first-runnable
     paths:
       - "src/**"
+      - "scripts/**"
       - "public/**"
       - "index.html"
       - "vite.config.ts"
@@ -18,6 +19,7 @@ on:
       - mobile/android-capacitor
     paths:
       - "src/**"
+      - "scripts/**"
       - "public/**"
       - "index.html"
       - "vite.config.ts"
@@ -63,6 +65,10 @@ jobs:
       - name: Install Capacitor toolchain
         run: npm install --no-save --package-lock=false @capacitor/core@8.6.0 @capacitor/cli@8.6.0 @capacitor/android@8.6.0
 
+      - name: Generate PWA icons
+        run: node scripts/generate-android-icons.cjs --web-only
+
+
       - name: Verify frontend
         run: npm run verify
 
@@ -72,6 +78,14 @@ jobs:
       - name: Generate Android project
         run: npx cap add android
 
+      - name: Configure native Android updater
+        run: node scripts/configure-android-native.cjs
+
+      - name: Check native updater script syntax
+        run: node --check scripts/configure-android-native.cjs
+
+      - name: Generate Ethical World launcher icons
+        run: node scripts/generate-android-icons.cjs --android-only
       - name: Sync web assets to Android
         run: npx cap sync android
 

@@ -4,7 +4,7 @@
   "description": "Local-first knowledge workspace with AI-assisted notes and cybersecurity workflows.",
   "author": "patrikdjasnik-eng",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "main": "electron/main.cjs",
   "repository": {
@@ -15,7 +15,7 @@
     "dev": "vite",
     "desktop:dev": "concurrently -k -n UI,DESKTOP \"vite --host 127.0.0.1\" \"wait-on http-get://127.0.0.1:5173 && electron electron/main.cjs\"",
     "build": "tsc -p tsconfig.json && vite build",
-    "verify": "npm test && npm run test:electron && npm run build",
+    "verify": "npm run icons:generate && npm test && npm run test:electron && npm run build",
     "desktop:package": "npm run build && electron-forge package",
     "desktop:make": "npm run build && electron-forge make",
     "desktop:publish": "npm run verify && electron-forge publish",

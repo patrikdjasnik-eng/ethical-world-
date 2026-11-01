@@ -1,6 +1,7 @@
 import { changedNote } from "./lib/vaultTools";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityRail } from "./components/ActivityRail";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { EditorPane } from "./components/EditorPane";
 import { VaultSidebar, type WorkspaceView } from "./components/VaultSidebar";
 import {
@@ -303,6 +304,12 @@ export default function App() {
   const handleOpenGraphNote = useCallback((noteId: string) => {
     setActiveNoteId(noteId);
     setView("note");
+    setSidebarOpen(false);
+  }, []);
+
+  const handleSelectSidebarNote = useCallback((noteId: string) => {
+    setActiveNoteId(noteId);
+    setSidebarOpen(false);
   }, []);
 
   const handleImportConnectorNotes = useCallback(async (incomingNotes: Note[], expectedNotes: Note[] = notesRef.current) => {
@@ -432,13 +439,14 @@ export default function App() {
 
   const toggleAiPanel = useCallback(() => {
     if (accountLocked) return;
+    if (window.innerWidth <= 620 && !aiOpen) setSidebarOpen(false);
 
     setAiOpen((current) => {
       const next = !current;
       if (next) setAiLoaded(true);
       return next;
     });
-  }, [accountLocked]);
+  }, [accountLocked, aiOpen]);
 
   useEffect(() => {
     const handleKeyboardShortcut = (event: KeyboardEvent) => {
@@ -511,7 +519,20 @@ export default function App() {
           : activeNote?.folder || "Vault root";
 
   return (
-    <div className={`workbench ${sidebarOpen ? "sidebar-open" : ""} ${aiOpen ? "ai-open" : ""}`}>
+    <div
+      className={`workbench ${sidebarOpen ? "sidebar-open" : ""} ${aiOpen ? "ai-open" : ""}`}
+      onPointerDown={(event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+
+        // Keep the dedicated Files/Máša toggles in control of their own state.
+        if (target.closest('.activity-rail button[aria-label="Files"], .activity-rail button[aria-label="Máša"], .topbar-actions button')) return;
+
+        if (!target.closest(".vault-sidebar")) setSidebarOpen(false);
+        if (!target.closest(".ai-panel")) setAiOpen(false);
+      }}
+    >
+      <UpdateBanner />
       {workspaceError && <div role="alert" className="workspace-error">
         {workspaceError}
         <button type="button" onClick={() => vaultLoadFailed ? window.location.reload() : setWorkspaceError(null)}>
@@ -549,7 +570,11 @@ export default function App() {
           aiOpen={aiOpen}
           onViewChange={(nextView) => setView(accountLocked ? "account" : nextView)}
           onToggleSidebar={() => {
-            if (!accountLocked) setSidebarOpen((current) => !current);
+            if (!accountLocked) {
+              const next = !sidebarOpen;
+              setSidebarOpen(next);
+              if (next && window.innerWidth <= 620) setAiOpen(false);
+            }
           }}
           onToggleAi={toggleAiPanel}
         />
@@ -564,7 +589,7 @@ export default function App() {
             folderCreateNonce={folderCreateNonce}
             onViewChange={(nextView) => setView(accountLocked ? "account" : nextView)}
             onQueryChange={setQuery}
-            onSelectNote={setActiveNoteId}
+            onSelectNote={handleSelectSidebarNote}
             onSelectFolder={setSelectedFolderPath}
             onCreateNote={handleCreateNote}
             onCreateFolder={handleCreateFolder}
