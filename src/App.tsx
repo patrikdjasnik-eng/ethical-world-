@@ -548,7 +548,19 @@ export default function App() {
         </div>
       </header>
 
-      <div className="workbench-body">
+      <div
+        className="workbench-body"
+        onPointerDown={(event) => {
+          const target = event.target;
+          if (!(target instanceof Element)) return;
+
+          // Navigation buttons have their own toggle behavior.
+          if (target.closest(".activity-rail button")) return;
+
+          if (!target.closest(".vault-sidebar")) setSidebarOpen(false);
+          if (!target.closest(".ai-panel")) setAiOpen(false);
+        }}
+      >
         <ActivityRail
           view={view}
           sidebarOpen={sidebarOpen}
