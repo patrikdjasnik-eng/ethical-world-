@@ -35,6 +35,7 @@ declare global {
       Plugins?: {
         ApkUpdater?: NativeApkUpdater;
       };
+      registerPlugin?: (pluginName: string) => NativeApkUpdater;
     };
   }
 }
@@ -81,7 +82,12 @@ export function validateUpdateManifest(value: unknown): AndroidUpdateManifest | 
   };
 }
 
+let registeredUpdater: NativeApkUpdater | null = null;
+
 export function getNativeApkUpdater(): NativeApkUpdater | null {
-  if (window.Capacitor?.getPlatform?.() !== "android") return null;
-  return window.Capacitor.Plugins?.ApkUpdater ?? null;
+  const capacitor = window.Capacitor;
+  if (capacitor?.getPlatform?.() !== "android") return null;
+  if (registeredUpdater) return registeredUpdater;
+  registeredUpdater = capacitor.Plugins?.ApkUpdater ?? capacitor.registerPlugin?.("ApkUpdater") ?? null;
+  return registeredUpdater;
 }
