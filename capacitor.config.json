@@ -1,0 +1,8 @@
+{
+  "appId": "app.ethicalworld.mobile",
+  "appName": "Ethical World",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  }
+}
