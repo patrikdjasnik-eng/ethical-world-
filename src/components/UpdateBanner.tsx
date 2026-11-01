@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import { useCallback, useEffect, useState } from "react";
 import {
   APP_VERSION,
@@ -23,7 +24,7 @@ export function UpdateBanner() {
   const [downloadId, setDownloadId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (window.Capacitor?.getPlatform?.() !== "android") {
+    if (Capacitor.getPlatform() !== "android") {
       setState("idle");
       return;
     }
