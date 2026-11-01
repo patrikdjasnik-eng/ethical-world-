@@ -73,6 +73,10 @@ jobs:
         env:
           ANDROID_VERSION_CODE: ${{ github.run_number }}
           ANDROID_VERSION_NAME: ${{ steps.app.outputs.version }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/ethical-world-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: node scripts/configure-android-native.cjs
 
       - name: Generate launcher icons
@@ -123,7 +127,7 @@ jobs:
           APK="android/app/build/outputs/apk/release/app-release.apk"
           SHA="$(sha256sum "$APK" | awk '{print $1}')"
           SIZE="$(stat -c '%s' "$APK")"
-          URL="https://github.com/${REPOSITORY}/releases/download/\${TAG}/ethical-world.apk"
+          URL="https://github.com/${REPOSITORY}/releases/download/${TAG}/ethical-world.apk"
           jq -n \
             --arg version "$VERSION" \
             --argjson versionCode "$VERSION_CODE" \
