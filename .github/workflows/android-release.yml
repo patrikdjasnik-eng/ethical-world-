@@ -56,7 +56,9 @@ jobs:
 
       - name: Read app version
         id: app
-        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Generate web icons
         run: node scripts/generate-android-icons.cjs --web-only
@@ -148,6 +150,22 @@ jobs:
             --title "Ethical World ${VERSION}" \
             --notes "Podepsaná Android aktualizace. Aplikace ověřuje SHA-256 a instalaci předává systémovému instalátoru Android."
 
+      - name: Publish update manifest to branch
+        if: steps.signing.outputs.configured == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          CONTENT="$(base64 -w0 latest.json)"
+          API_PATH="repos/${REPOSITORY}/contents/android-update.json"
+          SHA="$(gh api "${API_PATH}?ref=${BRANCH}" --jq .sha 2>/dev/null || true)"
+          if [ -n "$SHA" ]; then
+            gh api --method PUT "$API_PATH" -f message="chore(android): publish update manifest" -f content="$CONTENT" -f sha="$SHA" -f branch="$BRANCH" >/dev/null
+          else
+            gh api --method PUT "$API_PATH" -f message="chore(android): publish update manifest" -f content="$CONTENT" -f branch="$BRANCH" >/dev/null
+          fi
       - name: Report missing release signing key
         if: steps.signing.outputs.configured != 'true'
         run: |
