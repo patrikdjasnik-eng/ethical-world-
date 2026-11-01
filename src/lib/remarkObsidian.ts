@@ -21,7 +21,7 @@ function textContent(node: MarkdownNode): string {
   return (node.children ?? []).map(textContent).join("");
 }
 
-function makeInlineNode(type: string, value: string, className: string): MarkdownNode {
+function makeInlineNode(value: string, className: string): MarkdownNode {
   return {
     type: "text",
     value,
@@ -52,7 +52,7 @@ function transformText(node: MarkdownNode): MarkdownNode[] {
       const prefix = match[3] ?? "";
       if (prefix) result.push({ type: "text", value: prefix });
       const tag = match[4] ?? "";
-      result.push(makeInlineNode("text", "#" + tag, "markdown-tag"));
+      result.push(makeInlineNode("#" + tag, "markdown-tag"));
     }
     cursor = index + match[0].length;
   }
