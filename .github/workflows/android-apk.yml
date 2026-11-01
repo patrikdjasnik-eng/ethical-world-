@@ -1,6 +1,18 @@
 name: Android APK
 
 on:
+  pull_request:
+    branches:
+      - dev/first-runnable
+    paths:
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "vite.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "capacitor.config.json"
+      - ".github/workflows/android-apk.yml"
   push:
     branches:
       - mobile/android-capacitor
