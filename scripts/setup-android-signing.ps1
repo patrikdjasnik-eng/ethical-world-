@@ -24,7 +24,9 @@ if (Test-Path $KeystorePath) {
 }
 
 $random = New-Object byte[] 36
-[System.Security.Cryptography.RandomNumberGenerator]::Fill($random)
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($random)
+$rng.Dispose()
 $password = [Convert]::ToBase64String($random).Replace("+", "A").Replace("/", "B").Replace("=", "C")
 $alias = "ethical-world-release"
 
