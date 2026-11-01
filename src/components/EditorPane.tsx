@@ -9,6 +9,7 @@ import { extractWikiLinks, getBacklinks, normalizeTitle } from "../lib/notes";
 import { listCarrotCommits } from "../lib/storage";
 import { verifyCarrotHistory } from "../lib/carrot";
 import { mermaidSourceFromCode } from "../lib/mermaid";
+import { remarkObsidian } from "../lib/remarkObsidian";
 import type { CarrotCommit, Note, VaultFolder } from "../types";
 
 function mermaidSourceFromMarkdownNode(children: ReactNode): string | null {
@@ -227,7 +228,7 @@ export const EditorPane = memo(function EditorPane({
           ) : (
             <article className="markdown-preview">
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={[remarkGfm, remarkObsidian]}
                 components={{
                   img({ src, alt }) {
                     return <RemoteImage src={src} alt={alt} />;
