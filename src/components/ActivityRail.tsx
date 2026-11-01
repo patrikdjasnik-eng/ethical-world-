@@ -29,7 +29,7 @@ export const ActivityRail = memo(function ActivityRail({
       {moreOpen && <button type="button" className="activity-more-backdrop" aria-label="Zavřít nabídku" onClick={() => setMoreOpen(false)} />}
       <nav className="activity-rail" aria-label="Hlavní navigace">
       <div className="activity-rail-top">
-        <button type="button" className={sidebarOpen ? "active" : ""} onClick={onToggleSidebar} title="Soubory" aria-label="Files" aria-expanded={sidebarOpen}>
+        <button type="button" className={sidebarOpen ? "active" : ""} onClick={() => { onToggleSidebar(); setMoreOpen(false); }} title="Soubory" aria-label="Files" aria-expanded={sidebarOpen}>
           <span className="rail-glyph">▤</span>
         </button>
         <button type="button" className={view === "note" ? "active" : ""} onClick={() => openView("note")} title="Poznámky" aria-label="Poznámky">
@@ -63,7 +63,7 @@ export const ActivityRail = memo(function ActivityRail({
         )}
       </div>
       <div className="activity-rail-bottom">
-        <button type="button" className={aiOpen ? "active" : ""} onClick={onToggleAi} title="Máša" aria-label="Máša" aria-expanded={aiOpen}>
+        <button type="button" className={aiOpen ? "active" : ""} onClick={() => { onToggleAi(); setMoreOpen(false); }} title="Máša" aria-label="Máša" aria-expanded={aiOpen}>
           <span className="rail-glyph rail-ai">M</span>
         </button>
         <button type="button" className={view === "account" ? "active" : ""} onClick={() => openView("account")} title="Účet a nastavení" aria-label="Účet a nastavení">
