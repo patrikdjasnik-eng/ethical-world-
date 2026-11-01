@@ -23,8 +23,8 @@ function textContent(node: MarkdownNode): string {
 
 function makeInlineNode(value: string, className: string): MarkdownNode {
   return {
-    type: "text",
-    value,
+    type: "obsidianTag",
+    children: [{ type: "text", value }],
     data: {
       hName: "span",
       hProperties: { className: [className], "data-value": value }
@@ -44,8 +44,8 @@ function transformText(node: MarkdownNode): MarkdownNode[] {
 
     if (match[2] !== undefined) {
       result.push({
-        type: "text",
-        value: match[2],
+        type: "obsidianHighlight",
+        children: [{ type: "text", value: match[2] }],
         data: { hName: "mark", hProperties: { className: ["markdown-highlight"] } }
       });
     } else {
