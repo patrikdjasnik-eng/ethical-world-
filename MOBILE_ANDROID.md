@@ -88,3 +88,13 @@ Skript vytvoří keystore mimo projekt a uloží čtyři GitHub Actions secrets.
 Workflow .github/workflows/android-release.yml připravuje podepsané APK, SHA-256 a manifest android-update.json. Po úspěšném releasu aplikace zjistí novou verzi sama. Před dalším vydáním zvyš version v package.json i package-lock.json (např. 0.1.2 → 0.1.3).
 
 **Migrace z aktuální debug APK:** první instalace s novým release podpisem může vyžadovat jednorázovou přeinstalaci. Android nepovolí aktualizaci přes jiný podpis. Před tímto přechodem exportuj poznámky a ověř, že záloha jde znovu importovat; odinstalace může vymazat lokální IndexedDB.
+
+### Lokální vývoj s Capacitor updaterem
+
+Po `npm ci` doinstaluj stejnou verzi Capacitor Core, kterou používá Android build:
+
+```powershell
+npm install --no-save --package-lock=false @capacitor/core@8.6.0
+```
+
+Pak spusť obvyklé `npm run verify` a Android build. CI tuto závislost instaluje automaticky.
