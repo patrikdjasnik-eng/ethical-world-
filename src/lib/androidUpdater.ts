@@ -1,3 +1,4 @@
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import packageInfo from "../../package.json";
 
 export interface AndroidUpdateManifest {
@@ -28,17 +29,7 @@ export interface NativeApkUpdater {
   openInstallSettings(): Promise<void>;
 }
 
-declare global {
-  interface Window {
-    Capacitor?: {
-      getPlatform?: () => string;
-      Plugins?: {
-        ApkUpdater?: NativeApkUpdater;
-      };
-      registerPlugin?: (pluginName: string) => NativeApkUpdater;
-    };
-  }
-}
+const nativeApkUpdater = registerPlugin<NativeApkUpdater>("ApkUpdater");
 
 export const APP_VERSION = packageInfo.version;
 export const UPDATE_MANIFEST_URL =
@@ -82,12 +73,6 @@ export function validateUpdateManifest(value: unknown): AndroidUpdateManifest | 
   };
 }
 
-let registeredUpdater: NativeApkUpdater | null = null;
-
 export function getNativeApkUpdater(): NativeApkUpdater | null {
-  const capacitor = window.Capacitor;
-  if (capacitor?.getPlatform?.() !== "android") return null;
-  if (registeredUpdater) return registeredUpdater;
-  registeredUpdater = capacitor.Plugins?.ApkUpdater ?? capacitor.registerPlugin?.("ApkUpdater") ?? null;
-  return registeredUpdater;
+  return Capacitor.getPlatform() === "android" ? nativeApkUpdater : null;
 }
