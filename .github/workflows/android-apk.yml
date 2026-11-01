@@ -78,6 +78,12 @@ jobs:
       - name: Generate Android project
         run: npx cap add android
 
+      - name: Configure native Android updater
+        run: node scripts/configure-android-native.cjs
+
+      - name: Check native updater script syntax
+        run: node --check scripts/configure-android-native.cjs
+
       - name: Generate Ethical World launcher icons
         run: node scripts/generate-android-icons.cjs --android-only
       - name: Sync web assets to Android
