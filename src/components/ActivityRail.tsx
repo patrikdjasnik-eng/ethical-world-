@@ -25,7 +25,9 @@ export const ActivityRail = memo(function ActivityRail({
   };
 
   return (
-    <nav className="activity-rail" aria-label="Hlavní navigace">
+    <>
+      {moreOpen && <button type="button" className="activity-more-backdrop" aria-label="Zavřít nabídku" onClick={() => setMoreOpen(false)} />}
+      <nav className="activity-rail" aria-label="Hlavní navigace">
       <div className="activity-rail-top">
         <button type="button" className={sidebarOpen ? "active" : ""} onClick={onToggleSidebar} title="Soubory" aria-label="Files" aria-expanded={sidebarOpen}>
           <span className="rail-glyph">▤</span>
@@ -68,7 +70,8 @@ export const ActivityRail = memo(function ActivityRail({
           <span className="rail-glyph">⚙</span>
         </button>
       </div>
-    </nav>
+      </nav>
+    </>
   );
 });
 
