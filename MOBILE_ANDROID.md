@@ -13,7 +13,7 @@ První APK je určeno pro lokální práci s poznámkami:
 - autosave do IndexedDB;
 - složky, fulltextové hledání;
 - Wiki odkazy a backlinks;
-- Markdown preview a Mermaid;
+- Markdown preview včetně štítků `#tag`, zvýraznění `==text==`, calloutů a Mermaid;
 - knowledge graph.
 
 Poznámky zůstávají v lokálním úložišti aplikace na telefonu. Debug APK není synchronizační služba a samo o sobě nepřenáší data mezi telefonem a PC. Před odinstalací aplikace je nutné poznámky exportovat/zálohovat.
@@ -36,9 +36,11 @@ Po instalaci Android Studio, Android SDK a JDK 21:
 ```bash
 npm ci
 npm install --no-save --package-lock=false @capacitor/core@8.6.0 @capacitor/cli@8.6.0 @capacitor/android@8.6.0
+node scripts/generate-android-icons.cjs --web-only
 npm run verify
 npm run build
 npx cap add android
+node scripts/generate-android-icons.cjs --android-only
 npx cap sync android
 cd android
 ./gradlew assembleDebug
@@ -60,3 +62,7 @@ Výstup:
 - JDK 21
 - Capacitor 8.6.0
 - Android debug APK
+
+## Ikona aplikace
+
+Launcher ikona Androidu se generuje z `public/ethical-world-mark.svg`. Skript vytváří PWA PNG ikony i legacy a adaptive Android ikony pro běžné hustoty displeje. V CI se webové ikony generují před buildem a nativní ikony po vytvoření Android projektu.
