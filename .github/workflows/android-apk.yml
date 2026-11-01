@@ -68,6 +68,9 @@ jobs:
       - name: Generate PWA icons
         run: node scripts/generate-android-icons.cjs --web-only
 
+      - name: Generate PWA icons
+        run: node scripts/generate-android-icons.cjs --web-only
+
       - name: Verify frontend
         run: npm run verify
 
@@ -80,8 +83,7 @@ jobs:
       - name: Generate Ethical World launcher icons
         run: node scripts/generate-android-icons.cjs --android-only
 
-      - name: Generate Ethical World launcher icons
-        run: node scripts/generate-android-icons.cjs
+
 
       - name: Sync web assets to Android
         run: npx cap sync android
