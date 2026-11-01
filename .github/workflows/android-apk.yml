@@ -6,6 +6,7 @@ on:
       - dev/first-runnable
     paths:
       - "src/**"
+      - "scripts/**"
       - "public/**"
       - "index.html"
       - "vite.config.ts"
@@ -18,6 +19,7 @@ on:
       - mobile/android-capacitor
     paths:
       - "src/**"
+      - "scripts/**"
       - "public/**"
       - "index.html"
       - "vite.config.ts"
@@ -71,6 +73,9 @@ jobs:
 
       - name: Generate Android project
         run: npx cap add android
+
+      - name: Generate Ethical World launcher icons
+        run: node scripts/generate-android-icons.cjs
 
       - name: Sync web assets to Android
         run: npx cap sync android
