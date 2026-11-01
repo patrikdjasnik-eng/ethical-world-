@@ -34,7 +34,7 @@ function makeInlineNode(value: string, className: string): MarkdownNode {
 
 function transformText(node: MarkdownNode): MarkdownNode[] {
   const value = node.value ?? "";
-  const pattern = /(==([^=\n]+)==|(^|[\\s([{])#([\\p{L}\\p{N}_/-]+))/gu;
+  const pattern = /(==([^=\n]+)==|(^|[\s([{])#([\p{L}\p{N}_/-]+))/gu;
   const result: MarkdownNode[] = [];
   let cursor = 0;
 
@@ -66,7 +66,7 @@ function transformNode(node: MarkdownNode): void {
     const firstParagraph = node.children[0];
     if (firstParagraph.type === "paragraph") {
       const firstLine = textContent(firstParagraph);
-      const match = /^\\s*\\[!([A-Z]+)\\](?:[ \\t]+(.*))?\\s*$/i.exec(firstLine);
+      const match = /^\s*\[!([A-Z]+)\](?:[ \t]+(.*))?\s*$/i.exec(firstLine);
       const type = match?.[1]?.toUpperCase();
       if (type && CALLOUT_TYPES.has(type)) {
         node.data = {
