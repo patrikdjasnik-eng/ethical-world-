@@ -41,7 +41,7 @@ declare global {
 
 export const APP_VERSION = packageInfo.version;
 export const UPDATE_MANIFEST_URL =
-  "https://github.com/patrikdjasnik-eng/ethical-world-/releases/latest/download/latest.json";
+  "https://raw.githubusercontent.com/patrikdjasnik-eng/ethical-world-/mobile/android-capacitor/android-update.json";
 
 export function isNewerVersion(candidate: string, current: string): boolean {
   const parse = (value: string) => value.split(".").map((part) => Number.parseInt(part, 10));
