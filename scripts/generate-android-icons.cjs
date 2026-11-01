@@ -19,7 +19,7 @@ function writePng(filePath, size) {
   fs.writeFileSync(filePath, renderPng(size));
 }
 
-const androidRes = path.join(root, "android", "app", "src", "main", "res");
+const mode = process.argv[2] ?? "all";\nconst androidRes = path.join(root, "android", "app", "src", "main", "res");
 const legacySizes = {
   "mipmap-mdpi": 48,
   "mipmap-hdpi": 72,
@@ -28,7 +28,7 @@ const legacySizes = {
   "mipmap-xxxhdpi": 192
 };
 
-for (const [directory, size] of Object.entries(legacySizes)) {
+if (mode !== "--web-only") {\n  if (!fs.existsSync(androidRes)) throw new Error("Android projekt ještě neexistuje. Nejdřív spusť npx cap add android.");\n  for (const [directory, size] of Object.entries(legacySizes)) {
   const target = path.join(androidRes, directory);
   writePng(path.join(target, "ic_launcher.png"), size);
   writePng(path.join(target, "ic_launcher_round.png"), size);
