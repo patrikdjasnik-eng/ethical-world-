@@ -1,0 +1,12 @@
+{
+  "version": "0.1.2",
+  "versionCode": 26,
+  "apkUrl": "https://github.com/patrikdjasnik-eng/ethical-world-/releases/download/android-v0.1.2-26/ethical-world.apk",
+  "sha256": "debcf98c57499fbd2515cb4ba6a47d5278cd54392d5c7339c12f5af075caf926",
+  "sizeBytes": 5369500,
+  "releaseNotes": [
+    "Vylepšené mobilní ovládání a spodní navigace.",
+    "Nová ikona Ethical World.",
+    "Kontrola a instalace aktualizací přímo v aplikaci."
+  ]
+}
