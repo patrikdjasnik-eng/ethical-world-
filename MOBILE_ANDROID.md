@@ -66,3 +66,25 @@ Výstup:
 ## Ikona aplikace
 
 Launcher ikona Androidu se generuje z `public/ethical-world-mark.svg`. Skript vytváří PWA PNG ikony i legacy a adaptive Android ikony pro běžné hustoty displeje. V CI se webové ikony generují před buildem a nativní ikony po vytvoření Android projektu.
+
+## Automatické aktualizace Android APK
+
+Aplikace obsahuje kontrolu verze při spuštění, stažení přes Android DownloadManager, ověření SHA-256 a předání APK systémovému instalátoru. Android vždy vyžaduje potvrzení instalace uživatelem.
+
+### Jednorázové nastavení release podpisu
+
+Debug APK z běžného CI není dlouhodobý distribuční podpis. Pro aktualizace přes instalátor je nutný stabilní release keystore, který se nikdy nesmí commitovat do repozitáře.
+
+Na Windows po instalaci JDK 21 a GitHub CLI a přihlášení přes gh auth login spusť z kořene projektu:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-android-signing.ps1
+```
+
+Skript vytvoří keystore mimo projekt a uloží čtyři GitHub Actions secrets. Soubor keystore bezpečně zálohuj; bez něj už nepůjde podepisovat další kompatibilní aktualizace.
+
+### Vydání aktualizace
+
+Workflow .github/workflows/android-release.yml připravuje podepsané APK, SHA-256 a manifest android-update.json. Po úspěšném releasu aplikace zjistí novou verzi sama. Před dalším vydáním zvyš version v package.json i package-lock.json (např. 0.1.2 → 0.1.3).
+
+**Migrace z aktuální debug APK:** první instalace s novým release podpisem může vyžadovat jednorázovou přeinstalaci. Android nepovolí aktualizaci přes jiný podpis. Před tímto přechodem exportuj poznámky a ověř, že záloha jde znovu importovat; odinstalace může vymazat lokální IndexedDB.
