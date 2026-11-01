@@ -133,6 +133,7 @@ jobs:
             > latest.json
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          cp "$APK" ethical-world.apk
 
       - name: Publish signed Android release
         if: steps.signing.outputs.configured == 'true'
@@ -142,8 +143,8 @@ jobs:
           VERSION: ${{ steps.app.outputs.version }}
         run: |
           gh release create "$TAG" \
-            android/app/build/outputs/apk/release/app-release.apk#ethical-world.apk \
-            latest.json#latest.json \
+            ethical-world.apk \
+            latest.json \
             --title "Ethical World ${VERSION}" \
             --notes "Podepsaná Android aktualizace. Aplikace ověřuje SHA-256 a instalaci předává systémovému instalátoru Android."
 
