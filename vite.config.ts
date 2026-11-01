@@ -106,7 +106,7 @@ function gatewayProxy(): Plugin {
     configurePreviewServer(server) { install(server.middlewares); },
     transformIndexHtml(html, context) {
       const script = context.server ? "'self' 'unsafe-inline'" : "'self'";
-      return html.replace("<head>", `<head><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src ${script}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' ws://127.0.0.1:5173 ws://localhost:5173 https://github.com https://release-assets.githubusercontent.com; object-src 'none'; base-uri 'none'; form-action 'self'">`);
+      return html.replace("<head>", `<head><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src ${script}; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' ws://127.0.0.1:5173 ws://localhost:5173 https://github.com https://release-assets.githubusercontent.com https://raw.githubusercontent.com; object-src 'none'; base-uri 'none'; form-action 'self'">`);
     }
   };
 }
