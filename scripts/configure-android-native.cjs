@@ -168,7 +168,7 @@ if (!manifest.includes('android:name="androidx.core.content.FileProvider"')) {
   manifest = requireReplace(manifest, /<\/application>/,
     '    <provider\n' +
     '            android:name="androidx.core.content.FileProvider"\n' +
-    '            android:authorities="\${applicationId}.fileprovider"\n' +
+    '            android:authorities="${applicationId}.fileprovider"\n' +
     '            android:exported="false"\n' +
     '            android:grantUriPermissions="true">\n' +
     '            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/ethical_world_file_paths" />\n' +
