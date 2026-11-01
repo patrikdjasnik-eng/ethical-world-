@@ -517,7 +517,19 @@ export default function App() {
           : activeNote?.folder || "Vault root";
 
   return (
-    <div className={`workbench ${sidebarOpen ? "sidebar-open" : ""} ${aiOpen ? "ai-open" : ""}`}>
+    <div
+      className={`workbench ${sidebarOpen ? "sidebar-open" : ""} ${aiOpen ? "ai-open" : ""}`}
+      onPointerDown={(event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+
+        // Keep the dedicated Files/Máša toggles in control of their own state.
+        if (target.closest('.activity-rail button[aria-label="Files"], .activity-rail button[aria-label="Máša"], .topbar-actions button')) return;
+
+        if (!target.closest(".vault-sidebar")) setSidebarOpen(false);
+        if (!target.closest(".ai-panel")) setAiOpen(false);
+      }}
+    >
       {workspaceError && <div role="alert" className="workspace-error">
         {workspaceError}
         <button type="button" onClick={() => vaultLoadFailed ? window.location.reload() : setWorkspaceError(null)}>
@@ -548,19 +560,7 @@ export default function App() {
         </div>
       </header>
 
-      <div
-        className="workbench-body"
-        onPointerDown={(event) => {
-          const target = event.target;
-          if (!(target instanceof Element)) return;
-
-          // Navigation buttons have their own toggle behavior.
-          if (target.closest(".activity-rail button")) return;
-
-          if (!target.closest(".vault-sidebar")) setSidebarOpen(false);
-          if (!target.closest(".ai-panel")) setAiOpen(false);
-        }}
-      >
+      <div className="workbench-body">
         <ActivityRail
           view={view}
           sidebarOpen={sidebarOpen}
