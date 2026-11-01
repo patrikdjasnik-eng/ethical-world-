@@ -439,13 +439,14 @@ export default function App() {
 
   const toggleAiPanel = useCallback(() => {
     if (accountLocked) return;
+    if (window.innerWidth <= 620 && !aiOpen) setSidebarOpen(false);
 
     setAiOpen((current) => {
       const next = !current;
       if (next) setAiLoaded(true);
       return next;
     });
-  }, [accountLocked]);
+  }, [accountLocked, aiOpen]);
 
   useEffect(() => {
     const handleKeyboardShortcut = (event: KeyboardEvent) => {
@@ -569,7 +570,11 @@ export default function App() {
           aiOpen={aiOpen}
           onViewChange={(nextView) => setView(accountLocked ? "account" : nextView)}
           onToggleSidebar={() => {
-            if (!accountLocked) setSidebarOpen((current) => !current);
+            if (!accountLocked) {
+              const next = !sidebarOpen;
+              setSidebarOpen(next);
+              if (next && window.innerWidth <= 620) setAiOpen(false);
+            }
           }}
           onToggleAi={toggleAiPanel}
         />
