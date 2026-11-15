@@ -1,0 +1,1 @@
+Tento marker se aktualizuje až po nastavení Android release signing secrets. Slouží pouze k bezpečnému spuštění podepsaného Android Release workflow.
